@@ -27,6 +27,7 @@
         "debug-panel.js",
         "memory.js",
         "smart-agent.js",
+        "dom-scanner.js",
         "content.js"
       ],
       "css": [
