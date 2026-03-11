@@ -24,63 +24,82 @@ try {
     // ========================================================================
 
     function injectBookingButton() {
-        // Já tem botão? Não injeta de novo
         if (document.querySelector('.sk-tracking-btn')) return;
 
-        // Procura EXATAMENTE o label "Booking:" (não "Previsão Booking", "Confirmação Booking", etc.)
-        var allTds = document.querySelectorAll('td');
-        for (var i = 0; i < allTds.length; i++) {
-            var text = allTds[i].textContent.trim();
-            if (text !== 'Booking:') continue; // Match EXATO
-
-            // Encontra o input logo depois
-            var nextTd = allTds[i].nextElementSibling;
-            if (!nextTd) continue;
-            var input = nextTd.querySelector('input');
-            if (!input) continue;
-
-            // Cria botão premium
-            var btn = document.createElement('button');
-            btn.className = 'sk-tracking-btn';
-            btn.innerHTML = '🤖 Rastrear';
-            btn.title = 'Agente busca dados de tracking no armador automaticamente';
-            btn.style.cssText = 'background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;border:none;border-radius:6px;padding:6px 14px;margin-left:8px;cursor:pointer;font-size:12px;font-weight:bold;vertical-align:middle;box-shadow:0 3px 8px rgba(26,115,232,0.4);transition:all 0.2s ease;font-family:Arial,sans-serif;';
-            btn.addEventListener('mouseenter', function() { this.style.transform = 'scale(1.05)'; this.style.boxShadow = '0 4px 12px rgba(26,115,232,0.6)'; });
-            btn.addEventListener('mouseleave', function() { this.style.transform = 'scale(1)'; this.style.boxShadow = '0 3px 8px rgba(26,115,232,0.4)'; });
-            btn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                startBookingTracking();
-            });
-
-            // Insere ao lado do input
-            if (input.parentElement) {
-                input.parentElement.appendChild(btn);
-            } else {
-                nextTd.appendChild(btn);
-            }
-            console.log('[Tracking] Botão 🤖 injetado ao lado do Booking');
-            break;
-        }
-    }
-
-    function startBookingTracking() {
-        // Encontra o valor do booking
+        // Busca o INPUT do booking direto pelo ID (contém "Reserva" ou "booking")
         var bookingInput = null;
-        var allLabels = document.querySelectorAll('td, label, span');
-        for (var i = 0; i < allLabels.length; i++) {
-            if (allLabels[i].textContent.trim() === 'Booking:') {
-                var nextEl = allLabels[i].nextElementSibling || allLabels[i].parentElement.nextElementSibling;
-                if (nextEl) {
-                    bookingInput = nextEl.querySelector('input') || nextEl;
+        var allInputs = document.querySelectorAll('input');
+
+        for (var i = 0; i < allInputs.length; i++) {
+            var inp = allInputs[i];
+            var id = (inp.id || '').toLowerCase();
+            var name = (inp.name || '').toLowerCase();
+            var combined = id + ' ' + name;
+
+            // Procura campos com "reserva" ou "booking" no ID/name
+            if (combined.indexOf('reserva') >= 0 || combined.indexOf('booking') >= 0) {
+                // EXCLUI campos tipo "previsaoReserva", "confirmacaoReserva", "dataReserva"
+                if (combined.indexOf('previsao') >= 0 || combined.indexOf('confirmacao') >= 0 || combined.indexOf('data') >= 0) continue;
+                // EXCLUI: "Previsão Booking", "Confirmação Booking" pelo label da row
+                var parentTd = inp.closest('td');
+                if (parentTd && parentTd.previousElementSibling) {
+                    var labelText = parentTd.previousElementSibling.textContent.trim();
+                    if (/previs|confirma/i.test(labelText)) continue;
                 }
+                bookingInput = inp;
+                console.log('[Tracking] Input encontrado por ID:', inp.id || inp.name);
                 break;
             }
         }
 
+        // Fallback: busca input que vem LOGO depois de um TD cujo texto é somente "Booking:"
         if (!bookingInput) {
-            // Fallback: busca por title
-            bookingInput = document.querySelector('input[title*="ooking" i]');
+            var allTds = document.querySelectorAll('td');
+            for (var t = 0; t < allTds.length; t++) {
+                // Checa se o TD contém SOMENTE "Booking:" (sem sub-elementos com texto)
+                if (allTds[t].children.length === 0 && allTds[t].textContent.trim() === 'Booking:') {
+                    var nextTd = allTds[t].nextElementSibling;
+                    if (nextTd) bookingInput = nextTd.querySelector('input');
+                    if (bookingInput) break;
+                }
+            }
+        }
+
+        if (!bookingInput) {
+            // Debug: mostra todos inputs com "reserva" ou "booking" no ID
+            var debugIds = [];
+            document.querySelectorAll('input').forEach(function(inp) {
+                var id = (inp.id || '').toLowerCase();
+                if (id.indexOf('reserva') >= 0 || id.indexOf('booking') >= 0) {
+                    debugIds.push(inp.id + ' (label: ' + (inp.closest('td') && inp.closest('td').previousElementSibling ? inp.closest('td').previousElementSibling.textContent.trim() : '?') + ')');
+                }
+            });
+            if (debugIds.length > 0) console.log('[Tracking] Inputs Reserva/Booking:', debugIds.join(' | '));
+            return;
+        }
+
+        var btn = document.createElement('button');
+        btn.className = 'sk-tracking-btn';
+        btn.innerHTML = '🤖 Rastrear';
+        btn.title = 'Agente busca dados de tracking no armador';
+        btn.style.cssText = 'background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;border:none;border-radius:6px;padding:6px 14px;margin-left:8px;cursor:pointer;font-size:12px;font-weight:bold;vertical-align:middle;box-shadow:0 3px 8px rgba(26,115,232,0.4);transition:all 0.2s ease;font-family:Arial,sans-serif;';
+        btn.addEventListener('mouseenter', function() { this.style.transform = 'scale(1.05)'; this.style.boxShadow = '0 4px 12px rgba(26,115,232,0.6)'; });
+        btn.addEventListener('mouseleave', function() { this.style.transform = 'scale(1)'; this.style.boxShadow = '0 3px 8px rgba(26,115,232,0.4)'; });
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            startBookingTracking(bookingInput);
+        });
+        bookingInput.parentElement.appendChild(btn);
+        console.log('[Tracking] Botão 🤖 injetado!');
+    }
+
+    function startBookingTracking(bookingInputRef) {
+        var bookingInput = bookingInputRef;
+
+        // Fallback se não recebeu o input
+        if (!bookingInput) {
+            bookingInput = document.querySelector('input[id*="eserva" i]:not([id*="previsao" i]):not([id*="confirmacao" i])');
         }
 
         var bookingNumber = bookingInput ? (bookingInput.value || bookingInput.textContent || '').trim() : '';
@@ -93,8 +112,9 @@ try {
         // Detecta o armador
         var carrier = detectCarrier();
 
+        SkDebug.show();
+        SkDebug.log('Tracking', 'EXEC', '🔍 Buscando: ' + bookingNumber + ' (' + carrier + ')');
         showToast('🔍 Buscando tracking: ' + bookingNumber + ' (' + carrier + ')...', 'info');
-        updateStatus('🔍 Tracking: ' + bookingNumber);
 
         chrome.runtime.sendMessage({
             action: 'trackBooking',
@@ -115,27 +135,30 @@ try {
 
     function handleTrackingData(data, error) {
         if (error || !data) {
+            SkDebug.log('Tracking', 'FAIL', '❌ Erro no tracking: ' + (error || 'Sem dados'));
             showToast('❌ Erro no tracking: ' + (error || 'Sem dados'), 'error');
-            updateStatus('❌ Tracking falhou');
             return;
         }
 
-        if (data.events.length === 0) {
+        if (!data.events || data.events.length === 0) {
+            SkDebug.log('Tracking', 'FAIL', '⚠️ Nenhum evento de tracking encontrado');
             showToast('⚠️ Nenhum evento de tracking encontrado', 'warning');
             return;
         }
 
-        showToast('✅ Tracking encontrado! Navio: ' + data.vessel + ' / ' + data.voyage, 'success');
-        updateStatus('✅ Tracking: ' + data.vessel);
+        SkDebug.log('Tracking', 'OK', '✅ Dados recebidos: Navio=' + data.vessel + ' Viagem=' + data.voyage);
+        SkDebug.log('Tracking', 'INFO', '📍 Origem: ' + data.from + ' → Destino: ' + data.to);
+        SkDebug.log('Tracking', 'INFO', '📅 Embarque: ' + data.departureDate + ' | ETA: ' + data.arrivalDate);
+        SkDebug.log('Tracking', 'INFO', '🔄 Transbordos: ' + (data.transshipments ? data.transshipments.length : 0));
 
-        // Preenche os campos
+        showToast('✅ Tracking: ' + data.vessel + ' / ' + data.voyage + ' — preenchendo campos...', 'success');
+
         fillTrackingFields(data);
     }
 
     async function fillTrackingFields(data) {
         var delay = function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); };
 
-        // Converte datas de "15 Mar 2026 15:00" pra "15/03/2026"
         function convertDate(dateStr) {
             if (!dateStr) return '';
             var months = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
@@ -148,50 +171,86 @@ try {
             return dateStr;
         }
 
-        // Preenche campo por label
-        async function fillFieldByLabel(labelText, value) {
-            if (!value) return;
-            var allTds = document.querySelectorAll('td, label, span');
-            for (var i = 0; i < allTds.length; i++) {
-                var text = allTds[i].textContent.trim().replace(':', '');
-                if (text.toLowerCase() === labelText.toLowerCase()) {
-                    var container = allTds[i].nextElementSibling || allTds[i].parentElement;
-                    if (!container) continue;
-                    var input = container.querySelector('input');
-                    if (!input) {
-                        // Tenta no próximo TD
-                        var nextTd = allTds[i].closest('td');
-                        if (nextTd) nextTd = nextTd.nextElementSibling;
-                        if (nextTd) input = nextTd.querySelector('input');
-                    }
-                    if (input) {
-                        input.focus();
-                        input.value = value;
-                        input.dispatchEvent(new Event('input', { bubbles: true }));
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
-                        input.blur();
-                        console.log('[Tracking] Preencheu ' + labelText + ': ' + value);
-                        await delay(300);
-                        return true;
-                    }
+        // Preenche input por ID parcial
+        function fillByIdPattern(pattern, value, label) {
+            if (!value) return false;
+            var inputs = document.querySelectorAll('input');
+            for (var i = 0; i < inputs.length; i++) {
+                var id = (inputs[i].id || '').toLowerCase();
+                if (id.indexOf(pattern.toLowerCase()) >= 0) {
+                    inputs[i].focus();
+                    inputs[i].value = value;
+                    inputs[i].dispatchEvent(new Event('input', { bubbles: true }));
+                    inputs[i].dispatchEvent(new Event('change', { bubbles: true }));
+                    inputs[i].blur();
+                    SkDebug.log(label, 'OK', '✅ ' + value + ' (via ID: ' + inputs[i].id + ')');
+                    return true;
                 }
             }
-            console.log('[Tracking] Campo não encontrado: ' + labelText);
             return false;
         }
 
-        // Preenche os campos principais
-        await fillFieldByLabel('Navio', data.vessel);
-        await fillFieldByLabel('Viagem', data.voyage);
-        await fillFieldByLabel('Previsão de Embarque', convertDate(data.departureDate));
-        await fillFieldByLabel('Previsão de Atracação', convertDate(data.arrivalDate));
+        // Preenche campo por label exato no TD anterior
+        async function fillFieldByLabel(labelText, value, logLabel) {
+            if (!value) return false;
+            var allTds = document.querySelectorAll('td');
+            for (var i = 0; i < allTds.length; i++) {
+                var text = allTds[i].textContent.trim();
+                // Match exato: "Viagem:" mas NÃO "Viagem Feeder:"
+                var cleanText = text.replace(/\s*:$/, '').trim();
+                if (cleanText.toLowerCase() !== labelText.toLowerCase()) continue;
 
-        // Log dos transbordos
-        if (data.transshipments && data.transshipments.length > 0) {
-            console.log('[Tracking] Transbordos encontrados:', data.transshipments.length);
-            showToast('📦 ' + data.transshipments.length + ' transbordo(s) encontrado(s). Verifique a seção Transbordos.', 'info', 8000);
-            // TODO: Preencher tabela de transbordos automaticamente
+                // Achou o label exato - busca o input no próximo TD
+                var nextTd = allTds[i].nextElementSibling;
+                if (!nextTd) continue;
+                var input = nextTd.querySelector('input');
+                if (!input) continue;
+
+                input.focus();
+                input.value = value;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                input.blur();
+                SkDebug.log(logLabel || labelText, 'OK', '✅ ' + value);
+                await delay(300);
+                return true;
+            }
+            SkDebug.log(logLabel || labelText, 'FAIL', '❌ Campo não encontrado: ' + labelText);
+            return false;
         }
+
+        // Preenche os campos
+        SkDebug.log('Navio', 'EXEC', '🚢 Preenchendo: ' + data.vessel);
+        var navioOk = await fillFieldByLabel('Navio', data.vessel, 'Navio');
+        if (!navioOk) fillByIdPattern('navio', data.vessel, 'Navio');
+        await delay(300);
+
+        SkDebug.log('Viagem', 'EXEC', '🧭 Preenchendo: ' + data.voyage);
+        var viagemOk = await fillFieldByLabel('Viagem', data.voyage, 'Viagem');
+        if (!viagemOk) fillByIdPattern('viagem', data.voyage, 'Viagem');
+        await delay(300);
+
+        SkDebug.log('Previsão Embarque', 'EXEC', '📅 Preenchendo: ' + convertDate(data.departureDate));
+        var embarqueOk = await fillFieldByLabel('Previsão de Embarque', convertDate(data.departureDate), 'Prev. Embarque');
+        if (!embarqueOk) fillByIdPattern('previsaoEmbarque', convertDate(data.departureDate), 'Prev. Embarque');
+        await delay(300);
+
+        SkDebug.log('Previsão Atracação', 'EXEC', '📅 Preenchendo: ' + convertDate(data.arrivalDate));
+        var etaOk = await fillFieldByLabel('Previsão de Atracação', convertDate(data.arrivalDate), 'Prev. Atracação');
+        if (!etaOk) fillByIdPattern('previsaoAtracacao', convertDate(data.arrivalDate), 'Prev. Atracação');
+        await delay(300);
+
+        // Transbordos
+        if (data.transshipments && data.transshipments.length > 0) {
+            SkDebug.log('Transbordos', 'INFO', '📦 ' + data.transshipments.length + ' transbordo(s) encontrado(s):');
+            for (var t = 0; t < data.transshipments.length; t++) {
+                var ts = data.transshipments[t];
+                SkDebug.log('Transbordo ' + (t + 1), 'INFO', '📍 ' + ts.port + ' | ' + ts.vesselIn + '→' + ts.vesselOut + ' | ' + convertDate(ts.arrivalDate) + '→' + convertDate(ts.departureDate));
+            }
+            showToast('📦 ' + data.transshipments.length + ' transbordo(s) detectado(s) — verifique os logs', 'info', 8000);
+        }
+
+        SkDebug.log('Tracking', 'OK', '🏁 Preenchimento concluído!');
     }
 
     // Injeta o botão a cada 3 segundos (aguarda página operacional carregar)

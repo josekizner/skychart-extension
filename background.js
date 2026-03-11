@@ -77,16 +77,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("[Tracking] Dados recebidos do Maersk, enviando pra Skychart tab:", skychartTabId);
 
     if (skychartTabId) {
+      // Volta pra aba do Skychart pra usuario supervisionar
+      chrome.tabs.update(skychartTabId, { active: true }).catch(() => {});
+
       chrome.tabs.sendMessage(skychartTabId, {
         action: 'trackingDataReady',
         data: request.data,
         error: request.error || null
       }).catch(err => console.error("[Tracking] Erro enviando dados:", err));
 
-      // Fecha a aba da Maersk após 2 segundos
+      // Fecha a aba da Maersk após 3 segundos
       setTimeout(() => {
         chrome.tabs.remove(maerskTabId).catch(() => {});
-      }, 2000);
+      }, 3000);
 
       delete pendingTrackingTabs[maerskTabId];
     }
