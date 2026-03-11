@@ -157,8 +157,6 @@ try {
     }
 
     async function fillTrackingFields(data) {
-        var delay = function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); };
-
         function convertDate(dateStr) {
             if (!dateStr) return '';
             var months = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
@@ -171,83 +169,51 @@ try {
             return dateStr;
         }
 
-        // Preenche input por ID parcial
-        function fillByIdPattern(pattern, value, label) {
+        // Usa SkAgent.findInputByLabel + SkAgent.engine.nativeSet (mesma lógica do câmbio)
+        async function fillField(labelText, value, logLabel) {
             if (!value) return false;
-            var inputs = document.querySelectorAll('input');
-            for (var i = 0; i < inputs.length; i++) {
-                var id = (inputs[i].id || '').toLowerCase();
-                if (id.indexOf(pattern.toLowerCase()) >= 0) {
-                    inputs[i].focus();
-                    inputs[i].value = value;
-                    inputs[i].dispatchEvent(new Event('input', { bubbles: true }));
-                    inputs[i].dispatchEvent(new Event('change', { bubbles: true }));
-                    inputs[i].blur();
-                    SkDebug.log(label, 'OK', '✅ ' + value + ' (via ID: ' + inputs[i].id + ')');
-                    return true;
-                }
+            var label = logLabel || labelText;
+
+            // Usa o findInputByLabel do smart-agent (provado no câmbio)
+            var input = SkAgent.findInputByLabel(labelText);
+            if (!input) {
+                SkDebug.log(label, 'FAIL', '❌ Campo não encontrado: ' + labelText);
+                return false;
             }
-            return false;
+
+            // Usa nativeSet do Engine (Angular-compatible) 
+            var result = SkAgent.engine.nativeSet(input, value);
+            if (result.ok) {
+                SkAgent.highlight(input);
+                SkDebug.log(label, 'OK', '✅ ' + value);
+            } else {
+                SkDebug.log(label, 'FAIL', '❌ nativeSet falhou: ' + (result.reason || ''));
+            }
+            await SkAgent.delay(500);
+            return result.ok;
         }
 
-        // Preenche campo por label exato no TD anterior
-        async function fillFieldByLabel(labelText, value, logLabel) {
-            if (!value) return false;
-            var allTds = document.querySelectorAll('td');
-            for (var i = 0; i < allTds.length; i++) {
-                var text = allTds[i].textContent.trim();
-                // Match exato: "Viagem:" mas NÃO "Viagem Feeder:"
-                var cleanText = text.replace(/\s*:$/, '').trim();
-                if (cleanText.toLowerCase() !== labelText.toLowerCase()) continue;
-
-                // Achou o label exato - busca o input no próximo TD
-                var nextTd = allTds[i].nextElementSibling;
-                if (!nextTd) continue;
-                var input = nextTd.querySelector('input');
-                if (!input) continue;
-
-                input.focus();
-                input.value = value;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-                input.blur();
-                SkDebug.log(logLabel || labelText, 'OK', '✅ ' + value);
-                await delay(300);
-                return true;
-            }
-            SkDebug.log(logLabel || labelText, 'FAIL', '❌ Campo não encontrado: ' + labelText);
-            return false;
-        }
-
-        // Preenche os campos
+        // Preenche os campos usando SkAgent
         SkDebug.log('Navio', 'EXEC', '🚢 Preenchendo: ' + data.vessel);
-        var navioOk = await fillFieldByLabel('Navio', data.vessel, 'Navio');
-        if (!navioOk) fillByIdPattern('navio', data.vessel, 'Navio');
-        await delay(300);
+        await fillField('Navio', data.vessel, 'Navio');
 
         SkDebug.log('Viagem', 'EXEC', '🧭 Preenchendo: ' + data.voyage);
-        var viagemOk = await fillFieldByLabel('Viagem', data.voyage, 'Viagem');
-        if (!viagemOk) fillByIdPattern('viagem', data.voyage, 'Viagem');
-        await delay(300);
+        await fillField('Viagem', data.voyage, 'Viagem');
 
-        SkDebug.log('Previsão Embarque', 'EXEC', '📅 Preenchendo: ' + convertDate(data.departureDate));
-        var embarqueOk = await fillFieldByLabel('Previsão de Embarque', convertDate(data.departureDate), 'Prev. Embarque');
-        if (!embarqueOk) fillByIdPattern('previsaoEmbarque', convertDate(data.departureDate), 'Prev. Embarque');
-        await delay(300);
+        SkDebug.log('Prev. Embarque', 'EXEC', '📅 Preenchendo: ' + convertDate(data.departureDate));
+        await fillField('Previsão de Embarque', convertDate(data.departureDate), 'Prev. Embarque');
 
-        SkDebug.log('Previsão Atracação', 'EXEC', '📅 Preenchendo: ' + convertDate(data.arrivalDate));
-        var etaOk = await fillFieldByLabel('Previsão de Atracação', convertDate(data.arrivalDate), 'Prev. Atracação');
-        if (!etaOk) fillByIdPattern('previsaoAtracacao', convertDate(data.arrivalDate), 'Prev. Atracação');
-        await delay(300);
+        SkDebug.log('Prev. Atracação', 'EXEC', '📅 Preenchendo: ' + convertDate(data.arrivalDate));
+        await fillField('Previsão de Atracação', convertDate(data.arrivalDate), 'Prev. Atracação');
 
         // Transbordos
         if (data.transshipments && data.transshipments.length > 0) {
-            SkDebug.log('Transbordos', 'INFO', '📦 ' + data.transshipments.length + ' transbordo(s) encontrado(s):');
+            SkDebug.log('Transbordos', 'INFO', '📦 ' + data.transshipments.length + ' transbordo(s):');
             for (var t = 0; t < data.transshipments.length; t++) {
                 var ts = data.transshipments[t];
                 SkDebug.log('Transbordo ' + (t + 1), 'INFO', '📍 ' + ts.port + ' | ' + ts.vesselIn + '→' + ts.vesselOut + ' | ' + convertDate(ts.arrivalDate) + '→' + convertDate(ts.departureDate));
             }
-            showToast('📦 ' + data.transshipments.length + ' transbordo(s) detectado(s) — verifique os logs', 'info', 8000);
+            showToast('📦 ' + data.transshipments.length + ' transbordo(s) detectado(s)', 'info', 8000);
         }
 
         SkDebug.log('Tracking', 'OK', '🏁 Preenchimento concluído!');
