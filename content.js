@@ -1385,33 +1385,70 @@ try {
             }
         }
 
-        // 3. Busca o PDF via fetch
+        // Se não achou link direto E achou row com icon de download, usa o background
         if (!pdfUrl) {
-            SkDebug.log('Serasa', 'FAIL', '❌ URL do PDF não encontrada');
-            showToast('❌ URL do PDF Serasa não encontrada', 'warning', 5000);
+            // Procura o icon de download na row
+            var serasaRow2 = null;
+            var docRows2 = document.querySelectorAll('tr');
+            for (var r2 = 0; r2 < docRows2.length; r2++) {
+                var rt2 = docRows2[r2].textContent;
+                if (rt2.indexOf('Serasa') >= 0 || rt2.indexOf('serasa') >= 0 || rt2.indexOf('SERASA') >= 0) {
+                    serasaRow2 = docRows2[r2];
+                    break;
+                }
+            }
+            if (serasaRow2) {
+                var dlIcon2 = serasaRow2.querySelector('.fa-download');
+                var dlBtn2 = dlIcon2 ? (dlIcon2.closest('button, a') || dlIcon2) : null;
+                if (dlBtn2) {
+                    // Salva referência pra quando background pedir pra clicar
+                    window._serasaDlBtn = dlBtn2;
+                    SkDebug.log('Serasa', 'INFO', '🔗 Pedindo ao background pra capturar aba nova...');
+                    showToast('🤖 Abrindo PDF e analisando com IA...', 'info', 10000);
+
+                    var geminiResponse = await new Promise(function(resolve) {
+                        chrome.runtime.sendMessage(
+                            { action: 'fetchPdfFromNewTab' },
+                            function(response) { resolve(response); }
+                        );
+                    });
+
+                    if (geminiResponse && geminiResponse.success) {
+                        var serasaData = geminiResponse.result;
+                        SkDebug.log('Serasa', 'OK', '🤖 Score: ' + serasaData.score + ' | Limite: R$ ' + serasaData.limiteCredito);
+
+                        // Preencher campos
+                        await fillSerasaFields(serasaData);
+                        return;
+                    } else {
+                        SkDebug.log('Serasa', 'FAIL', '❌ Background: ' + (geminiResponse ? geminiResponse.error : 'sem resposta'));
+                        showToast('❌ Erro ao processar PDF Serasa', 'warning', 5000);
+                        return;
+                    }
+                }
+            }
+            SkDebug.log('Serasa', 'FAIL', '❌ Nenhuma forma de acessar o PDF');
+            showToast('❌ Não consegui acessar o PDF Serasa', 'warning', 5000);
             return;
         }
 
+        // Se achou URL direta, busca localmente
         try {
             SkDebug.log('Serasa', 'INFO', '📥 Baixando: ' + pdfUrl.substring(0, 80));
             var resp = await fetch(pdfUrl, { credentials: 'include' });
             var blob = await resp.blob();
 
-            // Converte pra base64
             var base64 = await new Promise(function(resolve) {
                 var reader = new FileReader();
                 reader.onload = function() {
-                    var result = reader.result.split(',')[1]; // Remove "data:application/pdf;base64,"
+                    var result = reader.result.split(',')[1];
                     resolve(result);
                 };
                 reader.readAsDataURL(blob);
             });
 
-            SkDebug.log('Serasa', 'OK', '📥 PDF carregado: ' + Math.round(base64.length / 1024) + 'KB');
-
-            // 5. Envia pro Gemini via background.js
-            SkDebug.log('Serasa', 'INFO', '🤖 Enviando pro Gemini...');
-            showToast('🤖 Gemini analisando PDF Serasa...', 'info', 8000);
+            SkDebug.log('Serasa', 'OK', '📥 PDF: ' + Math.round(base64.length / 1024) + 'KB');
+            showToast('🤖 Gemini analisando...', 'info', 8000);
 
             var geminiResponse = await new Promise(function(resolve) {
                 chrome.runtime.sendMessage(
@@ -1422,82 +1459,90 @@ try {
 
             if (!geminiResponse || !geminiResponse.success) {
                 SkDebug.log('Serasa', 'FAIL', '❌ Gemini: ' + (geminiResponse ? geminiResponse.error : 'sem resposta'));
-                showToast('❌ Erro ao analisar PDF Serasa', 'warning', 5000);
                 return;
             }
 
             var serasaData = geminiResponse.result;
             SkDebug.log('Serasa', 'OK', '🤖 Score: ' + serasaData.score + ' | Limite: R$ ' + serasaData.limiteCredito);
-
-            // 6. Abre accordion "Controle de créditos" se fechado
-            var accHeaders = document.querySelectorAll('.ui-accordion-header, a[role="tab"]');
-            for (var ah = 0; ah < accHeaders.length; ah++) {
-                if (accHeaders[ah].textContent.indexOf('Controle de cr') >= 0) {
-                    // Checa se tá fechado
-                    var accContent = accHeaders[ah].nextElementSibling;
-                    if (accContent && (accContent.style.display === 'none' || accContent.offsetHeight === 0)) {
-                        accHeaders[ah].click();
-                        await new Promise(function(resolve) { setTimeout(resolve, 1000); });
-                        SkDebug.log('Serasa', 'INFO', '📂 Controle de Créditos aberto');
-                    }
-                    break;
-                }
-            }
-
-            // 7. Preenche #vlSerasa
-            var vlSerasa = document.querySelector('#vlSerasa');
-            if (vlSerasa) {
-                var limite = String(serasaData.limiteCredito || '0').replace('.', ',');
-                vlSerasa.focus();
-                vlSerasa.click();
-                SkAgent.engine.nativeSet(vlSerasa, limite);
-                vlSerasa.dispatchEvent(new Event('input', { bubbles: true }));
-                vlSerasa.dispatchEvent(new Event('change', { bubbles: true }));
-                vlSerasa.dispatchEvent(new Event('blur', { bubbles: true }));
-                SkDebug.log('Serasa', 'OK', '💰 Valor Serasa: ' + limite);
-            } else {
-                SkDebug.log('Serasa', 'FAIL', '❌ #vlSerasa não encontrado');
-            }
-
-            // 8. Preenche #dsObservacao
-            var dsObs = document.querySelector('#dsObservacao');
-            if (dsObs) {
-                var obsText = 'Score Serasa: ' + serasaData.score + '/1000\n';
-                obsText += 'Limite de Crédito: R$ ' + Number(serasaData.limiteCredito || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) + '\n';
-                obsText += 'Consulta: ' + new Date().toLocaleDateString('pt-BR') + '\n';
-                obsText += 'Extraído automaticamente por IA';
-
-                dsObs.focus();
-                SkAgent.engine.nativeSet(dsObs, obsText);
-                dsObs.dispatchEvent(new Event('input', { bubbles: true }));
-                dsObs.dispatchEvent(new Event('change', { bubbles: true }));
-                dsObs.dispatchEvent(new Event('blur', { bubbles: true }));
-                SkDebug.log('Serasa', 'OK', '📝 Observação: Score ' + serasaData.score);
-            } else {
-                SkDebug.log('Serasa', 'FAIL', '❌ #dsObservacao não encontrado');
-            }
-
-            // 9. Clica Atualizar
-            await new Promise(function(resolve) { setTimeout(resolve, 500); });
-            var allBtnSpans = document.querySelectorAll('span.ui-button-text.ui-clickable');
-            for (var b = 0; b < allBtnSpans.length; b++) {
-                if (allBtnSpans[b].textContent.trim() === 'Atualizar') {
-                    var atzBtn = allBtnSpans[b].closest('button') || allBtnSpans[b];
-                    atzBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                    await new Promise(function(resolve) { setTimeout(resolve, 500); });
-                    atzBtn.click();
-                    SkDebug.log('Serasa', 'OK', '💾 Atualizar clicado');
-                    break;
-                }
-            }
-
-            showToast('✅ Serasa: Score ' + serasaData.score + ' | Limite R$ ' + Number(serasaData.limiteCredito || 0).toLocaleString('pt-BR'), 'success', 8000);
-            SkDebug.log('Serasa', 'OK', '🏁 Concluído!');
+            await fillSerasaFields(serasaData);
 
         } catch (err) {
             SkDebug.log('Serasa', 'FAIL', '❌ Erro: ' + err.message);
             showToast('❌ Erro: ' + err.message, 'warning', 5000);
         }
+    }
+
+    // Listener pro background pedir pra clicar no download
+    chrome.runtime.onMessage.addListener(function(msg) {
+        if (msg.action === 'clickSerasaDownload' && window._serasaDlBtn) {
+            SkDebug.log('Serasa', 'INFO', '🖱️ Background pediu: clicando download...');
+            window._serasaDlBtn.click();
+        }
+    });
+
+    // Preenche os campos de Controle Serasa
+    async function fillSerasaFields(serasaData) {
+        // Abre accordion "Controle de créditos" se fechado
+        var accHeaders = document.querySelectorAll('span.ui-accordion-header-text');
+        for (var ah = 0; ah < accHeaders.length; ah++) {
+            if (accHeaders[ah].textContent.trim().indexOf('Controle de cr') >= 0) {
+                var accLink = accHeaders[ah].closest('a, .ui-accordion-header');
+                if (accLink) {
+                    accLink.click();
+                    await new Promise(function(resolve) { setTimeout(resolve, 1000); });
+                }
+                break;
+            }
+        }
+
+        // #vlSerasa
+        var vlSerasa = document.querySelector('#vlSerasa');
+        if (vlSerasa) {
+            var limite = String(serasaData.limiteCredito || '0').replace('.', ',');
+            vlSerasa.focus();
+            SkAgent.engine.nativeSet(vlSerasa, limite);
+            vlSerasa.dispatchEvent(new Event('input', { bubbles: true }));
+            vlSerasa.dispatchEvent(new Event('change', { bubbles: true }));
+            vlSerasa.dispatchEvent(new Event('blur', { bubbles: true }));
+            SkDebug.log('Serasa', 'OK', '💰 Valor Serasa: ' + limite);
+        } else {
+            SkDebug.log('Serasa', 'FAIL', '❌ #vlSerasa não encontrado');
+        }
+
+        // #dsObservacao
+        var dsObs = document.querySelector('#dsObservacao');
+        if (dsObs) {
+            var obsText = 'Score Serasa: ' + serasaData.score + '/1000\n';
+            obsText += 'Limite de Crédito: R$ ' + Number(serasaData.limiteCredito || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) + '\n';
+            obsText += 'Consulta: ' + new Date().toLocaleDateString('pt-BR') + '\n';
+            obsText += 'Extraído automaticamente por IA';
+
+            dsObs.focus();
+            SkAgent.engine.nativeSet(dsObs, obsText);
+            dsObs.dispatchEvent(new Event('input', { bubbles: true }));
+            dsObs.dispatchEvent(new Event('change', { bubbles: true }));
+            dsObs.dispatchEvent(new Event('blur', { bubbles: true }));
+            SkDebug.log('Serasa', 'OK', '📝 Observação preenchida');
+        } else {
+            SkDebug.log('Serasa', 'FAIL', '❌ #dsObservacao não encontrado');
+        }
+
+        // Clica Atualizar
+        await new Promise(function(resolve) { setTimeout(resolve, 500); });
+        var allBtnSpans = document.querySelectorAll('span.ui-button-text.ui-clickable');
+        for (var b = 0; b < allBtnSpans.length; b++) {
+            if (allBtnSpans[b].textContent.trim() === 'Atualizar') {
+                var atzBtn = allBtnSpans[b].closest('button') || allBtnSpans[b];
+                atzBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                await new Promise(function(resolve) { setTimeout(resolve, 500); });
+                atzBtn.click();
+                SkDebug.log('Serasa', 'OK', '💾 Atualizar clicado');
+                break;
+            }
+        }
+
+        showToast('✅ Serasa: Score ' + serasaData.score + ' | Limite R$ ' + Number(serasaData.limiteCredito || 0).toLocaleString('pt-BR'), 'success', 8000);
+        SkDebug.log('Serasa', 'OK', '🏁 Concluído!');
     }
 
     // Injeta o botão Serasa quando estiver na página de Pessoas

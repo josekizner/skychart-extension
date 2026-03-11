@@ -139,6 +139,82 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  // SERASA: Captura URL da aba nova, busca PDF, extrai dados, e fecha aba
+  if (request.action === "fetchPdfFromNewTab") {
+    const senderTabId = sender.tab ? sender.tab.id : null;
+    
+    (async () => {
+      try {
+        // Escuta criação de nova aba
+        const newTab = await new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            chrome.tabs.onCreated.removeListener(listener);
+            resolve(null);
+          }, 10000);
+
+          function listener(tab) {
+            clearTimeout(timeout);
+            chrome.tabs.onCreated.removeListener(listener);
+            setTimeout(async () => {
+              try {
+                const updatedTab = await chrome.tabs.get(tab.id);
+                resolve({ tabId: tab.id, url: updatedTab.url || updatedTab.pendingUrl });
+              } catch(e) {
+                resolve({ tabId: tab.id, url: tab.pendingUrl || tab.url });
+              }
+            }, 2000);
+          }
+          chrome.tabs.onCreated.addListener(listener);
+        });
+
+        // Diz pro content script clicar agora
+        if (senderTabId) {
+          chrome.tabs.sendMessage(senderTabId, { action: 'clickSerasaDownload' }).catch(() => {});
+        }
+
+        if (!newTab || !newTab.url) {
+          sendResponse({ success: false, error: 'Nenhuma aba nova aberta em 10s' });
+          return;
+        }
+
+        console.log("[Serasa] Nova aba URL:", newTab.url);
+
+        // Fetch o PDF
+        const pdfResponse = await fetch(newTab.url);
+        const pdfBlob = await pdfResponse.blob();
+        
+        // Converte pra base64
+        const arrayBuffer = await pdfBlob.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const base64 = btoa(binary);
+
+        console.log("[Serasa] PDF carregado:", Math.round(base64.length / 1024) + "KB");
+
+        // Extrai dados via Gemini
+        const serasaData = await extractSerasaFromPDF(base64);
+
+        // Fecha a aba do PDF
+        chrome.tabs.remove(newTab.tabId).catch(() => {});
+
+        // Volta foco pra aba do Skychart
+        if (senderTabId) {
+          chrome.tabs.update(senderTabId, { active: true }).catch(() => {});
+        }
+
+        sendResponse({ success: true, result: serasaData });
+      } catch(err) {
+        console.error("[Serasa] Erro:", err);
+        sendResponse({ success: false, error: err.message });
+      }
+    })();
+
+    return true; // Keep message channel open
+  }
+
   // SERASA: Extrai Score + Limite de Crédito do PDF Serasa
   if (request.action === "extractSerasaData") {
     extractSerasaFromPDF(request.pdfBase64)
