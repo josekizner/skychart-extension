@@ -266,9 +266,13 @@ try {
                         var testEl = null;
                         try { testEl = document.querySelector(selector); } catch(e) {}
                         if (testEl !== target) {
-                            SkDebug.log(fieldName, 'FAIL', '⚠️ Selector gerado não é único, tentando alternativo...');
-                            // Fallback: xpath-like com nth-child
-                            selector = '';
+                            SkDebug.log(fieldName, 'INFO', '⚠️ CSS path não é único, salvando por ÍNDICE');
+                            // Fallback: salva o ÍNDICE entre todos os autocompletes
+                            var allAcInputs = document.querySelectorAll('input.ui-autocomplete-input');
+                            var acIdx = Array.from(allAcInputs).indexOf(target);
+                            if (acIdx >= 0) {
+                                selector = 'AC_INDEX:' + acIdx;
+                            }
                         }
 
                         // Salva na memória
@@ -366,13 +370,25 @@ try {
             // TENTATIVA 1: Auto-diagnóstico
             navioInput = diagnoseAndFind('navio', 'feeder');
 
-            // TENTATIVA 2: Memória (MAS valida que tá dentro do Embarque!)
+            // TENTATIVA 2: Memória (com suporte a AC_INDEX e validação Embarque)
             if (!navioInput) {
                 try {
                     var navioMem = SkMemory.getFieldMemory('tracking:Navio');
                     if (navioMem && navioMem.seletoresQueFunc && navioMem.seletoresQueFunc.length > 0) {
                         var navioSel = navioMem.seletoresQueFunc[navioMem.seletoresQueFunc.length - 1];
-                        var memEl = document.querySelector(navioSel);
+                        var memEl = null;
+
+                        // Suporte a AC_INDEX:N
+                        if (navioSel && navioSel.indexOf('AC_INDEX:') === 0) {
+                            var savedIdx = parseInt(navioSel.split(':')[1]);
+                            var allAcMem = document.querySelectorAll('input.ui-autocomplete-input');
+                            if (savedIdx >= 0 && savedIdx < allAcMem.length) {
+                                memEl = allAcMem[savedIdx];
+                            }
+                        } else if (navioSel) {
+                            try { memEl = document.querySelector(navioSel); } catch(e) {}
+                        }
+
                         // SÓ USA se tá dentro da seção Embarque
                         if (memEl && embarqueSec && embarqueSec.contains(memEl)) {
                             navioInput = memEl;
@@ -573,10 +589,15 @@ try {
             }
 
             if (atualizarBtn) {
-                atualizarBtn.click();
+                atualizarBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                await SkAgent.delay(500);
+                // MouseEvent real pra Angular detectar (simple .click() não funciona)
+                atualizarBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                atualizarBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                atualizarBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                 SkAgent.highlight(atualizarBtn);
                 SkDebug.log('Atualizar', 'OK', '✅ Botão Atualizar clicado!');
-                showToast('💾 Atualizado!', 'success', 3000);
+                await SkAgent.delay(2000); // espera resposta do servidor
             } else {
                 SkDebug.log('Atualizar', 'FAIL', '❌ Botão Atualizar não encontrado');
             }
