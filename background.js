@@ -5,7 +5,7 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemi
 const CURRENT_VERSION = "1.0.0";
 // IMPORTANTE: Mude esta URL após criar o repo no GitHub
 // Formato: https://raw.githubusercontent.com/SEU-USER/skychart-extension/main/version.json
-const UPDATE_CHECK_URL = "";  // Será preenchido após push pro GitHub
+const UPDATE_CHECK_URL = "https://raw.githubusercontent.com/josekizner/skychart-extension/main/version.json";
 const UPDATE_CHECK_INTERVAL = 2 * 60 * 60 * 1000; // 2 horas
 
 // Checa updates periodicamente
