@@ -406,51 +406,14 @@ try {
                 navioInput = await askUserForField('Navio');
             }
 
-            // PREENCHE com nativeSet (compatível Angular)
+            // PREENCHE com charByChar (PrimeNG precisa digitação gradual pro dropdown)
             if (navioInput) {
                 SkDebug.log('Navio', 'INFO', '⌨️ "' + data.vessel + '"...');
-                navioInput.focus();
-                navioInput.click();
-                await SkAgent.delay(200);
-
-                SkAgent.engine.nativeSet(navioInput, '');
-                navioInput.dispatchEvent(new Event('input', { bubbles: true }));
-                await SkAgent.delay(200);
-
-                SkAgent.engine.nativeSet(navioInput, data.vessel);
-                navioInput.dispatchEvent(new Event('input', { bubbles: true }));
-                navioInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: data.vessel[data.vessel.length - 1] }));
-                navioInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: data.vessel[data.vessel.length - 1] }));
-
-                // Aguarda dropdown
-                var dropOk = false;
-                for (var att = 0; att < 25 && !stopped(); att++) {
-                    await SkAgent.delay(600);
-                    navioInput.focus();
-                    var panels = document.querySelectorAll('.ui-autocomplete-panel, .p-autocomplete-panel, .ui-autocomplete-items');
-                    for (var p = 0; p < panels.length; p++) {
-                        if (panels[p].offsetHeight > 0) {
-                            var items = panels[p].querySelectorAll('li');
-                            if (items.length > 0) {
-                                items[0].click();
-                                SkAgent.highlight(navioInput);
-                                SkDebug.log('Navio', 'OK', '✅ ' + data.vessel + ' → ' + items[0].textContent.trim().substring(0, 60));
-                                dropOk = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (dropOk) break;
-                }
-
-                // Verifica
-                await SkAgent.delay(500);
-                var navioVal = navioInput.value || '';
-                if (navioVal.length > 0 || dropOk) {
-                    SkDebug.log('Navio', 'OK', '✅ Final: "' + navioVal + '"');
+                var r1 = await SkAgent.engine.charByChar(navioInput, data.vessel, { selectFirst: true, tabAfter: true });
+                if (r1.ok) {
+                    SkDebug.log('Navio', 'OK', '✅ ' + data.vessel + (r1.selected ? ' → ' + r1.selected : ''));
                 } else {
-                    SkDebug.log('Navio', 'FAIL', '❌ Vazio após preencher');
-                    navioInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
+                    SkDebug.log('Navio', 'FAIL', '❌ ' + (r1.reason || 'Erro'));
                 }
             } else {
                 SkDebug.log('Navio', 'SKIP', '⏭️ Pulando');
