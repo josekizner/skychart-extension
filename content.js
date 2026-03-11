@@ -359,13 +359,32 @@ try {
             SkDebug.log('Navio', 'EXEC', '🚢 ' + data.vessel);
             var navioInput = null;
 
-            // LIMPA memória ruim de tentativas anteriores
-            try { chrome.storage.local.remove('tracking:Navio'); } catch(e) {}
+            // Seção embarque (pra validar memória)
+            var viagemRef = document.querySelector('#formularioEmbarque-dsViagem');
+            var embarqueSec = viagemRef ? viagemRef.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
 
             // TENTATIVA 1: Auto-diagnóstico
             navioInput = diagnoseAndFind('navio', 'feeder');
 
-            // TENTATIVA 2: Pede ajuda (sem memória — limpa acima)
+            // TENTATIVA 2: Memória (MAS valida que tá dentro do Embarque!)
+            if (!navioInput) {
+                try {
+                    var navioMem = SkMemory.getFieldMemory('tracking:Navio');
+                    if (navioMem && navioMem.seletoresQueFunc && navioMem.seletoresQueFunc.length > 0) {
+                        var navioSel = navioMem.seletoresQueFunc[navioMem.seletoresQueFunc.length - 1];
+                        var memEl = document.querySelector(navioSel);
+                        // SÓ USA se tá dentro da seção Embarque
+                        if (memEl && embarqueSec && embarqueSec.contains(memEl)) {
+                            navioInput = memEl;
+                            SkDebug.log('Navio', 'OK', '🧠 Memória válida: ' + navioSel);
+                        } else if (memEl) {
+                            SkDebug.log('Navio', 'FAIL', '🧠 Memória rejeitada (fora do Embarque): ' + navioSel);
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            // TENTATIVA 3: Pede ajuda
             if (!navioInput) {
                 SkDebug.log('Navio', 'INFO', '🤔 Não achei. Clique no campo Navio!');
                 navioInput = await askUserForField('Navio');
