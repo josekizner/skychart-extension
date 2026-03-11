@@ -145,12 +145,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
     (async () => {
       try {
-        // Escuta criação de nova aba
-        const newTab = await new Promise((resolve) => {
+        // PRIMEIRO: Registra listener pra nova aba (NÃO await ainda!)
+        const tabPromise = new Promise((resolve) => {
           const timeout = setTimeout(() => {
             chrome.tabs.onCreated.removeListener(listener);
             resolve(null);
-          }, 10000);
+          }, 15000);
 
           function listener(tab) {
             clearTimeout(timeout);
@@ -162,15 +162,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               } catch(e) {
                 resolve({ tabId: tab.id, url: tab.pendingUrl || tab.url });
               }
-            }, 2000);
+            }, 3000); // espera aba carregar
           }
           chrome.tabs.onCreated.addListener(listener);
         });
 
-        // Diz pro content script clicar agora
+        // SEGUNDO: Manda o content script clicar AGORA (enquanto listener já tá ativo)
         if (senderTabId) {
           chrome.tabs.sendMessage(senderTabId, { action: 'clickSerasaDownload' }).catch(() => {});
         }
+
+        // TERCEIRO: Agora sim espera o resultado
+        const newTab = await tabPromise;
 
         if (!newTab || !newTab.url) {
           sendResponse({ success: false, error: 'Nenhuma aba nova aberta em 10s' });
