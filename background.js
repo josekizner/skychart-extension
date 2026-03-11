@@ -320,19 +320,36 @@ async function extractSerasaFromPDF(base64data) {
             { text: SERASA_PROMPT },
             { inlineData: { mimeType: "application/pdf", data: base64data } }
           ]
-        }]
+        }],
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+        ],
+        generationConfig: {
+          temperature: 0.1
+        }
       })
     });
 
     const data = await response.json();
-    console.log("[Gemini Serasa RAW]", JSON.stringify(data).substring(0, 800));
+    console.log("[Gemini Serasa] Status:", response.status);
+    console.log("[Gemini Serasa] Response completa:", JSON.stringify(data).substring(0, 1500));
+
+    // Checa se foi bloqueado por safety
+    if (data.promptFeedback && data.promptFeedback.blockReason) {
+      throw new Error("Bloqueado por safety: " + data.promptFeedback.blockReason);
+    }
 
     if (!data.candidates || data.candidates.length === 0) {
-      throw new Error("Sem candidatos do Gemini");
+      // Log completo pra debug
+      console.error("[Gemini Serasa] Response sem candidatos:", JSON.stringify(data));
+      throw new Error("Sem candidatos - response: " + JSON.stringify(data).substring(0, 300));
     }
 
     let result = data.candidates[0].content.parts[0].text.trim();
-    console.log("[Gemini Serasa] Resultado bruto:", result);
+    console.log("[Gemini Serasa] Resultado:", result);
 
     result = result.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
 
