@@ -9,12 +9,204 @@
 try {
     console.log("Skychart AI: Script carregado com sucesso.");
 
-    // Listener para notificações de atualização
+    // Listener para notificações de atualização e tracking data
     chrome.runtime.onMessage.addListener(function(msg) {
         if (msg.action === 'updateAvailable') {
             showToast('🔄 Nova versão ' + msg.newVersion + ' disponível! Peça ao admin para atualizar. ' + (msg.changelog || ''), 'warning', 15000);
         }
+        if (msg.action === 'trackingDataReady') {
+            handleTrackingData(msg.data, msg.error);
+        }
     });
+
+    // ========================================================================
+    // BOOKING TRACKING — Botão 🔍 ao lado do campo Booking
+    // ========================================================================
+
+    function injectBookingButton() {
+        // Procura campos com title contendo "Booking" que não tenham botão
+        var allInputs = document.querySelectorAll('input, span.ui-cell-data');
+        for (var i = 0; i < allInputs.length; i++) {
+            var el = allInputs[i];
+            var title = (el.getAttribute('title') || '').toLowerCase();
+            var label = '';
+
+            // Procura label associada
+            var parent = el.closest('td, div, .ui-cell-data');
+            if (parent) {
+                var prevSibling = parent.previousElementSibling;
+                if (prevSibling) label = (prevSibling.textContent || '').toLowerCase();
+            }
+            // Procura por label "Booking:" no formulário
+            var allLabels = document.querySelectorAll('td, label, span');
+            for (var lb = 0; lb < allLabels.length; lb++) {
+                if (allLabels[lb].textContent.trim() === 'Booking:') {
+                    var nextEl = allLabels[lb].nextElementSibling;
+                    if (nextEl && nextEl.querySelector('input')) {
+                        el = nextEl.querySelector('input');
+                        title = 'booking';
+                        break;
+                    }
+                }
+            }
+
+            if (title.indexOf('booking') >= 0 || label.indexOf('booking') >= 0) {
+                // Já tem botão?
+                if (el.parentElement && el.parentElement.querySelector('.sk-tracking-btn')) continue;
+
+                var btn = document.createElement('button');
+                btn.className = 'sk-tracking-btn';
+                btn.innerHTML = '🔍';
+                btn.title = 'Buscar tracking no armador';
+                btn.style.cssText = 'background:#1a73e8;color:#fff;border:none;border-radius:4px;padding:4px 8px;margin-left:6px;cursor:pointer;font-size:14px;vertical-align:middle;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startBookingTracking();
+                });
+                el.parentElement.appendChild(btn);
+                console.log('[Tracking] Botão 🔍 injetado ao lado do Booking');
+                break;
+            }
+        }
+    }
+
+    function startBookingTracking() {
+        // Encontra o valor do booking
+        var bookingInput = null;
+        var allLabels = document.querySelectorAll('td, label, span');
+        for (var i = 0; i < allLabels.length; i++) {
+            if (allLabels[i].textContent.trim() === 'Booking:') {
+                var nextEl = allLabels[i].nextElementSibling || allLabels[i].parentElement.nextElementSibling;
+                if (nextEl) {
+                    bookingInput = nextEl.querySelector('input') || nextEl;
+                }
+                break;
+            }
+        }
+
+        if (!bookingInput) {
+            // Fallback: busca por title
+            bookingInput = document.querySelector('input[title*="ooking" i]');
+        }
+
+        var bookingNumber = bookingInput ? (bookingInput.value || bookingInput.textContent || '').trim() : '';
+
+        if (!bookingNumber) {
+            showToast('⚠️ Preencha o campo Booking antes de rastrear!', 'warning');
+            return;
+        }
+
+        // Detecta o armador
+        var carrier = detectCarrier();
+
+        showToast('🔍 Buscando tracking: ' + bookingNumber + ' (' + carrier + ')...', 'info');
+        updateStatus('🔍 Tracking: ' + bookingNumber);
+
+        chrome.runtime.sendMessage({
+            action: 'trackBooking',
+            bookingNumber: bookingNumber,
+            carrier: carrier
+        });
+    }
+
+    function detectCarrier() {
+        // Tenta detectar o armador pela página
+        var pageText = document.body.innerText.toUpperCase();
+        if (pageText.indexOf('MSK') >= 0 || pageText.indexOf('MAERSK') >= 0) return 'maersk';
+        if (pageText.indexOf('HMM') >= 0 || pageText.indexOf('HYUNDAI') >= 0) return 'hmm';
+        if (pageText.indexOf('YML') >= 0 || pageText.indexOf('YANG MING') >= 0) return 'yangming';
+        if (pageText.indexOf('ONE') >= 0 || pageText.indexOf('OCEAN NETWORK') >= 0) return 'one';
+        return 'maersk'; // default
+    }
+
+    function handleTrackingData(data, error) {
+        if (error || !data) {
+            showToast('❌ Erro no tracking: ' + (error || 'Sem dados'), 'error');
+            updateStatus('❌ Tracking falhou');
+            return;
+        }
+
+        if (data.events.length === 0) {
+            showToast('⚠️ Nenhum evento de tracking encontrado', 'warning');
+            return;
+        }
+
+        showToast('✅ Tracking encontrado! Navio: ' + data.vessel + ' / ' + data.voyage, 'success');
+        updateStatus('✅ Tracking: ' + data.vessel);
+
+        // Preenche os campos
+        fillTrackingFields(data);
+    }
+
+    async function fillTrackingFields(data) {
+        var delay = function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); };
+
+        // Converte datas de "15 Mar 2026 15:00" pra "15/03/2026"
+        function convertDate(dateStr) {
+            if (!dateStr) return '';
+            var months = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
+            var match = dateStr.match(/(\d{1,2})\s+(\w{3})\s+(\d{4})/);
+            if (match) {
+                var day = match[1].padStart(2, '0');
+                var month = months[match[2]] || '01';
+                return day + '/' + month + '/' + match[3];
+            }
+            return dateStr;
+        }
+
+        // Preenche campo por label
+        async function fillFieldByLabel(labelText, value) {
+            if (!value) return;
+            var allTds = document.querySelectorAll('td, label, span');
+            for (var i = 0; i < allTds.length; i++) {
+                var text = allTds[i].textContent.trim().replace(':', '');
+                if (text.toLowerCase() === labelText.toLowerCase()) {
+                    var container = allTds[i].nextElementSibling || allTds[i].parentElement;
+                    if (!container) continue;
+                    var input = container.querySelector('input');
+                    if (!input) {
+                        // Tenta no próximo TD
+                        var nextTd = allTds[i].closest('td');
+                        if (nextTd) nextTd = nextTd.nextElementSibling;
+                        if (nextTd) input = nextTd.querySelector('input');
+                    }
+                    if (input) {
+                        input.focus();
+                        input.value = value;
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                        input.blur();
+                        console.log('[Tracking] Preencheu ' + labelText + ': ' + value);
+                        await delay(300);
+                        return true;
+                    }
+                }
+            }
+            console.log('[Tracking] Campo não encontrado: ' + labelText);
+            return false;
+        }
+
+        // Preenche os campos principais
+        await fillFieldByLabel('Navio', data.vessel);
+        await fillFieldByLabel('Viagem', data.voyage);
+        await fillFieldByLabel('Previsão de Embarque', convertDate(data.departureDate));
+        await fillFieldByLabel('Previsão de Atracação', convertDate(data.arrivalDate));
+
+        // Log dos transbordos
+        if (data.transshipments && data.transshipments.length > 0) {
+            console.log('[Tracking] Transbordos encontrados:', data.transshipments.length);
+            showToast('📦 ' + data.transshipments.length + ' transbordo(s) encontrado(s). Verifique a seção Transbordos.', 'info', 8000);
+            // TODO: Preencher tabela de transbordos automaticamente
+        }
+    }
+
+    // Injeta o botão a cada 3 segundos (aguarda página operacional carregar)
+    setInterval(function() {
+        if (window.location.href.indexOf('/app/operacional') >= 0) {
+            injectBookingButton();
+        }
+    }, 3000);
 
     // ========================================================================
     // HUD — Interface flutuante com drop zone

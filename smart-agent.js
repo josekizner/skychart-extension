@@ -852,6 +852,90 @@ var SkAgent = (function () {
         return results;
     }
 
+    // ========================================================================
+    // TOAST DETECTION — Espera confirmação visual do sistema antes de continuar
+    // ========================================================================
+
+    async function waitForToast(label, successText, timeout) {
+        successText = successText || 'sucesso';
+        timeout = timeout || 15000;
+        SkDebug.log(label, 'INFO', '⏳ Aguardando toast de confirmação (' + successText + ')...');
+
+        return new Promise(function(resolve) {
+            var resolved = false;
+            var checkInterval = null;
+
+            // Função que verifica se o toast apareceu
+            function checkToasts() {
+                // PrimeNG usa: .ui-toast, .ui-growl, p-toast, .ui-messages
+                var toasts = document.querySelectorAll('.ui-toast-message, .ui-growl-message, .ui-toast-detail, .ui-toast-summary, .ui-messages-info, p-toastitem, .ui-toast');
+                for (var i = 0; i < toasts.length; i++) {
+                    var text = toasts[i].textContent.trim().toLowerCase();
+                    if (!text) continue;
+
+                    // Detecta sucesso
+                    if (text.indexOf('sucesso') >= 0 || text.indexOf('success') >= 0 || text.indexOf('atualizado') >= 0 || text.indexOf('finalizado') >= 0 || text.indexOf(successText.toLowerCase()) >= 0) {
+                        if (!resolved) {
+                            resolved = true;
+                            clearInterval(checkInterval);
+                            SkDebug.log(label, 'OK', '✅ Toast detectado: "' + text.substring(0, 60) + '"');
+                            resolve(true);
+                        }
+                        return;
+                    }
+
+                    // Detecta erro
+                    if (text.indexOf('erro') >= 0 || text.indexOf('error') >= 0 || text.indexOf('falha') >= 0) {
+                        if (!resolved) {
+                            resolved = true;
+                            clearInterval(checkInterval);
+                            SkDebug.log(label, 'FAIL', '❌ Toast de ERRO: "' + text.substring(0, 60) + '"');
+                            resolve(false);
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // Checa a cada 300ms
+            checkInterval = setInterval(checkToasts, 300);
+
+            // Timeout — se não aparecer nada, continua mesmo assim
+            setTimeout(function() {
+                if (!resolved) {
+                    resolved = true;
+                    clearInterval(checkInterval);
+                    SkDebug.log(label, 'INFO', '⏰ Timeout aguardando toast — continuando...');
+                    resolve(true); // Continua mesmo sem toast
+                }
+            }, timeout);
+
+            // Check imediato
+            checkToasts();
+        });
+    }
+
+    // Espera um campo ter valor não-vazio (pra pré-condições)
+    async function waitForFieldNotEmpty(label, selector, timeout) {
+        timeout = timeout || 10000;
+        SkDebug.log(label, 'INFO', '⏳ Aguardando campo ' + selector + ' ter valor...');
+
+        var startTime = Date.now();
+        while (Date.now() - startTime < timeout) {
+            var el = document.querySelector(selector);
+            if (el) {
+                var val = (el.value || el.textContent || '').trim();
+                if (val && val !== '0' && val !== '0,00' && val !== '0.00') {
+                    SkDebug.log(label, 'OK', '✅ Campo preenchido: ' + val.substring(0, 30));
+                    return true;
+                }
+            }
+            await delay(500);
+        }
+        SkDebug.log(label, 'INFO', '⏰ Timeout aguardando campo — continuando...');
+        return true;
+    }
+
     async function executePostAction(action) {
         switch (action.action) {
             case 'clickButton':
@@ -862,6 +946,10 @@ var SkAgent = (function () {
                 return await selectDropdownInRow(action.label, action.value, action.rowMatch);
             case 'clickRowSave':
                 return clickRowSaveBtn(action.rowMatch);
+            case 'waitToast':
+                return await waitForToast(action.label, action.successText, action.timeout || 15000);
+            case 'waitField':
+                return await waitForFieldNotEmpty(action.label, action.selector, action.timeout || 10000);
             default:
                 console.warn('Skychart AI: Ação desconhecida:', action.action);
                 return false;

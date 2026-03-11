@@ -87,8 +87,10 @@
   ],
   "postActions": [
     { "action": "clickCheckbox", "label": "Acordo lido", "delay": 800, "retryDelay": 2000 },
-    { "action": "clickButton", "label": "Finalizar Câmbio", "delay": 5000, "retryDelay": 1500 },
-    { "action": "clickButton", "label": "Gerar IOF", "delay": 2000, "retryDelay": 3000 },
+    { "action": "clickButton", "label": "Finalizar Câmbio", "delay": 1000, "retryDelay": 1500 },
+    { "action": "waitToast", "label": "Confirmar finalização", "successText": "sucesso", "timeout": 15000, "delay": 1000 },
+    { "action": "clickButton", "label": "Gerar IOF", "delay": 1000, "retryDelay": 3000 },
+    { "action": "waitToast", "label": "Confirmar IOF", "successText": "sucesso", "timeout": 10000, "delay": 1000 },
     { "action": "clickButton", "label": "Gerar contrato de cambio", "delay": 2000, "retryDelay": 2000 },
     { "action": "selectDropdown", "label": "Tipo do arquivo", "value": "Contrato de Câmbio", "delay": 1500, "retryDelay": 2000 },
     { "action": "clickRowSave", "label": "Salvar tipo arquivo", "delay": 1500, "retryDelay": 2000 },

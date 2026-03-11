@@ -38,8 +38,62 @@ async function checkForUpdates() {
   }
 }
 
+// ===== BOOKING TRACKING =====
+var pendingTrackingTabs = {}; // { maerskTabId: skychartTabId }
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log("Skychart AI Background: Mensagem recebida:", request.action);
+
+  // Tracking: Skychart pede pra abrir Maersk e scrapear
+  if (request.action === "trackBooking") {
+    const booking = request.bookingNumber;
+    const skychartTabId = sender.tab.id;
+    const carrier = request.carrier || 'maersk';
+
+    console.log("[Tracking] Abrindo tracking para:", booking, "carrier:", carrier);
+
+    let trackingUrl = '';
+    if (carrier === 'maersk') {
+      trackingUrl = 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
+    }
+    // Futuros armadores aqui...
+
+    if (trackingUrl) {
+      chrome.tabs.create({ url: trackingUrl, active: false }, (tab) => {
+        pendingTrackingTabs[tab.id] = skychartTabId;
+        console.log("[Tracking] Tab aberta:", tab.id, "-> Skychart tab:", skychartTabId);
+      });
+    }
+
+    sendResponse({ success: true, message: 'Tracking aberto' });
+    return true;
+  }
+
+  // Tracking: Maersk scraper envia dados de volta
+  if (request.action === "maerskTrackingData") {
+    const maerskTabId = sender.tab.id;
+    const skychartTabId = pendingTrackingTabs[maerskTabId];
+
+    console.log("[Tracking] Dados recebidos do Maersk, enviando pra Skychart tab:", skychartTabId);
+
+    if (skychartTabId) {
+      chrome.tabs.sendMessage(skychartTabId, {
+        action: 'trackingDataReady',
+        data: request.data,
+        error: request.error || null
+      }).catch(err => console.error("[Tracking] Erro enviando dados:", err));
+
+      // Fecha a aba da Maersk após 2 segundos
+      setTimeout(() => {
+        chrome.tabs.remove(maerskTabId).catch(() => {});
+      }, 2000);
+
+      delete pendingTrackingTabs[maerskTabId];
+    }
+
+    sendResponse({ success: true });
+    return true;
+  }
 
   // Extração completa de todos os campos do contrato de câmbio
   if (request.action === "extractAllFieldsBase64") {
