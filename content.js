@@ -282,28 +282,46 @@ try {
             });
         }
 
-        // ===== 1. NAVIO — Autocomplete =====
+        // ===== 1. NAVIO — Autocomplete (SCOPED ao form de Embarque) =====
         if (!stopped()) {
             SkDebug.log('Navio', 'EXEC', '🚢 ' + data.vessel);
             var navioInput = null;
+
+            // SCOPE: usa Viagem (que tem ID exato) pra encontrar o table/form de Embarque
+            var viagemRef = document.querySelector('#formularioEmbarque-dsViagem');
+            var embarqueScope = viagemRef ? viagemRef.closest('table, form, .ui-accordion-content, .ui-panel-content') : document.body;
+            SkDebug.log('Navio', 'DEBUG', '📐 Escopo: ' + (embarqueScope === document.body ? 'body (sem ref)' : embarqueScope.tagName + '#' + (embarqueScope.id || embarqueScope.className.substring(0,30))));
 
             // Primeiro: checa memória
             var navioMem = SkMemory.getFieldMemory('tracking:Navio');
             if (navioMem && navioMem.seletoresQueFunc && navioMem.seletoresQueFunc.length > 0) {
                 var navioSel = navioMem.seletoresQueFunc[navioMem.seletoresQueFunc.length - 1];
-                try { navioInput = document.querySelector(navioSel); } catch(e) {}
+                try { navioInput = embarqueScope.querySelector(navioSel) || document.querySelector(navioSel); } catch(e) {}
                 if (navioInput) SkDebug.log('Navio', 'INFO', '🧠 Memória: ' + navioSel);
             }
 
-            // Segundo: busca por label TD
+            // Segundo: busca autocompletes DENTRO do escopo de embarque
             if (!navioInput) {
-                var allAutocompletes = document.querySelectorAll('input.ui-autocomplete-input');
-                for (var a = 0; a < allAutocompletes.length; a++) {
-                    var td = allAutocompletes[a].closest('td');
-                    if (td && td.previousElementSibling) {
-                        var labelLower = td.previousElementSibling.textContent.trim().toLowerCase();
-                        if (labelLower.indexOf('navio') >= 0 && labelLower.indexOf('feeder') < 0) {
-                            navioInput = allAutocompletes[a];
+                var scopeACs = embarqueScope.querySelectorAll('input.ui-autocomplete-input');
+                SkDebug.log('Navio', 'DEBUG', '🔍 ' + scopeACs.length + ' autocompletes no escopo');
+                for (var a = 0; a < scopeACs.length; a++) {
+                    var td = scopeACs[a].closest('td');
+                    var labelText = '';
+                    if (td && td.previousElementSibling) labelText = td.previousElementSibling.textContent.trim().toLowerCase();
+                    SkDebug.log('Navio', 'DEBUG', '  [' + a + '] label="' + labelText.substring(0,40) + '"');
+                    if (labelText.indexOf('navio') >= 0 && labelText.indexOf('feeder') < 0) {
+                        navioInput = scopeACs[a];
+                        SkDebug.log('Navio', 'INFO', '📍 Encontrado por label (sem Feeder)');
+                        break;
+                    }
+                }
+                // Fallback: pega qualquer com "navio" no escopo
+                if (!navioInput) {
+                    for (var a2 = 0; a2 < scopeACs.length; a2++) {
+                        var td2 = scopeACs[a2].closest('td');
+                        if (td2 && td2.previousElementSibling && td2.previousElementSibling.textContent.trim().toLowerCase().indexOf('navio') >= 0) {
+                            navioInput = scopeACs[a2];
+                            SkDebug.log('Navio', 'INFO', '📍 Fallback: qualquer "Navio" no escopo');
                             break;
                         }
                     }
@@ -316,15 +334,60 @@ try {
                 navioInput = await askUserForField('Navio');
             }
 
+            // PREENCHE: valor direto + aguarda dropdown + clica primeiro item
             if (navioInput) {
-                var r1 = await SkAgent.engine.charByChar(navioInput, data.vessel, { selectFirst: true, tabAfter: true });
-                if (r1.ok) {
-                    SkDebug.log('Navio', 'OK', '✅ ' + data.vessel + (r1.selected ? ' → ' + r1.selected : ''));
-                } else {
-                    SkDebug.log('Navio', 'FAIL', '❌ charByChar: ' + (r1.reason || 'Erro'));
+                SkDebug.log('Navio', 'INFO', '⌨️ Digitando "' + data.vessel + '" e aguardando dropdown...');
+                // Limpa, foca, e seta valor COMPLETO de uma vez (sem char-by-char)
+                navioInput.value = '';
+                navioInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await SkAgent.delay(200);
+
+                navioInput.focus();
+                navioInput.click();
+                await SkAgent.delay(100);
+
+                // Seta valor de uma vez e dispara eventos Angular
+                navioInput.value = data.vessel;
+                navioInput.dispatchEvent(new Event('input', { bubbles: true }));
+                navioInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: data.vessel[data.vessel.length - 1] }));
+                navioInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: data.vessel[data.vessel.length - 1] }));
+
+                // Aguarda dropdown abrir (até 15 segundos, checa a cada 600ms)
+                var dropdownFound = false;
+                for (var attempt = 0; attempt < 25; attempt++) {
+                    await SkAgent.delay(600);
+                    if (stopped()) break;
+
+                    // Refoca antes de cada check (Angular pode roubar foco)
+                    navioInput.focus();
+
+                    var panels = document.querySelectorAll('.ui-autocomplete-panel, .p-autocomplete-panel, .ui-autocomplete-items');
+                    for (var p = 0; p < panels.length; p++) {
+                        if (panels[p].offsetHeight > 0) {
+                            var items = panels[p].querySelectorAll('li');
+                            if (items.length > 0) {
+                                items[0].click();
+                                SkAgent.highlight(navioInput);
+                                SkDebug.log('Navio', 'OK', '✅ ' + data.vessel + ' → ' + items[0].textContent.trim().substring(0, 60));
+                                dropdownFound = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (dropdownFound) break;
+
+                    if (attempt === 5) {
+                        SkDebug.log('Navio', 'DEBUG', '⏳ Aguardando dropdown... tentativa ' + attempt);
+                    }
+                }
+
+                if (!dropdownFound) {
+                    SkDebug.log('Navio', 'FAIL', '❌ Dropdown não abriu. Valor atual: "' + navioInput.value + '"');
+                    // Tenta Tab pra confirmar o que tem
+                    navioInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
                 }
             } else {
-                SkDebug.log('Navio', 'SKIP', '⏭️ Usuário não clicou — pulando Navio');
+                SkDebug.log('Navio', 'SKIP', '⏭️ Pulando Navio');
             }
             await SkAgent.delay(600);
         }
