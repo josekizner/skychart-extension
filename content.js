@@ -1368,21 +1368,13 @@ try {
                             break;
                         }
                     }
-                    // Último recurso: pega o primeiro link que tem href real
                     if (!pdfUrl && rowLinks.length > 0) {
                         pdfUrl = rowLinks[0].href;
                     }
                     if (pdfUrl) {
                         SkDebug.log('Serasa', 'OK', '🔗 Link fallback: ' + pdfUrl.substring(0, 80));
-                    } else {
-                        // Clica no ícone download pra abrir e espera
-                        if (dlIcon) {
-                            var dlBtn = dlIcon.closest('button, a') || dlIcon;
-                            dlBtn.click();
-                            SkDebug.log('Serasa', 'INFO', '🔗 Clicou download, esperando aba...');
-                            await new Promise(function(resolve) { setTimeout(resolve, 3000); });
-                        }
                     }
+                    // NÃO clica aqui! O clique acontece via background (captureNewTabUrl)
                 }
             } else {
                 SkDebug.log('Serasa', 'FAIL', '❌ Nenhuma row com "Serasa" encontrada');
