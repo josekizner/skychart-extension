@@ -1635,8 +1635,10 @@ try {
             if (document.getElementById('sk-serasa-badge')) return;
             
             var score = null;
+            var fromStorage = false;
             if (data[storageKey]) {
                 score = data[storageKey].score;
+                fromStorage = true;
             }
 
             // Se não tem no storage, tenta ler do dsObservacao (se visível)
@@ -1650,6 +1652,15 @@ try {
             }
 
             if (!score) return;
+
+            // Se achou no dsObservacao mas não no storage, salva pro futuro
+            if (!fromStorage) {
+                var saveData = {};
+                saveData[storageKey] = { score: score, data: new Date().toISOString() };
+                chrome.storage.local.set(saveData);
+                SkDebug.log('Serasa', 'OK', '💾 Score ' + score + ' salvo no storage');
+            }
+
             injectScoreBadge(score);
         });
     }
