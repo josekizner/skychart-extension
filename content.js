@@ -1588,15 +1588,8 @@ try {
 
         // Salva no chrome.storage pra badge instantâneo na próxima visita
         try {
-            var pessoaSelect = document.querySelector('select[formcontrolname], select[id*="pessoa"], [data-cy*="pessoa"]');
-            var clientName = '';
-            if (pessoaSelect && pessoaSelect.options && pessoaSelect.selectedIndex >= 0) {
-                clientName = pessoaSelect.options[pessoaSelect.selectedIndex].text.trim();
-            }
-            if (!clientName) {
-                var pessoaLabel = document.querySelector('.ui-dropdown-label, .ui-autocomplete-input-token input');
-                if (pessoaLabel) clientName = pessoaLabel.textContent.trim();
-            }
+            var tituloSpan = document.querySelector('div.titulo-accordion span');
+            var clientName = tituloSpan ? tituloSpan.textContent.trim() : '';
             if (clientName && clientName.length >= 3) {
                 var storageKey = 'serasa_' + clientName.substring(0, 50).replace(/\s+/g, '_');
                 var saveData = {};
@@ -1630,17 +1623,10 @@ try {
     function scanForScoreBadge() {
         if (document.getElementById('sk-serasa-badge')) return;
 
-        // Pega o nome do cliente do dropdown
-        var pessoaSelect = document.querySelector('select[formcontrolname], select[id*="pessoa"], [data-cy*="pessoa"]');
-        var clientName = '';
-        if (pessoaSelect && pessoaSelect.options && pessoaSelect.selectedIndex >= 0) {
-            clientName = pessoaSelect.options[pessoaSelect.selectedIndex].text.trim();
-        }
-        if (!clientName) {
-            // Fallback: pega do label/span visível
-            var pessoaLabel = document.querySelector('.ui-dropdown-label, .ui-autocomplete-input-token input');
-            if (pessoaLabel) clientName = pessoaLabel.textContent.trim();
-        }
+        // Pega o nome do cliente de div.titulo-accordion span
+        var tituloSpan = document.querySelector('div.titulo-accordion span');
+        if (!tituloSpan) return;
+        var clientName = tituloSpan.textContent.trim();
         if (!clientName || clientName.length < 3) return;
 
         // Checa storage primeiro (instantâneo!)
@@ -1686,26 +1672,13 @@ try {
         badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;' +
             'padding:4px 12px;margin-left:12px;border-radius:14px;font-size:13px;' +
             'background:' + bg + ';color:' + color + ';border:1px solid ' + color + ';' +
-            'font-weight:600;vertical-align:middle;cursor:default;position:relative;top:-1px;';
+            'font-weight:600;vertical-align:middle;cursor:default;';
         badge.title = 'Score Serasa extraído automaticamente';
 
-        // Posição: perto do nome do cliente (header do painel principal)
-        // Busca o primeiro accordion header (nível mais alto = nome do cliente)
-        var panels = document.querySelectorAll('.ui-fieldset-legend, .ui-panel-title');
-        if (panels.length > 0) {
-            panels[0].appendChild(badge);
-        } else {
-            // Fallback: área do select de pessoa
-            var pessoaArea = document.querySelector('[data-cy*="pessoa"], .ui-autocomplete');
-            if (pessoaArea) {
-                pessoaArea.parentElement.appendChild(badge);
-            } else {
-                // Último fallback: perto do botão Consultar
-                var consultarBtn = document.querySelector('button[label="Consultar"], .ui-button');
-                if (consultarBtn) {
-                    consultarBtn.parentElement.appendChild(badge);
-                }
-            }
+        // Insere dentro de div.titulo-accordion, ao lado do nome do cliente
+        var tituloDiv = document.querySelector('div.titulo-accordion');
+        if (tituloDiv) {
+            tituloDiv.appendChild(badge);
         }
 
         SkDebug.log('Serasa', 'OK', '🏷️ Badge Score ' + score + ' injetado');
