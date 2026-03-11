@@ -310,29 +310,71 @@ try {
             });
         }
 
+        // ===== AUTO-DIAGNÓSTICO: O agente "abre o F12" sozinho =====
+        function diagnoseAndFind(labelToFind, labelToExclude) {
+            var allACs = document.querySelectorAll('input.ui-autocomplete-input');
+            SkDebug.log('Diagnóstico', 'INFO', '🔍 Escaneando ' + allACs.length + ' autocompletes...');
+
+            var found = null;
+            for (var i = 0; i < allACs.length; i++) {
+                var ac = allACs[i];
+                var contextTexts = [];
+
+                // 1. Texto do MESMO TD
+                var td = ac.closest('td');
+                var sameTd = td ? td.textContent.replace(ac.value || '', '').replace(ac.placeholder || '', '').trim() : '';
+                contextTexts.push(sameTd);
+
+                // 2. Texto do TD ANTERIOR
+                var prevTd = (td && td.previousElementSibling) ? td.previousElementSibling.textContent.trim() : '';
+                contextTexts.push(prevTd);
+
+                // 3. Texto do parent (p-autocomplete, span, div)
+                var parentText = '';
+                var parentEl = ac.parentElement;
+                if (parentEl) {
+                    // Texto dos siblings (labels antes do input)
+                    for (var s = 0; s < parentEl.children.length; s++) {
+                        if (parentEl.children[s] === ac) break;
+                        parentText += parentEl.children[s].textContent.trim() + ' ';
+                    }
+                }
+                contextTexts.push(parentText.trim());
+
+                // 4. Texto da primeira coluna da row (geralmente "Origem de Carga:", etc.)
+                var tr = ac.closest('tr');
+                var firstTdText = '';
+                if (tr) {
+                    var firstTd = tr.querySelector('td');
+                    if (firstTd) firstTdText = firstTd.textContent.trim();
+                }
+                contextTexts.push(firstTdText);
+
+                // Junta todo contexto
+                var allContext = contextTexts.join(' | ').toLowerCase();
+                var summary = '[' + i + '] same="' + sameTd.substring(0,25) + '" prev="' + prevTd.substring(0,25) + '" row="' + firstTdText.substring(0,25) + '" val="' + (ac.value || '').substring(0,15) + '"';
+                SkDebug.log('AC[' + i + ']', 'DEBUG', summary);
+
+                // Checa match
+                if (!found && allContext.indexOf(labelToFind) >= 0) {
+                    if (!labelToExclude || allContext.indexOf(labelToExclude) < 0) {
+                        found = ac;
+                        SkDebug.log('Diagnóstico', 'OK', '📍 MATCH! AC[' + i + '] contém "' + labelToFind + '"' + (labelToExclude ? ' (sem "' + labelToExclude + '")' : ''));
+                    }
+                }
+            }
+            return found;
+        }
+
         // ===== 1. NAVIO — Autocomplete =====
         if (!stopped()) {
             SkDebug.log('Navio', 'EXEC', '🚢 ' + data.vessel);
             var navioInput = null;
 
-            // === TENTATIVA 1: formcontrolname no p-autocomplete Angular ===
-            // Padrão: dsViagem, dtPrevisaoEmbarque → dsNavio, cdNavio, etc.
-            var pAutoCompletes = document.querySelectorAll('p-autocomplete, p-autoComplete');
-            SkDebug.log('Navio', 'DEBUG', '🔍 ' + pAutoCompletes.length + ' p-autocomplete na página');
-            for (var pac = 0; pac < pAutoCompletes.length; pac++) {
-                var fcn = (pAutoCompletes[pac].getAttribute('formcontrolname') || '').toLowerCase();
-                var inputInside = pAutoCompletes[pac].querySelector('input');
-                SkDebug.log('Navio', 'DEBUG', '  [' + pac + '] fcn="' + fcn + '" visível=' + (inputInside ? inputInside.offsetParent !== null : false));
-                if (fcn.indexOf('navio') >= 0 && fcn.indexOf('feeder') < 0) {
-                    if (inputInside) {
-                        navioInput = inputInside;
-                        SkDebug.log('Navio', 'OK', '📍 Encontrado via formcontrolname="' + fcn + '"');
-                        break;
-                    }
-                }
-            }
+            // TENTATIVA 1: Auto-diagnóstico (escaneia todos os autocompletes)
+            navioInput = diagnoseAndFind('navio', 'feeder');
 
-            // === TENTATIVA 2: Memória (aprendeu de clique anterior) ===
+            // TENTATIVA 2: Memória
             if (!navioInput) {
                 var navioMem = SkMemory.getFieldMemory('tracking:Navio');
                 if (navioMem && navioMem.seletoresQueFunc && navioMem.seletoresQueFunc.length > 0) {
@@ -342,26 +384,27 @@ try {
                 }
             }
 
-            // === TENTATIVA 3: Pede ajuda ao usuário ===
+            // TENTATIVA 3: Pede ajuda
             if (!navioInput) {
                 SkDebug.log('Navio', 'INFO', '🤔 Não achei. Clique no campo Navio!');
                 navioInput = await askUserForField('Navio');
             }
 
-            // === PREENCHE ===
+            // PREENCHE com nativeSet (compatível Angular)
             if (navioInput) {
-                SkDebug.log('Navio', 'INFO', '⌨️ Preenchendo "' + data.vessel + '"...');
+                SkDebug.log('Navio', 'INFO', '⌨️ "' + data.vessel + '"...');
 
-                // Limpa e foca
-                navioInput.value = '';
-                navioInput.dispatchEvent(new Event('input', { bubbles: true }));
-                await SkAgent.delay(200);
+                // Limpa, foca
                 navioInput.focus();
                 navioInput.click();
                 await SkAgent.delay(200);
 
-                // Seta valor completo
-                navioInput.value = data.vessel;
+                // Usa nativeSet (Object.getOwnPropertyDescriptor) pra Angular detectar
+                SkAgent.engine.nativeSet(navioInput, '');
+                navioInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await SkAgent.delay(200);
+
+                SkAgent.engine.nativeSet(navioInput, data.vessel);
                 navioInput.dispatchEvent(new Event('input', { bubbles: true }));
                 navioInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: data.vessel[data.vessel.length - 1] }));
                 navioInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: data.vessel[data.vessel.length - 1] }));
@@ -370,7 +413,7 @@ try {
                 var dropOk = false;
                 for (var att = 0; att < 25 && !stopped(); att++) {
                     await SkAgent.delay(600);
-                    navioInput.focus(); // re-foca cada vez
+                    navioInput.focus();
                     var panels = document.querySelectorAll('.ui-autocomplete-panel, .p-autocomplete-panel, .ui-autocomplete-items');
                     for (var p = 0; p < panels.length; p++) {
                         if (panels[p].offsetHeight > 0) {
@@ -386,11 +429,16 @@ try {
                     }
                     if (dropOk) break;
                 }
-                if (!dropOk) {
-                    // Tenta Tab
+
+                // Verifica se preencheu
+                await SkAgent.delay(500);
+                var navioVal = navioInput.value || '';
+                if (navioVal.length > 0 || dropOk) {
+                    SkDebug.log('Navio', 'OK', '✅ Valor final: "' + navioVal + '"');
+                } else {
+                    SkDebug.log('Navio', 'FAIL', '❌ Campo vazio após preenchimento');
+                    // Tab pra confirmar
                     navioInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
-                    navioInput.dispatchEvent(new Event('blur', { bubbles: true }));
-                    SkDebug.log('Navio', 'FAIL', '❌ Dropdown não abriu. Valor: "' + navioInput.value + '"');
                 }
             } else {
                 SkDebug.log('Navio', 'SKIP', '⏭️ Pulando');
