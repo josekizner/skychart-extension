@@ -242,18 +242,46 @@ try {
                         document.removeEventListener('click', onUserClick, true);
                         document.body.style.cursor = '';
 
-                        // Gera seletor estável
+                        // Gera seletor estável (full CSS path até ancestor com ID)
                         var selector = '';
                         if (target.id) {
-                            selector = '#' + target.id;
-                        } else if (target.getAttribute('formcontrolname')) {
-                            selector = '[formcontrolname="' + target.getAttribute('formcontrolname') + '"]';
+                            selector = '#' + CSS.escape(target.id);
                         } else {
-                            // Gera seletor por posição
-                            var parent = target.parentElement;
-                            var idx = Array.from(parent.children).indexOf(target);
-                            selector = target.tagName.toLowerCase() + ':nth-child(' + (idx + 1) + ')';
-                            if (parent.id) selector = '#' + parent.id + ' > ' + selector;
+                            // Checa se o parent p-autocomplete tem formcontrolname
+                            var pAC = target.closest('p-autocomplete, p-autoComplete');
+                            if (pAC && pAC.getAttribute('formcontrolname')) {
+                                selector = 'p-autocomplete[formcontrolname="' + pAC.getAttribute('formcontrolname') + '"] input';
+                            } else {
+                                // Gera full CSS path até ancestor com ID
+                                var path = [];
+                                var cur = target;
+                                while (cur && cur !== document.body && cur !== document.documentElement) {
+                                    var seg = cur.tagName.toLowerCase();
+                                    if (cur.id) {
+                                        path.unshift('#' + CSS.escape(cur.id));
+                                        break;
+                                    }
+                                    var par = cur.parentElement;
+                                    if (par) {
+                                        var sibs = Array.from(par.children).filter(function(c) { return c.tagName === cur.tagName; });
+                                        if (sibs.length > 1) {
+                                            seg += ':nth-of-type(' + (sibs.indexOf(cur) + 1) + ')';
+                                        }
+                                    }
+                                    path.unshift(seg);
+                                    cur = cur.parentElement;
+                                }
+                                selector = path.join(' > ');
+                            }
+                        }
+
+                        // Testa se o selector realmente acha o elemento
+                        var testEl = null;
+                        try { testEl = document.querySelector(selector); } catch(e) {}
+                        if (testEl !== target) {
+                            SkDebug.log(fieldName, 'FAIL', '⚠️ Selector gerado não é único, tentando alternativo...');
+                            // Fallback: xpath-like com nth-child
+                            selector = '';
                         }
 
                         // Salva na memória
@@ -282,85 +310,67 @@ try {
             });
         }
 
-        // ===== 1. NAVIO — Autocomplete (SCOPED ao form de Embarque) =====
+        // ===== 1. NAVIO — Autocomplete =====
         if (!stopped()) {
             SkDebug.log('Navio', 'EXEC', '🚢 ' + data.vessel);
             var navioInput = null;
 
-            // SCOPE: usa Viagem (que tem ID exato) pra encontrar o table/form de Embarque
-            var viagemRef = document.querySelector('#formularioEmbarque-dsViagem');
-            var embarqueScope = viagemRef ? viagemRef.closest('table, form, .ui-accordion-content, .ui-panel-content') : document.body;
-            SkDebug.log('Navio', 'DEBUG', '📐 Escopo: ' + (embarqueScope === document.body ? 'body (sem ref)' : embarqueScope.tagName + '#' + (embarqueScope.id || embarqueScope.className.substring(0,30))));
-
-            // Primeiro: checa memória
-            var navioMem = SkMemory.getFieldMemory('tracking:Navio');
-            if (navioMem && navioMem.seletoresQueFunc && navioMem.seletoresQueFunc.length > 0) {
-                var navioSel = navioMem.seletoresQueFunc[navioMem.seletoresQueFunc.length - 1];
-                try { navioInput = embarqueScope.querySelector(navioSel) || document.querySelector(navioSel); } catch(e) {}
-                if (navioInput) SkDebug.log('Navio', 'INFO', '🧠 Memória: ' + navioSel);
-            }
-
-            // Segundo: busca autocompletes DENTRO do escopo de embarque
-            if (!navioInput) {
-                var scopeACs = embarqueScope.querySelectorAll('input.ui-autocomplete-input');
-                SkDebug.log('Navio', 'DEBUG', '🔍 ' + scopeACs.length + ' autocompletes no escopo');
-                for (var a = 0; a < scopeACs.length; a++) {
-                    var td = scopeACs[a].closest('td');
-                    var labelText = '';
-                    if (td && td.previousElementSibling) labelText = td.previousElementSibling.textContent.trim().toLowerCase();
-                    SkDebug.log('Navio', 'DEBUG', '  [' + a + '] label="' + labelText.substring(0,40) + '"');
-                    if (labelText.indexOf('navio') >= 0 && labelText.indexOf('feeder') < 0) {
-                        navioInput = scopeACs[a];
-                        SkDebug.log('Navio', 'INFO', '📍 Encontrado por label (sem Feeder)');
+            // === TENTATIVA 1: formcontrolname no p-autocomplete Angular ===
+            // Padrão: dsViagem, dtPrevisaoEmbarque → dsNavio, cdNavio, etc.
+            var pAutoCompletes = document.querySelectorAll('p-autocomplete, p-autoComplete');
+            SkDebug.log('Navio', 'DEBUG', '🔍 ' + pAutoCompletes.length + ' p-autocomplete na página');
+            for (var pac = 0; pac < pAutoCompletes.length; pac++) {
+                var fcn = (pAutoCompletes[pac].getAttribute('formcontrolname') || '').toLowerCase();
+                var inputInside = pAutoCompletes[pac].querySelector('input');
+                SkDebug.log('Navio', 'DEBUG', '  [' + pac + '] fcn="' + fcn + '" visível=' + (inputInside ? inputInside.offsetParent !== null : false));
+                if (fcn.indexOf('navio') >= 0 && fcn.indexOf('feeder') < 0) {
+                    if (inputInside) {
+                        navioInput = inputInside;
+                        SkDebug.log('Navio', 'OK', '📍 Encontrado via formcontrolname="' + fcn + '"');
                         break;
                     }
                 }
-                // Fallback: pega qualquer com "navio" no escopo
-                if (!navioInput) {
-                    for (var a2 = 0; a2 < scopeACs.length; a2++) {
-                        var td2 = scopeACs[a2].closest('td');
-                        if (td2 && td2.previousElementSibling && td2.previousElementSibling.textContent.trim().toLowerCase().indexOf('navio') >= 0) {
-                            navioInput = scopeACs[a2];
-                            SkDebug.log('Navio', 'INFO', '📍 Fallback: qualquer "Navio" no escopo');
-                            break;
-                        }
-                    }
+            }
+
+            // === TENTATIVA 2: Memória (aprendeu de clique anterior) ===
+            if (!navioInput) {
+                var navioMem = SkMemory.getFieldMemory('tracking:Navio');
+                if (navioMem && navioMem.seletoresQueFunc && navioMem.seletoresQueFunc.length > 0) {
+                    var navioSel = navioMem.seletoresQueFunc[navioMem.seletoresQueFunc.length - 1];
+                    try { navioInput = document.querySelector(navioSel); } catch(e) {}
+                    if (navioInput) SkDebug.log('Navio', 'INFO', '🧠 Memória: ' + navioSel);
                 }
             }
 
-            // Terceiro: PEDE AJUDA ao usuário
+            // === TENTATIVA 3: Pede ajuda ao usuário ===
             if (!navioInput) {
-                SkDebug.log('Navio', 'INFO', '🤔 Não achei automaticamente. Pedindo ajuda...');
+                SkDebug.log('Navio', 'INFO', '🤔 Não achei. Clique no campo Navio!');
                 navioInput = await askUserForField('Navio');
             }
 
-            // PREENCHE: valor direto + aguarda dropdown + clica primeiro item
+            // === PREENCHE ===
             if (navioInput) {
-                SkDebug.log('Navio', 'INFO', '⌨️ Digitando "' + data.vessel + '" e aguardando dropdown...');
-                // Limpa, foca, e seta valor COMPLETO de uma vez (sem char-by-char)
+                SkDebug.log('Navio', 'INFO', '⌨️ Preenchendo "' + data.vessel + '"...');
+
+                // Limpa e foca
                 navioInput.value = '';
                 navioInput.dispatchEvent(new Event('input', { bubbles: true }));
                 await SkAgent.delay(200);
-
                 navioInput.focus();
                 navioInput.click();
-                await SkAgent.delay(100);
+                await SkAgent.delay(200);
 
-                // Seta valor de uma vez e dispara eventos Angular
+                // Seta valor completo
                 navioInput.value = data.vessel;
                 navioInput.dispatchEvent(new Event('input', { bubbles: true }));
                 navioInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: data.vessel[data.vessel.length - 1] }));
                 navioInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: data.vessel[data.vessel.length - 1] }));
 
-                // Aguarda dropdown abrir (até 15 segundos, checa a cada 600ms)
-                var dropdownFound = false;
-                for (var attempt = 0; attempt < 25; attempt++) {
+                // Aguarda dropdown (max 15s)
+                var dropOk = false;
+                for (var att = 0; att < 25 && !stopped(); att++) {
                     await SkAgent.delay(600);
-                    if (stopped()) break;
-
-                    // Refoca antes de cada check (Angular pode roubar foco)
-                    navioInput.focus();
-
+                    navioInput.focus(); // re-foca cada vez
                     var panels = document.querySelectorAll('.ui-autocomplete-panel, .p-autocomplete-panel, .ui-autocomplete-items');
                     for (var p = 0; p < panels.length; p++) {
                         if (panels[p].offsetHeight > 0) {
@@ -369,25 +379,21 @@ try {
                                 items[0].click();
                                 SkAgent.highlight(navioInput);
                                 SkDebug.log('Navio', 'OK', '✅ ' + data.vessel + ' → ' + items[0].textContent.trim().substring(0, 60));
-                                dropdownFound = true;
+                                dropOk = true;
                                 break;
                             }
                         }
                     }
-                    if (dropdownFound) break;
-
-                    if (attempt === 5) {
-                        SkDebug.log('Navio', 'DEBUG', '⏳ Aguardando dropdown... tentativa ' + attempt);
-                    }
+                    if (dropOk) break;
                 }
-
-                if (!dropdownFound) {
-                    SkDebug.log('Navio', 'FAIL', '❌ Dropdown não abriu. Valor atual: "' + navioInput.value + '"');
-                    // Tenta Tab pra confirmar o que tem
+                if (!dropOk) {
+                    // Tenta Tab
                     navioInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
+                    navioInput.dispatchEvent(new Event('blur', { bubbles: true }));
+                    SkDebug.log('Navio', 'FAIL', '❌ Dropdown não abriu. Valor: "' + navioInput.value + '"');
                 }
             } else {
-                SkDebug.log('Navio', 'SKIP', '⏭️ Pulando Navio');
+                SkDebug.log('Navio', 'SKIP', '⏭️ Pulando');
             }
             await SkAgent.delay(600);
         }
