@@ -1591,7 +1591,56 @@ try {
     function scanForSerasa() {
         if (location.href.indexOf('/app/pessoa') >= 0) {
             injectSerasaButton();
+            scanForScoreBadge();
+        } else {
+            // Remove badge se saiu da página de pessoa
+            var oldBadge = document.getElementById('sk-serasa-badge');
+            if (oldBadge) oldBadge.remove();
         }
+    }
+
+    // Badge de Score: lê dsObservacao e mostra badge no nome do cliente
+    function scanForScoreBadge() {
+        // Já tem badge? Não recria
+        if (document.getElementById('sk-serasa-badge')) return;
+
+        // Lê o campo observação
+        var dsObs = document.querySelector('#dsObservacao');
+        if (!dsObs) return;
+
+        var obsText = dsObs.value || dsObs.textContent || '';
+        var scoreMatch = obsText.match(/Score\s+(?:Serasa:?\s*)?(\d{1,4})/i);
+        if (!scoreMatch) return;
+
+        var score = parseInt(scoreMatch[1]);
+        
+        // Cor baseada no score
+        var color, bg, emoji;
+        if (score >= 700) {
+            color = '#10b981'; bg = 'rgba(16, 185, 129, 0.15)'; emoji = '🟢';
+        } else if (score >= 400) {
+            color = '#f59e0b'; bg = 'rgba(245, 158, 11, 0.15)'; emoji = '🟡';
+        } else {
+            color = '#ef4444'; bg = 'rgba(239, 68, 68, 0.15)'; emoji = '🔴';
+        }
+
+        // Procura o nome do cliente (header da página de pessoa)
+        var clientHeader = document.querySelector('.ui-accordion-header-text');
+        if (!clientHeader) return;
+
+        // Cria badge
+        var badge = document.createElement('span');
+        badge.id = 'sk-serasa-badge';
+        badge.innerHTML = emoji + ' Score: <strong>' + score + '</strong>/1000';
+        badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;' +
+            'padding:3px 10px;margin-left:12px;border-radius:12px;font-size:13px;' +
+            'background:' + bg + ';color:' + color + ';border:1px solid ' + color + ';' +
+            'font-weight:600;vertical-align:middle;cursor:default;';
+        badge.title = 'Score Serasa extraído automaticamente';
+
+        // Insere ao lado do header do cliente
+        clientHeader.parentElement.appendChild(badge);
+        SkDebug.log('Serasa', 'OK', '🏷️ Badge Score ' + score + ' injetado');
     }    // ========================================================================
     // INIT — Inicializa tudo
     // ========================================================================
