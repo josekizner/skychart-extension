@@ -1585,6 +1585,33 @@ try {
 
         showToast('✅ Serasa: Score ' + serasaData.score + ' | Limite R$ ' + Number(serasaData.limiteCredito || 0).toLocaleString('pt-BR'), 'success', 8000);
         SkDebug.log('Serasa', 'OK', '🏁 Concluído!');
+
+        // Salva no chrome.storage pra badge instantâneo na próxima visita
+        try {
+            var pessoaSelect = document.querySelector('select[formcontrolname], select[id*="pessoa"], [data-cy*="pessoa"]');
+            var clientName = '';
+            if (pessoaSelect && pessoaSelect.options && pessoaSelect.selectedIndex >= 0) {
+                clientName = pessoaSelect.options[pessoaSelect.selectedIndex].text.trim();
+            }
+            if (!clientName) {
+                var pessoaLabel = document.querySelector('.ui-dropdown-label, .ui-autocomplete-input-token input');
+                if (pessoaLabel) clientName = pessoaLabel.textContent.trim();
+            }
+            if (clientName && clientName.length >= 3) {
+                var storageKey = 'serasa_' + clientName.substring(0, 50).replace(/\s+/g, '_');
+                var saveData = {};
+                saveData[storageKey] = {
+                    score: parseInt(serasaData.score) || 0,
+                    limiteCredito: serasaData.limiteCredito,
+                    data: new Date().toISOString()
+                };
+                chrome.storage.local.set(saveData);
+                SkDebug.log('Serasa', 'OK', '💾 Score salvo: ' + storageKey);
+            }
+        } catch(e) { /* ignora erro de storage */ }
+
+        // Injeta badge imediatamente
+        injectScoreBadge(parseInt(serasaData.score) || 0);
     }
 
     // Injeta o botão Serasa quando estiver na página de Pessoas
@@ -1599,22 +1626,51 @@ try {
         }
     }
 
-    // Badge de Score: lê dsObservacao e mostra badge no nome do cliente
+    // Badge de Score: lê score do storage e mostra badge perto do nome do cliente
     function scanForScoreBadge() {
-        // Já tem badge? Não recria
         if (document.getElementById('sk-serasa-badge')) return;
 
-        // Lê o campo observação
-        var dsObs = document.querySelector('#dsObservacao');
-        if (!dsObs) return;
+        // Pega o nome do cliente do dropdown
+        var pessoaSelect = document.querySelector('select[formcontrolname], select[id*="pessoa"], [data-cy*="pessoa"]');
+        var clientName = '';
+        if (pessoaSelect && pessoaSelect.options && pessoaSelect.selectedIndex >= 0) {
+            clientName = pessoaSelect.options[pessoaSelect.selectedIndex].text.trim();
+        }
+        if (!clientName) {
+            // Fallback: pega do label/span visível
+            var pessoaLabel = document.querySelector('.ui-dropdown-label, .ui-autocomplete-input-token input');
+            if (pessoaLabel) clientName = pessoaLabel.textContent.trim();
+        }
+        if (!clientName || clientName.length < 3) return;
 
-        var obsText = dsObs.value || dsObs.textContent || '';
-        var scoreMatch = obsText.match(/Score\s+(?:Serasa:?\s*)?(\d{1,4})/i);
-        if (!scoreMatch) return;
+        // Checa storage primeiro (instantâneo!)
+        var storageKey = 'serasa_' + clientName.substring(0, 50).replace(/\s+/g, '_');
+        chrome.storage.local.get(storageKey, function(data) {
+            if (document.getElementById('sk-serasa-badge')) return;
+            
+            var score = null;
+            if (data[storageKey]) {
+                score = data[storageKey].score;
+            }
 
-        var score = parseInt(scoreMatch[1]);
-        
-        // Cor baseada no score
+            // Se não tem no storage, tenta ler do dsObservacao (se visível)
+            if (!score) {
+                var dsObs = document.querySelector('#dsObservacao');
+                if (dsObs) {
+                    var obsText = dsObs.value || dsObs.textContent || '';
+                    var scoreMatch = obsText.match(/Score\s+(?:Serasa:?\s*)?(\d{1,4})/i);
+                    if (scoreMatch) score = parseInt(scoreMatch[1]);
+                }
+            }
+
+            if (!score) return;
+            injectScoreBadge(score);
+        });
+    }
+
+    function injectScoreBadge(score) {
+        if (document.getElementById('sk-serasa-badge')) return;
+
         var color, bg, emoji;
         if (score >= 700) {
             color = '#10b981'; bg = 'rgba(16, 185, 129, 0.15)'; emoji = '🟢';
@@ -1624,22 +1680,34 @@ try {
             color = '#ef4444'; bg = 'rgba(239, 68, 68, 0.15)'; emoji = '🔴';
         }
 
-        // Procura o nome do cliente (header da página de pessoa)
-        var clientHeader = document.querySelector('.ui-accordion-header-text');
-        if (!clientHeader) return;
-
-        // Cria badge
         var badge = document.createElement('span');
         badge.id = 'sk-serasa-badge';
         badge.innerHTML = emoji + ' Score: <strong>' + score + '</strong>/1000';
         badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;' +
-            'padding:3px 10px;margin-left:12px;border-radius:12px;font-size:13px;' +
+            'padding:4px 12px;margin-left:12px;border-radius:14px;font-size:13px;' +
             'background:' + bg + ';color:' + color + ';border:1px solid ' + color + ';' +
-            'font-weight:600;vertical-align:middle;cursor:default;';
+            'font-weight:600;vertical-align:middle;cursor:default;position:relative;top:-1px;';
         badge.title = 'Score Serasa extraído automaticamente';
 
-        // Insere ao lado do header do cliente
-        clientHeader.parentElement.appendChild(badge);
+        // Posição: perto do nome do cliente (header do painel principal)
+        // Busca o primeiro accordion header (nível mais alto = nome do cliente)
+        var panels = document.querySelectorAll('.ui-fieldset-legend, .ui-panel-title');
+        if (panels.length > 0) {
+            panels[0].appendChild(badge);
+        } else {
+            // Fallback: área do select de pessoa
+            var pessoaArea = document.querySelector('[data-cy*="pessoa"], .ui-autocomplete');
+            if (pessoaArea) {
+                pessoaArea.parentElement.appendChild(badge);
+            } else {
+                // Último fallback: perto do botão Consultar
+                var consultarBtn = document.querySelector('button[label="Consultar"], .ui-button');
+                if (consultarBtn) {
+                    consultarBtn.parentElement.appendChild(badge);
+                }
+            }
+        }
+
         SkDebug.log('Serasa', 'OK', '🏷️ Badge Score ' + score + ' injetado');
     }    // ========================================================================
     // INIT — Inicializa tudo
