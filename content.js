@@ -169,49 +169,72 @@ try {
             return dateStr;
         }
 
-        // Usa SkAgent.findInputByLabel + SkAgent.engine.nativeSet (mesma lógica do câmbio)
-        async function fillField(labelText, value, logLabel) {
-            if (!value) return false;
-            var label = logLabel || labelText;
-
-            // Usa o findInputByLabel do smart-agent (provado no câmbio)
-            var input = SkAgent.findInputByLabel(labelText);
-            if (!input) {
-                SkDebug.log(label, 'FAIL', '❌ Campo não encontrado: ' + labelText);
-                return false;
+        // 1. NAVIO — Autocomplete (charByChar + seleciona dropdown)
+        SkDebug.log('Navio', 'EXEC', '🚢 ' + data.vessel);
+        var navioInput = SkAgent.findInputByLabel('Navio');
+        if (!navioInput) {
+            var acs = document.querySelectorAll('input.ui-autocomplete-input');
+            for (var a = 0; a < acs.length; a++) {
+                var td = acs[a].closest('td');
+                if (td && td.previousElementSibling && /navio/i.test(td.previousElementSibling.textContent)) {
+                    navioInput = acs[a]; break;
+                }
             }
-
-            // Usa nativeSet do Engine (Angular-compatible) 
-            var result = SkAgent.engine.nativeSet(input, value);
-            if (result.ok) {
-                SkAgent.highlight(input);
-                SkDebug.log(label, 'OK', '✅ ' + value);
-            } else {
-                SkDebug.log(label, 'FAIL', '❌ nativeSet falhou: ' + (result.reason || ''));
-            }
-            await SkAgent.delay(500);
-            return result.ok;
         }
+        if (navioInput) {
+            var r1 = await SkAgent.engine.charByChar(navioInput, data.vessel, { selectFirst: true, tabAfter: true });
+            SkDebug.log('Navio', r1.ok ? 'OK' : 'FAIL', r1.ok ? '✅ ' + data.vessel : '❌ ' + (r1.reason || ''));
+        } else {
+            SkDebug.log('Navio', 'FAIL', '❌ autocomplete não encontrado');
+        }
+        await SkAgent.delay(500);
 
-        // Preenche os campos usando SkAgent
-        SkDebug.log('Navio', 'EXEC', '🚢 Preenchendo: ' + data.vessel);
-        await fillField('Navio', data.vessel, 'Navio');
+        // 2. VIAGEM — ID: formularioEmbarque-dsViagem (click, set, tab)
+        SkDebug.log('Viagem', 'EXEC', '🧭 ' + data.voyage);
+        var viagemInput = document.querySelector('#formularioEmbarque-dsViagem');
+        if (viagemInput) {
+            viagemInput.focus();
+            viagemInput.click();
+            SkAgent.engine.nativeSet(viagemInput, data.voyage);
+            viagemInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
+            viagemInput.dispatchEvent(new Event('blur', { bubbles: true }));
+            SkAgent.highlight(viagemInput);
+            SkDebug.log('Viagem', 'OK', '✅ ' + data.voyage);
+        } else {
+            SkDebug.log('Viagem', 'FAIL', '❌ #formularioEmbarque-dsViagem não encontrado');
+        }
+        await SkAgent.delay(500);
 
-        SkDebug.log('Viagem', 'EXEC', '🧭 Preenchendo: ' + data.voyage);
-        await fillField('Viagem', data.voyage, 'Viagem');
+        // 3. PREV EMBARQUE — ID: formularioEmbarque-dtPrevisaoEmbarque (charByChar, tab)
+        var embarqueDate = convertDate(data.departureDate);
+        SkDebug.log('Prev. Embarque', 'EXEC', '📅 ' + embarqueDate);
+        var embarqueInput = document.querySelector('#formularioEmbarque-dtPrevisaoEmbarque');
+        if (embarqueInput) {
+            var r3 = await SkAgent.engine.charByChar(embarqueInput, embarqueDate, { selectFirst: false, tabAfter: true });
+            SkDebug.log('Prev. Embarque', r3.ok ? 'OK' : 'FAIL', r3.ok ? '✅ ' + embarqueDate : '❌ ' + (r3.reason || ''));
+        } else {
+            SkDebug.log('Prev. Embarque', 'FAIL', '❌ #formularioEmbarque-dtPrevisaoEmbarque não encontrado');
+        }
+        await SkAgent.delay(500);
 
-        SkDebug.log('Prev. Embarque', 'EXEC', '📅 Preenchendo: ' + convertDate(data.departureDate));
-        await fillField('Previsão de Embarque', convertDate(data.departureDate), 'Prev. Embarque');
+        // 4. PREV ATRACAÇÃO — ID: formularioEmbarque-dtPrevisaoAtracacao (charByChar, tab)
+        var etaDate = convertDate(data.arrivalDate);
+        SkDebug.log('Prev. Atracação', 'EXEC', '📅 ' + etaDate);
+        var etaInput = document.querySelector('#formularioEmbarque-dtPrevisaoAtracacao');
+        if (etaInput) {
+            var r4 = await SkAgent.engine.charByChar(etaInput, etaDate, { selectFirst: false, tabAfter: true });
+            SkDebug.log('Prev. Atracação', r4.ok ? 'OK' : 'FAIL', r4.ok ? '✅ ' + etaDate : '❌ ' + (r4.reason || ''));
+        } else {
+            SkDebug.log('Prev. Atracação', 'FAIL', '❌ #formularioEmbarque-dtPrevisaoAtracacao não encontrado');
+        }
+        await SkAgent.delay(500);
 
-        SkDebug.log('Prev. Atracação', 'EXEC', '📅 Preenchendo: ' + convertDate(data.arrivalDate));
-        await fillField('Previsão de Atracação', convertDate(data.arrivalDate), 'Prev. Atracação');
-
-        // Transbordos
+        // 5. TRANSBORDOS
         if (data.transshipments && data.transshipments.length > 0) {
             SkDebug.log('Transbordos', 'INFO', '📦 ' + data.transshipments.length + ' transbordo(s):');
             for (var t = 0; t < data.transshipments.length; t++) {
                 var ts = data.transshipments[t];
-                SkDebug.log('Transbordo ' + (t + 1), 'INFO', '📍 ' + ts.port + ' | ' + ts.vesselIn + '→' + ts.vesselOut + ' | ' + convertDate(ts.arrivalDate) + '→' + convertDate(ts.departureDate));
+                SkDebug.log('Transbordo ' + (t + 1), 'INFO', '📍 ' + ts.port + ' | ' + ts.vesselIn + ' → ' + ts.vesselOut + ' | ' + convertDate(ts.arrivalDate) + ' → ' + convertDate(ts.departureDate));
             }
             showToast('📦 ' + data.transshipments.length + ' transbordo(s) detectado(s)', 'info', 8000);
         }
