@@ -1300,72 +1300,100 @@ try {
         SkDebug.log('Serasa', 'EXEC', '📊 Iniciando análise Serasa...');
         showToast('📊 Analisando Serasa...', 'info', 5000);
 
-        // 0. Abre accordion "Documentos" se fechado (a grid só existe quando aberto)
-        var allHeaders = document.querySelectorAll('.ui-accordion-header, a[role="tab"]');
-        for (var dh = 0; dh < allHeaders.length; dh++) {
-            if (allHeaders[dh].textContent.indexOf('Documentos') >= 0 &&
-                allHeaders[dh].textContent.indexOf('Controle de documentos') < 0) {
-                var docContent = allHeaders[dh].nextElementSibling;
-                if (!docContent || docContent.offsetHeight === 0 || docContent.style.display === 'none') {
-                    allHeaders[dh].click();
-                    SkDebug.log('Serasa', 'INFO', '📂 Abrindo aba Documentos...');
-                    await new Promise(function(resolve) { setTimeout(resolve, 2000); });
-                }
+        // 0. Abre accordion "Documentos" se fechado (Angular não renderiza conteúdo quando fechado)
+        var docHeaderSpans = document.querySelectorAll('span.ui-accordion-header-text');
+        var docOpened = false;
+        for (var dh = 0; dh < docHeaderSpans.length; dh++) {
+            var spanText = docHeaderSpans[dh].textContent.trim();
+            if (spanText === 'Documentos') {
+                // Clica no header (ou no <a> pai)
+                var clickable = docHeaderSpans[dh].closest('a, .ui-accordion-header') || docHeaderSpans[dh];
+                SkDebug.log('Serasa', 'INFO', '📂 Clicando em "Documentos" (' + clickable.tagName + ')...');
+                clickable.click();
+                docOpened = true;
+                await new Promise(function(resolve) { setTimeout(resolve, 2500); });
                 break;
             }
         }
-        var docRows = document.querySelectorAll('table tbody tr, .ui-table-scrollable-body tr');
-        var serasaRow = null;
-        for (var r = 0; r < docRows.length; r++) {
-            if (docRows[r].textContent.indexOf('Serasa') >= 0 || docRows[r].textContent.indexOf('serasa') >= 0) {
-                serasaRow = docRows[r];
-                SkDebug.log('Serasa', 'OK', '📄 Row encontrada: ' + docRows[r].textContent.trim().substring(0, 80));
+        if (!docOpened) {
+            SkDebug.log('Serasa', 'FAIL', '❌ Accordion "Documentos" não encontrado. Spans: ' + 
+                Array.from(docHeaderSpans).map(function(s) { return '"' + s.textContent.trim() + '"'; }).join(', '));
+        }
+
+        // 1. Busca DIRETA: link com href contendo "serasa" (mais confiável que buscar row)
+        var pdfUrl = null;
+        var allLinks = document.querySelectorAll('a[href]');
+        for (var al = 0; al < allLinks.length; al++) {
+            if (allLinks[al].href.toLowerCase().indexOf('serasa') >= 0) {
+                pdfUrl = allLinks[al].href;
+                SkDebug.log('Serasa', 'OK', '🔗 Link direto: ' + pdfUrl.substring(0, 80));
                 break;
             }
         }
-        if (!serasaRow) {
-            SkDebug.log('Serasa', 'FAIL', '❌ Nenhuma row com "Serasa" na grid de Documentos');
-            showToast('❌ PDF Serasa não encontrado na grid de Documentos', 'warning', 5000);
-            return;
-        }
 
-        // 2. Acha o botão de download (fa-download) na row
-        var downloadBtn = serasaRow.querySelector('.fa-download');
-        if (!downloadBtn) {
-            // Tenta achar qualquer link/botão de ação na row
-            downloadBtn = serasaRow.querySelector('a, button, .fa-eye, .fa-file-pdf-o');
-        }
-        if (!downloadBtn) {
-            SkDebug.log('Serasa', 'FAIL', '❌ Botão download não encontrado na row');
-            return;
-        }
-
-        // 3. Pega o href do link (pode estar no parent <a> ou <button>)
-        var downloadLink = downloadBtn.closest('a');
-        var pdfUrl = downloadLink ? downloadLink.href : null;
-
+        // 2. Fallback: busca row na grid com "Serasa" e pega o download icon
         if (!pdfUrl) {
-            // Clica pra abrir e pega a URL da aba nova
-            SkDebug.log('Serasa', 'INFO', '🔗 Clicando pra abrir PDF...');
-            var clickTarget = downloadBtn.closest('button, a') || downloadBtn;
-            clickTarget.click();
-            await new Promise(function(resolve) { setTimeout(resolve, 3000); });
-
-            // Procura a URL do PDF que abriu na mesma aba ou aba nova
-            // O PDF abre no Skychart viewer — a URL fica no iframe ou na barra
-            pdfUrl = location.href; // fallback
-            SkDebug.log('Serasa', 'INFO', '📎 URL: ' + pdfUrl);
-        }
-
-        // 4. Busca o PDF direto via fetch (usa cookie do Skychart)
-        try {
-            SkDebug.log('Serasa', 'INFO', '📥 Baixando PDF...');
-
-            // Se abriu em nova aba, pega a URL do link
-            if (downloadLink && downloadLink.href) {
-                pdfUrl = downloadLink.href;
+            var docRows = document.querySelectorAll('tr');
+            SkDebug.log('Serasa', 'DEBUG', '🔍 ' + docRows.length + ' <tr> na página');
+            var serasaRow = null;
+            for (var r = 0; r < docRows.length; r++) {
+                var rowText = docRows[r].textContent;
+                if (rowText.indexOf('Serasa') >= 0 || rowText.indexOf('serasa') >= 0 || rowText.indexOf('SERASA') >= 0) {
+                    serasaRow = docRows[r];
+                    SkDebug.log('Serasa', 'OK', '📄 Row[' + r + ']: ' + rowText.trim().substring(0, 80));
+                    break;
+                }
             }
 
+            if (serasaRow) {
+                // Busca link de download na row
+                var dlIcon = serasaRow.querySelector('.fa-download');
+                var dlLink = dlIcon ? dlIcon.closest('a') : null;
+                if (dlLink && dlLink.href) {
+                    pdfUrl = dlLink.href;
+                    SkDebug.log('Serasa', 'OK', '🔗 Link do ícone: ' + pdfUrl.substring(0, 80));
+                } else {
+                    // Tenta qualquer <a> com href na row
+                    var rowLinks = serasaRow.querySelectorAll('a[href]');
+                    for (var rl = 0; rl < rowLinks.length; rl++) {
+                        if (rowLinks[rl].href.indexOf('arquivo') >= 0 || rowLinks[rl].href.indexOf('pdf') >= 0 || 
+                            rowLinks[rl].href.indexOf('permanente') >= 0 || rowLinks[rl].href.indexOf('download') >= 0) {
+                            pdfUrl = rowLinks[rl].href;
+                            break;
+                        }
+                    }
+                    // Último recurso: pega o primeiro link que tem href real
+                    if (!pdfUrl && rowLinks.length > 0) {
+                        pdfUrl = rowLinks[0].href;
+                    }
+                    if (pdfUrl) {
+                        SkDebug.log('Serasa', 'OK', '🔗 Link fallback: ' + pdfUrl.substring(0, 80));
+                    } else {
+                        // Clica no ícone download pra abrir e espera
+                        if (dlIcon) {
+                            var dlBtn = dlIcon.closest('button, a') || dlIcon;
+                            dlBtn.click();
+                            SkDebug.log('Serasa', 'INFO', '🔗 Clicou download, esperando aba...');
+                            await new Promise(function(resolve) { setTimeout(resolve, 3000); });
+                        }
+                    }
+                }
+            } else {
+                SkDebug.log('Serasa', 'FAIL', '❌ Nenhuma row com "Serasa" encontrada');
+                showToast('❌ PDF Serasa não encontrado na grid de Documentos', 'warning', 5000);
+                return;
+            }
+        }
+
+        // 3. Busca o PDF via fetch
+        if (!pdfUrl) {
+            SkDebug.log('Serasa', 'FAIL', '❌ URL do PDF não encontrada');
+            showToast('❌ URL do PDF Serasa não encontrada', 'warning', 5000);
+            return;
+        }
+
+        try {
+            SkDebug.log('Serasa', 'INFO', '📥 Baixando: ' + pdfUrl.substring(0, 80));
             var resp = await fetch(pdfUrl, { credentials: 'include' });
             var blob = await resp.blob();
 
