@@ -7,6 +7,12 @@
  */
 
 try {
+    // GUARD: Não roda NADA em páginas de PDF/arquivo (evita câmbio ativar na aba do PDF Serasa)
+    if (location.href.indexOf('/arquivos/') >= 0 || location.href.match(/\.pdf$/i)) {
+        console.log("Skychart AI: Página de arquivo/PDF, ignorando.");
+        throw new Error('SKIP_PDF_PAGE');
+    }
+
     console.log("Skychart AI: Script carregado com sucesso.");
 
     // Listener para notificações de atualização e tracking data
@@ -1385,9 +1391,8 @@ try {
             }
         }
 
-        // Se não achou link direto E achou row com icon de download, usa o background
+        // Se não achou link direto, usa background pra capturar URL da aba nova
         if (!pdfUrl) {
-            // Procura o icon de download na row
             var serasaRow2 = null;
             var docRows2 = document.querySelectorAll('tr');
             for (var r2 = 0; r2 < docRows2.length; r2++) {
@@ -1401,55 +1406,51 @@ try {
                 var dlIcon2 = serasaRow2.querySelector('.fa-download');
                 var dlBtn2 = dlIcon2 ? (dlIcon2.closest('button, a') || dlIcon2) : null;
                 if (dlBtn2) {
-                    // Salva referência pra quando background pedir pra clicar
                     window._serasaDlBtn = dlBtn2;
-                    SkDebug.log('Serasa', 'INFO', '🔗 Pedindo ao background pra capturar aba nova...');
-                    showToast('🤖 Abrindo PDF e analisando com IA...', 'info', 10000);
+                    SkDebug.log('Serasa', 'INFO', '🔗 Capturando URL via background...');
 
-                    var geminiResponse = await new Promise(function(resolve) {
+                    // Background: registra listener → manda clicar → captura URL → fecha aba
+                    var urlResponse = await new Promise(function(resolve) {
                         chrome.runtime.sendMessage(
-                            { action: 'fetchPdfFromNewTab' },
+                            { action: 'captureNewTabUrl' },
                             function(response) { resolve(response); }
                         );
                     });
 
-                    if (geminiResponse && geminiResponse.success) {
-                        var serasaData = geminiResponse.result;
-                        SkDebug.log('Serasa', 'OK', '🤖 Score: ' + serasaData.score + ' | Limite: R$ ' + serasaData.limiteCredito);
-
-                        // Preencher campos
-                        await fillSerasaFields(serasaData);
-                        return;
+                    if (urlResponse && urlResponse.success && urlResponse.url) {
+                        pdfUrl = urlResponse.url;
+                        SkDebug.log('Serasa', 'OK', '🔗 URL capturada: ' + pdfUrl.substring(0, 80));
                     } else {
-                        SkDebug.log('Serasa', 'FAIL', '❌ Background: ' + (geminiResponse ? geminiResponse.error : 'sem resposta'));
-                        showToast('❌ Erro ao processar PDF Serasa', 'warning', 5000);
+                        SkDebug.log('Serasa', 'FAIL', '❌ ' + (urlResponse ? urlResponse.error : 'sem resposta'));
+                        showToast('❌ Não consegui capturar URL do PDF', 'warning', 5000);
                         return;
                     }
                 }
             }
-            SkDebug.log('Serasa', 'FAIL', '❌ Nenhuma forma de acessar o PDF');
-            showToast('❌ Não consegui acessar o PDF Serasa', 'warning', 5000);
-            return;
+            if (!pdfUrl) {
+                SkDebug.log('Serasa', 'FAIL', '❌ Nenhuma forma de acessar o PDF');
+                showToast('❌ Não consegui acessar o PDF Serasa', 'warning', 5000);
+                return;
+            }
         }
 
-        // Se achou URL direta, busca localmente
+        // Fetch local (content script tem os cookies do Skychart!)
         try {
-            SkDebug.log('Serasa', 'INFO', '📥 Baixando: ' + pdfUrl.substring(0, 80));
+            SkDebug.log('Serasa', 'INFO', '📥 Baixando PDF (com cookies)...');
             var resp = await fetch(pdfUrl, { credentials: 'include' });
             var blob = await resp.blob();
+            SkDebug.log('Serasa', 'INFO', '📥 Blob: ' + blob.size + ' bytes, tipo: ' + blob.type);
 
             var base64 = await new Promise(function(resolve) {
                 var reader = new FileReader();
-                reader.onload = function() {
-                    var result = reader.result.split(',')[1];
-                    resolve(result);
-                };
+                reader.onload = function() { resolve(reader.result.split(',')[1]); };
                 reader.readAsDataURL(blob);
             });
 
             SkDebug.log('Serasa', 'OK', '📥 PDF: ' + Math.round(base64.length / 1024) + 'KB');
-            showToast('🤖 Gemini analisando...', 'info', 8000);
+            showToast('🤖 Gemini analisando Score + Limite...', 'info', 10000);
 
+            // Gemini via background
             var geminiResponse = await new Promise(function(resolve) {
                 chrome.runtime.sendMessage(
                     { action: 'extractSerasaData', pdfBase64: base64 },
@@ -1459,6 +1460,7 @@ try {
 
             if (!geminiResponse || !geminiResponse.success) {
                 SkDebug.log('Serasa', 'FAIL', '❌ Gemini: ' + (geminiResponse ? geminiResponse.error : 'sem resposta'));
+                showToast('❌ Gemini não conseguiu extrair dados', 'warning', 5000);
                 return;
             }
 

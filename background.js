@@ -139,13 +139,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  // SERASA: Captura URL da aba nova, busca PDF, extrai dados, e fecha aba
-  if (request.action === "fetchPdfFromNewTab") {
+  // SERASA: Captura URL da aba nova que abrir, fecha ela, e retorna URL
+  if (request.action === "captureNewTabUrl") {
     const senderTabId = sender.tab ? sender.tab.id : null;
     
     (async () => {
       try {
-        // PRIMEIRO: Registra listener pra nova aba (NÃO await ainda!)
+        // Registra listener ANTES do clique
         const tabPromise = new Promise((resolve) => {
           const timeout = setTimeout(() => {
             chrome.tabs.onCreated.removeListener(listener);
@@ -155,67 +155,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           function listener(tab) {
             clearTimeout(timeout);
             chrome.tabs.onCreated.removeListener(listener);
+            // Espera aba carregar pra URL ficar disponível
             setTimeout(async () => {
               try {
-                const updatedTab = await chrome.tabs.get(tab.id);
-                resolve({ tabId: tab.id, url: updatedTab.url || updatedTab.pendingUrl });
+                const t = await chrome.tabs.get(tab.id);
+                resolve({ tabId: tab.id, url: t.url || t.pendingUrl });
               } catch(e) {
                 resolve({ tabId: tab.id, url: tab.pendingUrl || tab.url });
               }
-            }, 3000); // espera aba carregar
+            }, 3000);
           }
           chrome.tabs.onCreated.addListener(listener);
         });
 
-        // SEGUNDO: Manda o content script clicar AGORA (enquanto listener já tá ativo)
+        // Manda content clicar
         if (senderTabId) {
           chrome.tabs.sendMessage(senderTabId, { action: 'clickSerasaDownload' }).catch(() => {});
         }
 
-        // TERCEIRO: Agora sim espera o resultado
         const newTab = await tabPromise;
 
         if (!newTab || !newTab.url) {
-          sendResponse({ success: false, error: 'Nenhuma aba nova aberta em 10s' });
+          sendResponse({ success: false, error: 'Nenhuma aba nova em 15s' });
           return;
         }
 
-        console.log("[Serasa] Nova aba URL:", newTab.url);
-
-        // Fetch o PDF
-        const pdfResponse = await fetch(newTab.url);
-        const pdfBlob = await pdfResponse.blob();
-        
-        // Converte pra base64
-        const arrayBuffer = await pdfBlob.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const base64 = btoa(binary);
-
-        console.log("[Serasa] PDF carregado:", Math.round(base64.length / 1024) + "KB");
-
-        // Extrai dados via Gemini
-        const serasaData = await extractSerasaFromPDF(base64);
+        console.log("[Serasa] URL capturada:", newTab.url);
 
         // Fecha a aba do PDF
         chrome.tabs.remove(newTab.tabId).catch(() => {});
 
-        // Volta foco pra aba do Skychart
+        // Volta foco pro Skychart
         if (senderTabId) {
           chrome.tabs.update(senderTabId, { active: true }).catch(() => {});
         }
 
-        sendResponse({ success: true, result: serasaData });
+        sendResponse({ success: true, url: newTab.url });
       } catch(err) {
         console.error("[Serasa] Erro:", err);
         sendResponse({ success: false, error: err.message });
       }
     })();
 
-    return true; // Keep message channel open
+    return true;
   }
 
   // SERASA: Extrai Score + Limite de Crédito do PDF Serasa
