@@ -1549,7 +1549,7 @@ try {
             SkDebug.log('Serasa', 'FAIL', '❌ #vlSerasa não encontrado');
         }
 
-        // #dsObservacao
+        // #dsObservacao (TEXTAREA — nativeSet usa HTMLInputElement, precisa de HTMLTextAreaElement)
         var dsObs = document.querySelector('#dsObservacao');
         if (dsObs) {
             var obsText = 'Score Serasa: ' + serasaData.score + '/1000\n';
@@ -1558,7 +1558,9 @@ try {
             obsText += 'Extraído automaticamente por IA';
 
             dsObs.focus();
-            SkAgent.engine.nativeSet(dsObs, obsText);
+            // Usa o setter do HTMLTextAreaElement (textarea não é HTMLInputElement)
+            var textareaSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+            textareaSetter.call(dsObs, obsText);
             dsObs.dispatchEvent(new Event('input', { bubbles: true }));
             dsObs.dispatchEvent(new Event('change', { bubbles: true }));
             dsObs.dispatchEvent(new Event('blur', { bubbles: true }));
