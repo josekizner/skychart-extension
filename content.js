@@ -201,57 +201,119 @@ try {
             return false;
         }
 
-        // ===== 1. NAVIO — Autocomplete =====
-        // Busca TODOS os autocomplete da página, loga cada um, acha o que tem "Navio" no label
-        if (!stopped()) {
-            SkDebug.log('Navio', 'EXEC', '🚢 ' + data.vessel);
-            var navioInput = null;
-            var allAutocompletes = document.querySelectorAll('input.ui-autocomplete-input');
-            SkDebug.log('Navio', 'DEBUG', '🔍 ' + allAutocompletes.length + ' autocompletes na página');
+        // ===== SELF-HEAL: Pede ajuda ao usuário quando não acha campo =====
+        function askUserForField(fieldName) {
+            return new Promise(function(resolve) {
+                // Verifica na memória primeiro
+                var memKey = 'tracking:' + fieldName;
+                var saved = null;
+                try {
+                    var mem = SkMemory.getFieldMemory(memKey);
+                    if (mem && mem.seletoresQueFunc && mem.seletoresQueFunc.length > 0) {
+                        var sel = mem.seletoresQueFunc[mem.seletoresQueFunc.length - 1];
+                        var el = document.querySelector(sel);
+                        if (el) {
+                            SkDebug.log(fieldName, 'INFO', '🧠 Encontrado na memória: ' + sel);
+                            resolve(el);
+                            return;
+                        }
+                    }
+                } catch(e) {}
 
-            for (var a = 0; a < allAutocompletes.length; a++) {
-                // Sobe pela árvore DOM procurando o label mais próximo
-                var el = allAutocompletes[a];
-                var labelFound = '';
+                // Mostra toast pedindo clique
+                SkDebug.log(fieldName, 'INFO', '👆 Clique no campo "' + fieldName + '" para eu aprender!');
+                showToast('👆 CLIQUE no campo "' + fieldName + '" para o agente aprender!', 'warning', 30000);
 
-                // Checa TD anterior
-                var td = el.closest('td');
-                if (td && td.previousElementSibling) {
-                    labelFound = td.previousElementSibling.textContent.trim();
-                }
-                // Checa se é o primeiro TR > TD com autocomplete
-                if (!labelFound) {
-                    var tr = el.closest('tr');
-                    if (tr) {
-                        var firstTd = tr.querySelector('td');
-                        if (firstTd) labelFound = firstTd.textContent.trim();
+                // Highlight visual: borda piscando em todos os inputs
+                document.body.style.cursor = 'crosshair';
+
+                function onUserClick(e) {
+                    var target = e.target;
+                    // Aceita input, select, textarea, ou o container de autocomplete
+                    if (target.tagName !== 'INPUT' && target.tagName !== 'SELECT' && target.tagName !== 'TEXTAREA') {
+                        // Procura input filho mais perto
+                        var nearInput = target.querySelector('input') || target.closest('td, div')?.querySelector('input');
+                        if (nearInput) target = nearInput;
+                    }
+
+                    if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        document.removeEventListener('click', onUserClick, true);
+                        document.body.style.cursor = '';
+
+                        // Gera seletor estável
+                        var selector = '';
+                        if (target.id) {
+                            selector = '#' + target.id;
+                        } else if (target.getAttribute('formcontrolname')) {
+                            selector = '[formcontrolname="' + target.getAttribute('formcontrolname') + '"]';
+                        } else {
+                            // Gera seletor por posição
+                            var parent = target.parentElement;
+                            var idx = Array.from(parent.children).indexOf(target);
+                            selector = target.tagName.toLowerCase() + ':nth-child(' + (idx + 1) + ')';
+                            if (parent.id) selector = '#' + parent.id + ' > ' + selector;
+                        }
+
+                        // Salva na memória
+                        SkMemory.remember(memKey, {
+                            ok: true,
+                            selector: selector,
+                            strategy: 'learned'
+                        });
+
+                        SkDebug.log(fieldName, 'OK', '🧠 Aprendido! selector="' + selector + '"');
+                        showToast('🧠 Aprendido: ' + fieldName + ' → ' + selector, 'success', 5000);
+                        SkAgent.highlight(target);
+
+                        resolve(target);
                     }
                 }
 
-                SkDebug.log('Navio', 'DEBUG', '  [' + a + '] label="' + labelFound.substring(0, 40) + '" id=' + (el.id || 'sem-id'));
+                document.addEventListener('click', onUserClick, true);
 
-                var labelLower = labelFound.toLowerCase();
-                // Match: contém "navio" mas NÃO contém "feeder"
-                if (labelLower.indexOf('navio') >= 0 && labelLower.indexOf('feeder') < 0) {
-                    navioInput = el;
-                    SkDebug.log('Navio', 'INFO', '📍 Encontrado! label="' + labelFound + '"');
-                    break;
-                }
+                // Timeout de 30 segundos
+                setTimeout(function() {
+                    document.removeEventListener('click', onUserClick, true);
+                    document.body.style.cursor = '';
+                    resolve(null);
+                }, 30000);
+            });
+        }
+
+        // ===== 1. NAVIO — Autocomplete =====
+        if (!stopped()) {
+            SkDebug.log('Navio', 'EXEC', '🚢 ' + data.vessel);
+            var navioInput = null;
+
+            // Primeiro: checa memória
+            var navioMem = SkMemory.getFieldMemory('tracking:Navio');
+            if (navioMem && navioMem.seletoresQueFunc && navioMem.seletoresQueFunc.length > 0) {
+                var navioSel = navioMem.seletoresQueFunc[navioMem.seletoresQueFunc.length - 1];
+                try { navioInput = document.querySelector(navioSel); } catch(e) {}
+                if (navioInput) SkDebug.log('Navio', 'INFO', '🧠 Memória: ' + navioSel);
             }
 
-            // Fallback: se não achou sem "feeder", pega qualquer um com "navio" (ex: Navio Feeder)
+            // Segundo: busca por label TD
             if (!navioInput) {
-                for (var a2 = 0; a2 < allAutocompletes.length; a2++) {
-                    var td3 = allAutocompletes[a2].closest('td');
-                    if (td3 && td3.previousElementSibling) {
-                        var lb = td3.previousElementSibling.textContent.trim().toLowerCase();
-                        if (lb.indexOf('navio') >= 0) {
-                            navioInput = allAutocompletes[a2];
-                            SkDebug.log('Navio', 'INFO', '📍 Fallback (com Feeder): label="' + lb + '"');
+                var allAutocompletes = document.querySelectorAll('input.ui-autocomplete-input');
+                for (var a = 0; a < allAutocompletes.length; a++) {
+                    var td = allAutocompletes[a].closest('td');
+                    if (td && td.previousElementSibling) {
+                        var labelLower = td.previousElementSibling.textContent.trim().toLowerCase();
+                        if (labelLower.indexOf('navio') >= 0 && labelLower.indexOf('feeder') < 0) {
+                            navioInput = allAutocompletes[a];
                             break;
                         }
                     }
                 }
+            }
+
+            // Terceiro: PEDE AJUDA ao usuário
+            if (!navioInput) {
+                SkDebug.log('Navio', 'INFO', '🤔 Não achei automaticamente. Pedindo ajuda...');
+                navioInput = await askUserForField('Navio');
             }
 
             if (navioInput) {
@@ -262,7 +324,7 @@ try {
                     SkDebug.log('Navio', 'FAIL', '❌ charByChar: ' + (r1.reason || 'Erro'));
                 }
             } else {
-                SkDebug.log('Navio', 'FAIL', '❌ Nenhum autocomplete com label "Navio" encontrado');
+                SkDebug.log('Navio', 'SKIP', '⏭️ Usuário não clicou — pulando Navio');
             }
             await SkAgent.delay(600);
         }
@@ -331,35 +393,55 @@ try {
             showToast('📦 ' + data.transshipments.length + ' transbordo(s) detectado(s)', 'info', 5000);
         }
 
-        // ===== 6. VERIFICAÇÃO — Confere se os campos foram preenchidos =====
+        // ===== 6. VERIFICAÇÃO + SELF-HEAL — Confere e corrige =====
         if (!stopped()) {
             await SkAgent.delay(800);
             SkDebug.log('Verificação', 'EXEC', '🔎 Conferindo campos preenchidos...');
 
             var checks = [
-                { label: 'Viagem', el: document.querySelector('#formularioEmbarque-dsViagem'), expected: data.voyage },
-                { label: 'Prev. Embarque', el: document.querySelector('#formularioEmbarque-dtPrevisaoEmbarque'), expected: convertDate(data.departureDate) },
-                { label: 'Prev. Atracação', el: document.querySelector('#formularioEmbarque-dtPrevisaoAtracacao'), expected: convertDate(data.arrivalDate) }
+                { label: 'Viagem', selector: '#formularioEmbarque-dsViagem', expected: data.voyage, strategy: 'native-set' },
+                { label: 'Prev. Embarque', selector: '#formularioEmbarque-dtPrevisaoEmbarque', expected: convertDate(data.departureDate), strategy: 'char-by-char' },
+                { label: 'Prev. Atracação', selector: '#formularioEmbarque-dtPrevisaoAtracacao', expected: convertDate(data.arrivalDate), strategy: 'char-by-char' }
             ];
 
             var allOk = true;
             for (var c = 0; c < checks.length; c++) {
+                if (stopped()) break;
                 var chk = checks[c];
-                if (chk.el) {
-                    var val = chk.el.value || '';
-                    if (val.indexOf(chk.expected) >= 0 || chk.expected.indexOf(val) >= 0 || val.length > 0) {
-                        SkDebug.log('Verificação', 'OK', '✅ ' + chk.label + ' = "' + val + '"');
-                    } else {
-                        SkDebug.log('Verificação', 'FAIL', '❌ ' + chk.label + ' VAZIO! Esperado: ' + chk.expected);
-                        allOk = false;
+                var chkEl = document.querySelector(chk.selector);
+                var val = chkEl ? (chkEl.value || '') : '';
+
+                if (val.length > 0) {
+                    SkDebug.log('Verificação', 'OK', '✅ ' + chk.label + ' = "' + val + '"');
+                } else {
+                    SkDebug.log('Verificação', 'FAIL', '❌ ' + chk.label + ' VAZIO! Tentando corrigir...');
+                    allOk = false;
+
+                    // Self-heal: pede ao usuário
+                    var healEl = chkEl || await askUserForField(chk.label);
+                    if (healEl) {
+                        if (chk.strategy === 'char-by-char') {
+                            await SkAgent.engine.charByChar(healEl, chk.expected, { selectFirst: false, tabAfter: true });
+                        } else {
+                            healEl.focus();
+                            healEl.click();
+                            SkAgent.engine.nativeSet(healEl, chk.expected);
+                            healEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
+                            healEl.dispatchEvent(new Event('blur', { bubbles: true }));
+                        }
+                        await SkAgent.delay(500);
+                        var newVal = healEl.value || '';
+                        if (newVal.length > 0) {
+                            SkDebug.log('Verificação', 'OK', '🔧 ' + chk.label + ' corrigido! = "' + newVal + '"');
+                        } else {
+                            SkDebug.log('Verificação', 'FAIL', '❌ ' + chk.label + ' ainda vazio após correção');
+                        }
                     }
                 }
             }
 
             if (allOk) {
                 SkDebug.log('Verificação', 'OK', '✅ Todos campos conferidos!');
-            } else {
-                SkDebug.log('Verificação', 'FAIL', '⚠️ Alguns campos não preencheram — verifique');
             }
         }
 
