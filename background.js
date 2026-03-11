@@ -139,6 +139,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  // SERASA: Extrai Score + Limite de Crédito do PDF Serasa
+  if (request.action === "extractSerasaData") {
+    extractSerasaFromPDF(request.pdfBase64)
+      .then(result => {
+        console.log("Skychart AI Background: Serasa extraído:", result);
+        sendResponse({ success: true, result });
+      })
+      .catch(error => {
+        console.error("Skychart AI Background: Serasa erro:", error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true;
+  }
+
   // AUTO-HEAL: Analisa fragmento DOM com Gemini para encontrar como interagir
   if (request.action === "analyzeDOM") {
     analyzeDOMWithGemini(request)
@@ -154,7 +168,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Prompt para extração COMPLETA de todos os campos
+const SERASA_PROMPT = `
+Você é um extrator de dados especializado em relatórios de crédito Serasa.
+Extraia os seguintes campos deste documento PDF e retorne em formato JSON puro (sem markdown, sem \`\`\`):
+
+{
+  "score": "score de crédito (número inteiro)",
+  "limiteCredito": "limite de crédito sugerido (número decimal, sem R$ ou BRL)"
+}
+
+REGRAS:
+- Para "score": procure por "Score Serasa" e pegue o número inteiro ao lado.
+- Para "limiteCredito": procure por "Limite de Crédito Sugerido" e pegue o valor numérico.
+- Retorne APENAS o JSON, nada mais.
+`;
+
+// Prompt para extração COMPLETA de todos os campos do contrato de câmbio
 const FULL_EXTRACTION_PROMPT = `
 Você é um extrator de dados especializado em contratos de câmbio brasileiros.
 Extraia os seguintes campos deste documento PDF e retorne em formato JSON puro (sem markdown, sem \`\`\`):
@@ -215,6 +244,41 @@ async function extractAllFieldsFromPDF(base64data) {
     return fields;
   } catch (error) {
     console.error("[Gemini Full] Erro:", error);
+    throw error;
+  }
+}
+
+async function extractSerasaFromPDF(base64data) {
+  try {
+    const response = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: SERASA_PROMPT },
+            { inlineData: { mimeType: "application/pdf", data: base64data } }
+          ]
+        }]
+      })
+    });
+
+    const data = await response.json();
+    console.log("[Gemini Serasa RAW]", JSON.stringify(data).substring(0, 800));
+
+    if (!data.candidates || data.candidates.length === 0) {
+      throw new Error("Sem candidatos do Gemini");
+    }
+
+    let result = data.candidates[0].content.parts[0].text.trim();
+    console.log("[Gemini Serasa] Resultado bruto:", result);
+
+    result = result.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+
+    const fields = JSON.parse(result);
+    return fields;
+  } catch (error) {
+    console.error("[Gemini Serasa] Erro:", error);
     throw error;
   }
 }
