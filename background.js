@@ -59,7 +59,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Futuros armadores aqui...
 
     if (trackingUrl) {
-      chrome.tabs.create({ url: trackingUrl, active: false }, (tab) => {
+      chrome.tabs.create({ url: trackingUrl, active: true }, (tab) => {
         pendingTrackingTabs[tab.id] = skychartTabId;
         console.log("[Tracking] Tab aberta:", tab.id, "-> Skychart tab:", skychartTabId);
       });

@@ -24,50 +24,43 @@ try {
     // ========================================================================
 
     function injectBookingButton() {
-        // Procura campos com title contendo "Booking" que não tenham botão
-        var allInputs = document.querySelectorAll('input, span.ui-cell-data');
-        for (var i = 0; i < allInputs.length; i++) {
-            var el = allInputs[i];
-            var title = (el.getAttribute('title') || '').toLowerCase();
-            var label = '';
+        // Já tem botão? Não injeta de novo
+        if (document.querySelector('.sk-tracking-btn')) return;
 
-            // Procura label associada
-            var parent = el.closest('td, div, .ui-cell-data');
-            if (parent) {
-                var prevSibling = parent.previousElementSibling;
-                if (prevSibling) label = (prevSibling.textContent || '').toLowerCase();
-            }
-            // Procura por label "Booking:" no formulário
-            var allLabels = document.querySelectorAll('td, label, span');
-            for (var lb = 0; lb < allLabels.length; lb++) {
-                if (allLabels[lb].textContent.trim() === 'Booking:') {
-                    var nextEl = allLabels[lb].nextElementSibling;
-                    if (nextEl && nextEl.querySelector('input')) {
-                        el = nextEl.querySelector('input');
-                        title = 'booking';
-                        break;
-                    }
-                }
-            }
+        // Procura EXATAMENTE o label "Booking:" (não "Previsão Booking", "Confirmação Booking", etc.)
+        var allTds = document.querySelectorAll('td');
+        for (var i = 0; i < allTds.length; i++) {
+            var text = allTds[i].textContent.trim();
+            if (text !== 'Booking:') continue; // Match EXATO
 
-            if (title.indexOf('booking') >= 0 || label.indexOf('booking') >= 0) {
-                // Já tem botão?
-                if (el.parentElement && el.parentElement.querySelector('.sk-tracking-btn')) continue;
+            // Encontra o input logo depois
+            var nextTd = allTds[i].nextElementSibling;
+            if (!nextTd) continue;
+            var input = nextTd.querySelector('input');
+            if (!input) continue;
 
-                var btn = document.createElement('button');
-                btn.className = 'sk-tracking-btn';
-                btn.innerHTML = '🔍';
-                btn.title = 'Buscar tracking no armador';
-                btn.style.cssText = 'background:#1a73e8;color:#fff;border:none;border-radius:4px;padding:4px 8px;margin-left:6px;cursor:pointer;font-size:14px;vertical-align:middle;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
-                btn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    startBookingTracking();
-                });
-                el.parentElement.appendChild(btn);
-                console.log('[Tracking] Botão 🔍 injetado ao lado do Booking');
-                break;
+            // Cria botão premium
+            var btn = document.createElement('button');
+            btn.className = 'sk-tracking-btn';
+            btn.innerHTML = '🤖 Rastrear';
+            btn.title = 'Agente busca dados de tracking no armador automaticamente';
+            btn.style.cssText = 'background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;border:none;border-radius:6px;padding:6px 14px;margin-left:8px;cursor:pointer;font-size:12px;font-weight:bold;vertical-align:middle;box-shadow:0 3px 8px rgba(26,115,232,0.4);transition:all 0.2s ease;font-family:Arial,sans-serif;';
+            btn.addEventListener('mouseenter', function() { this.style.transform = 'scale(1.05)'; this.style.boxShadow = '0 4px 12px rgba(26,115,232,0.6)'; });
+            btn.addEventListener('mouseleave', function() { this.style.transform = 'scale(1)'; this.style.boxShadow = '0 3px 8px rgba(26,115,232,0.4)'; });
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                startBookingTracking();
+            });
+
+            // Insere ao lado do input
+            if (input.parentElement) {
+                input.parentElement.appendChild(btn);
+            } else {
+                nextTd.appendChild(btn);
             }
+            console.log('[Tracking] Botão 🤖 injetado ao lado do Booking');
+            break;
         }
     }
 
