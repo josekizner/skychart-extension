@@ -1440,24 +1440,55 @@ try {
             });
 
             SkDebug.log('Serasa', 'OK', '📥 PDF: ' + Math.round(base64.length / 1024) + 'KB');
-            showToast('🤖 Gemini analisando Score + Limite...', 'info', 10000);
+            showToast('📊 Extraindo Score e Limite via regex...', 'info', 5000);
 
-            // Gemini via background
-            var geminiResponse = await new Promise(function(resolve) {
-                chrome.runtime.sendMessage(
-                    { action: 'extractSerasaData', pdfBase64: base64 },
-                    function(response) { resolve(response); }
-                );
-            });
+            // Decodifica base64 → Uint8Array pro pdf.js
+            var binaryString = atob(base64);
+            var pdfBytes = new Uint8Array(binaryString.length);
+            for (var i = 0; i < binaryString.length; i++) {
+                pdfBytes[i] = binaryString.charCodeAt(i);
+            }
 
-            if (!geminiResponse || !geminiResponse.success) {
-                SkDebug.log('Serasa', 'FAIL', '❌ Gemini: ' + (geminiResponse ? geminiResponse.error : 'sem resposta'));
-                showToast('❌ Gemini não conseguiu extrair dados', 'warning', 5000);
+            // Extrai texto de TODAS as páginas do PDF
+            var pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+            var fullText = '';
+            for (var pg = 1; pg <= pdfDoc.numPages; pg++) {
+                var page = await pdfDoc.getPage(pg);
+                var textContent = await page.getTextContent();
+                var pageText = textContent.items.map(function(item) { return item.str; }).join(' ');
+                fullText += pageText + '\n';
+            }
+
+            SkDebug.log('Serasa', 'INFO', '📄 Texto extraído: ' + fullText.substring(0, 200));
+
+            // Regex: Score (ex: "Score 952 /1000" ou "Score 952")
+            var scoreMatch = fullText.match(/Score\s+(\d{1,4})/i);
+            var score = scoreMatch ? scoreMatch[1] : null;
+
+            // Regex: Limite de Crédito (ex: "Total de R$ 13.256.268,00")
+            // Procura "Limite de Crédito" e depois o primeiro "Total de R$" ou "R$" com valor
+            var limiteSection = fullText.substring(fullText.search(/Limite de Cr[eé]dito/i));
+            var limiteMatch = limiteSection.match(/(?:Total de\s*)?R\$\s*([\d.,]+)/i);
+            var limiteCredito = limiteMatch ? limiteMatch[1] : null;
+
+            // Converte "13.256.268,00" → "13256268.00" (formato numérico)
+            var limiteCreditoNumero = '0';
+            if (limiteCredito) {
+                limiteCreditoNumero = limiteCredito.replace(/\./g, '').replace(',', '.');
+            }
+
+            SkDebug.log('Serasa', 'OK', '📊 Score: ' + score + ' | Limite: R$ ' + limiteCredito);
+
+            if (!score && !limiteCredito) {
+                SkDebug.log('Serasa', 'FAIL', '❌ Regex não encontrou Score nem Limite no texto');
+                showToast('❌ Não encontrei Score/Limite no PDF', 'warning', 5000);
                 return;
             }
 
-            var serasaData = geminiResponse.result;
-            SkDebug.log('Serasa', 'OK', '🤖 Score: ' + serasaData.score + ' | Limite: R$ ' + serasaData.limiteCredito);
+            var serasaData = {
+                score: score || 'N/A',
+                limiteCredito: limiteCreditoNumero
+            };
             await fillSerasaFields(serasaData);
 
         } catch (err) {
