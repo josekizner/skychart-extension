@@ -579,8 +579,19 @@ try {
             await SkAgent.delay(500);
             SkDebug.log('Atualizar', 'EXEC', '💾 Clicando em Atualizar...');
 
+            // Acha o botão Atualizar na SEÇÃO de Embarque (não outro Atualizar da página)
             var atualizarBtn = null;
-            var allBtnSpans = document.querySelectorAll('span.ui-button-text.ui-clickable');
+            var embarqueHeader = null;
+            var allAccHeaders = document.querySelectorAll('.ui-accordion-header, a[role="tab"]');
+            for (var ah = 0; ah < allAccHeaders.length; ah++) {
+                if (allAccHeaders[ah].textContent.indexOf('Embarque') >= 0) {
+                    embarqueHeader = allAccHeaders[ah];
+                    break;
+                }
+            }
+            // Procura botão no content da seção, ou na página toda como fallback
+            var btnScope = (embarqueHeader && embarqueHeader.nextElementSibling) ? embarqueHeader.nextElementSibling : document;
+            var allBtnSpans = btnScope.querySelectorAll('span.ui-button-text.ui-clickable');
             for (var b = 0; b < allBtnSpans.length; b++) {
                 if (allBtnSpans[b].textContent.trim() === 'Atualizar') {
                     atualizarBtn = allBtnSpans[b].closest('button') || allBtnSpans[b];
@@ -588,16 +599,36 @@ try {
                 }
             }
 
+            // Fallback: busca na página toda
+            if (!atualizarBtn) {
+                var allSpans = document.querySelectorAll('span.ui-button-text.ui-clickable');
+                for (var b2 = 0; b2 < allSpans.length; b2++) {
+                    if (allSpans[b2].textContent.trim() === 'Atualizar') {
+                        atualizarBtn = allSpans[b2].closest('button') || allSpans[b2];
+                        break;
+                    }
+                }
+            }
+
             if (atualizarBtn) {
+                SkDebug.log('Atualizar', 'INFO', '📍 Botão: ' + atualizarBtn.tagName + ' type=' + (atualizarBtn.type || '?'));
                 atualizarBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                await SkAgent.delay(500);
-                // MouseEvent real pra Angular detectar (simple .click() não funciona)
-                atualizarBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-                atualizarBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-                atualizarBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                await SkAgent.delay(800);
+
+                // Clique NATIVO (dispara todos os handlers Angular)
+                atualizarBtn.click();
+                await SkAgent.delay(300);
+
+                // Também dispara submit no form (pq é type="submit")
+                var parentForm = atualizarBtn.closest('form');
+                if (parentForm) {
+                    parentForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                    SkDebug.log('Atualizar', 'INFO', '📤 Form submit disparado');
+                }
+
                 SkAgent.highlight(atualizarBtn);
-                SkDebug.log('Atualizar', 'OK', '✅ Botão Atualizar clicado!');
-                await SkAgent.delay(2000); // espera resposta do servidor
+                SkDebug.log('Atualizar', 'OK', '✅ Clicado + submit!');
+                await SkAgent.delay(3000); // espera resposta do servidor
             } else {
                 SkDebug.log('Atualizar', 'FAIL', '❌ Botão Atualizar não encontrado');
             }
