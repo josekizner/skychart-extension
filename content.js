@@ -204,21 +204,8 @@ try {
         // ===== SELF-HEAL: Pede ajuda ao usuário quando não acha campo =====
         function askUserForField(fieldName) {
             return new Promise(function(resolve) {
-                // Verifica na memória primeiro
                 var memKey = 'tracking:' + fieldName;
-                var saved = null;
-                try {
-                    var mem = SkMemory.getFieldMemory(memKey);
-                    if (mem && mem.seletoresQueFunc && mem.seletoresQueFunc.length > 0) {
-                        var sel = mem.seletoresQueFunc[mem.seletoresQueFunc.length - 1];
-                        var el = document.querySelector(sel);
-                        if (el) {
-                            SkDebug.log(fieldName, 'INFO', '🧠 Encontrado na memória: ' + sel);
-                            resolve(el);
-                            return;
-                        }
-                    }
-                } catch(e) {}
+                // SEM MEMÓRIA — memória causava match em campo errado
 
                 // Mostra toast pedindo clique
                 SkDebug.log(fieldName, 'INFO', '👆 Clique no campo "' + fieldName + '" para eu aprender!');
@@ -315,16 +302,18 @@ try {
             var allACs = document.querySelectorAll('input.ui-autocomplete-input');
             SkDebug.log('Diagnóstico', 'INFO', '🔍 ' + allACs.length + ' autocompletes na página');
 
-            // Posição do Viagem (âncora segura) — rejeita qualquer AC que vem antes no DOM
+            // SCOPE: acha a seção accordion que contém o Viagem (âncora segura)
             var viagemAnchor = document.querySelector('#formularioEmbarque-dsViagem');
+            var embarqueSection = viagemAnchor ? viagemAnchor.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
+            SkDebug.log('Diagnóstico', 'DEBUG', '📐 Seção: ' + (embarqueSection ? embarqueSection.tagName + '.' + (embarqueSection.className || '').substring(0, 30) : 'NÃO ENCONTRADA'));
 
             var found = null;
             for (var i = 0; i < allACs.length; i++) {
                 var ac = allACs[i];
 
-                // GUARD: se vem ANTES do Viagem no DOM, é do cabeçalho (Cliente/Agente)
-                if (viagemAnchor && ac.compareDocumentPosition(viagemAnchor) & Node.DOCUMENT_POSITION_FOLLOWING) {
-                    SkDebug.log('AC[' + i + ']', 'DEBUG', '⏭️ antes do Viagem — ignorado');
+                // GUARD: rejeita AC que NÃO está dentro da seção Embarque
+                if (embarqueSection && !embarqueSection.contains(ac)) {
+                    SkDebug.log('AC[' + i + ']', 'DEBUG', '⏭️ fora do Embarque — ignorado');
                     continue;
                 }
 
