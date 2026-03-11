@@ -1,0 +1,98 @@
+{
+  "modulo": "cambio",
+  "urlPattern": "/app/cambio",
+  "steps": [
+    {
+      "id": "data_fechamento",
+      "label": "Data Fechamento",
+      "selector": "#formularioFiltroPagamento-dtFechamento",
+      "pdfField": "dataContrato",
+      "order": 1,
+      "delayAfter": 500
+    },
+    {
+      "id": "contrato",
+      "label": "Contrato",
+      "selector": "#dsContrato, input[id*='dsContrato']",
+      "pdfField": "numeroContrato",
+      "order": 2,
+      "delayAfter": 300
+    },
+    {
+      "id": "fornecedor_iof",
+      "label": "Fornecedor IOF",
+      "selector": "#formularioEmbarque-cdFornecedorIOF",
+      "pdfField": "cnpjFornecedor",
+      "order": 3,
+      "delayAfter": 800
+    },
+    {
+      "id": "fornecedor_contrato",
+      "label": "Fornecedor Contrato",
+      "selector": "#formularioEmbarque-cdFornecedorContratCambio",
+      "pdfField": "cnpjFornecedor",
+      "order": 4,
+      "delayAfter": 800
+    },
+    {
+      "id": "moeda_contrato",
+      "label": "Moeda Contrato",
+      "selector": "#formularioEmbarque-cdMoedaContrato",
+      "fixedValue": "BRL",
+      "order": 5,
+      "delayAfter": 800
+    },
+    {
+      "id": "valor_conversao",
+      "label": "Valor Conversão",
+      "findByLabel": "Valor de convers",
+      "fixedValue": "1",
+      "order": 6,
+      "delayAfter": 300
+    },
+    {
+      "id": "valor_contrato",
+      "label": "Valor Contrato",
+      "findByLabel": "Valor do contrato de c",
+      "pdfField": "despesaBancaria",
+      "order": 7,
+      "delayAfter": 300
+    },
+    {
+      "id": "taxa_vet",
+      "label": "Taxa VET",
+      "findByLabel": "Taxa VET",
+      "pdfField": "valorVET",
+      "formatBR": true,
+      "order": 8,
+      "delayAfter": 300
+    },
+    {
+      "id": "atualizar_pre_taxa",
+      "label": "Atualizar (salvar campos)",
+      "actionType": "clickButton",
+      "actionLabel": "Atualizar",
+      "order": 9,
+      "delayAfter": 3000
+    },
+    {
+      "id": "taxa_cambial",
+      "label": "Taxa Cambial",
+      "selector": "input[title='Taxa']",
+      "pdfField": "taxaCambial",
+      "formatBR": true,
+      "order": 10,
+      "delayAfter": 800
+    }
+  ],
+  "postActions": [
+    { "action": "clickCheckbox", "label": "Acordo lido", "delay": 800, "retryDelay": 2000 },
+    { "action": "clickButton", "label": "Finalizar Câmbio", "delay": 5000, "retryDelay": 1500 },
+    { "action": "clickButton", "label": "Gerar IOF", "delay": 2000, "retryDelay": 3000 },
+    { "action": "clickButton", "label": "Gerar contrato de cambio", "delay": 2000, "retryDelay": 2000 },
+    { "action": "selectDropdown", "label": "Tipo do arquivo", "value": "Contrato de Câmbio", "delay": 1500, "retryDelay": 2000 },
+    { "action": "clickRowSave", "label": "Salvar tipo arquivo", "delay": 1500, "retryDelay": 2000 },
+    { "action": "selectDropdown", "label": "Tipo do arquivo (Swift)", "value": "Swift", "delay": 1500, "retryDelay": 2000 },
+    { "action": "clickRowSave", "label": "Salvar tipo arquivo (Swift)", "delay": 1500, "retryDelay": 2000 }
+  ]
+}
