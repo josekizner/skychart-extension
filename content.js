@@ -1270,37 +1270,50 @@ try {
         if (document.querySelector('.sk-serasa-btn')) return;
         if (location.href.indexOf('/app/pessoa') < 0) return;
 
-        // Acha a seção "Documentos" (accordion)
-        var docHeaders = document.querySelectorAll('.ui-accordion-header, a[role="tab"]');
-        var docHeader = null;
-        for (var h = 0; h < docHeaders.length; h++) {
-            if (docHeaders[h].textContent.indexOf('Documentos') >= 0) {
-                docHeader = docHeaders[h];
+        // Acha a seção "Controle de créditos" (pra colocar o botão perto)
+        var accHeaders = document.querySelectorAll('.ui-accordion-header, a[role="tab"]');
+        var creditoHeader = null;
+        for (var h = 0; h < accHeaders.length; h++) {
+            if (accHeaders[h].textContent.indexOf('Controle de cr') >= 0) {
+                creditoHeader = accHeaders[h];
                 break;
             }
         }
-        if (!docHeader) return;
+        if (!creditoHeader) return;
 
-        // Cria botão
+        // Cria botão ao lado do accordion "Controle de créditos"
         var btn = document.createElement('button');
         btn.className = 'sk-serasa-btn';
         btn.innerHTML = '📊 Analisar Serasa';
-        btn.style.cssText = 'margin-left:10px;padding:5px 12px;background:#2196F3;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:bold;font-size:12px;';
+        btn.style.cssText = 'margin:5px 0 5px 10px;padding:6px 14px;background:linear-gradient(135deg,#1565C0,#42A5F5);color:white;border:none;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,0.2);';
         btn.title = 'Lê o PDF Serasa e preenche Score + Limite no Controle de Créditos';
         btn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             startSerasaAnalysis();
         });
-        docHeader.parentElement.insertBefore(btn, docHeader.nextSibling);
-        SkDebug.log('Serasa', 'OK', '📊 Botão injetado');
+        creditoHeader.parentElement.insertBefore(btn, creditoHeader);
+        SkDebug.log('Serasa', 'OK', '📊 Botão injetado (perto de Controle de Créditos)');
     }
 
     async function startSerasaAnalysis() {
         SkDebug.log('Serasa', 'EXEC', '📊 Iniciando análise Serasa...');
         showToast('📊 Analisando Serasa...', 'info', 5000);
 
-        // 1. Acha a row "Análise Serasa" na grid de Documentos
+        // 0. Abre accordion "Documentos" se fechado (a grid só existe quando aberto)
+        var allHeaders = document.querySelectorAll('.ui-accordion-header, a[role="tab"]');
+        for (var dh = 0; dh < allHeaders.length; dh++) {
+            if (allHeaders[dh].textContent.indexOf('Documentos') >= 0 &&
+                allHeaders[dh].textContent.indexOf('Controle de documentos') < 0) {
+                var docContent = allHeaders[dh].nextElementSibling;
+                if (!docContent || docContent.offsetHeight === 0 || docContent.style.display === 'none') {
+                    allHeaders[dh].click();
+                    SkDebug.log('Serasa', 'INFO', '📂 Abrindo aba Documentos...');
+                    await new Promise(function(resolve) { setTimeout(resolve, 2000); });
+                }
+                break;
+            }
+        }
         var docRows = document.querySelectorAll('table tbody tr, .ui-table-scrollable-body tr');
         var serasaRow = null;
         for (var r = 0; r < docRows.length; r++) {
