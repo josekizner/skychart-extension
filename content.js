@@ -1471,24 +1471,39 @@ try {
             var limiteMatch = limiteSection.match(/(?:Total de\s*)?R\$\s*([\d.,]+)/i);
             var limiteCredito = limiteMatch ? limiteMatch[1] : null;
 
-            // Converte "13.256.268,00" → "13256268.00" (formato numérico)
-            var limiteCreditoNumero = '0';
-            if (limiteCredito) {
-                limiteCreditoNumero = limiteCredito.replace(/\./g, '').replace(',', '.');
-            }
-
             SkDebug.log('Serasa', 'OK', '📊 Score: ' + score + ' | Limite: R$ ' + limiteCredito);
 
-            if (!score && !limiteCredito) {
-                SkDebug.log('Serasa', 'FAIL', '❌ Regex não encontrou Score nem Limite no texto');
-                showToast('❌ Não encontrei Score/Limite no PDF', 'warning', 5000);
-                return;
+            var serasaData = null;
+
+            if (score || limiteCredito) {
+                // Regex funcionou!
+                var limiteCreditoNumero = '0';
+                if (limiteCredito) {
+                    limiteCreditoNumero = limiteCredito.replace(/\./g, '').replace(',', '.');
+                }
+                serasaData = { score: score || 'N/A', limiteCredito: limiteCreditoNumero };
+            } else {
+                // PDF é imagem — fallback pro Gemini
+                SkDebug.log('Serasa', 'INFO', '🤖 Texto vazio, usando Gemini como fallback...');
+                showToast('🤖 PDF é imagem, enviando pro Gemini...', 'info', 10000);
+
+                var geminiResponse = await new Promise(function(resolve) {
+                    chrome.runtime.sendMessage(
+                        { action: 'extractSerasaData', pdfBase64: base64 },
+                        function(response) { resolve(response); }
+                    );
+                });
+
+                if (!geminiResponse || !geminiResponse.success) {
+                    SkDebug.log('Serasa', 'FAIL', '❌ Gemini: ' + (geminiResponse ? geminiResponse.error : 'sem resposta'));
+                    showToast('❌ Gemini não conseguiu extrair dados', 'warning', 5000);
+                    return;
+                }
+
+                serasaData = geminiResponse.result;
+                SkDebug.log('Serasa', 'OK', '🤖 Gemini: Score ' + serasaData.score + ' | Limite: R$ ' + serasaData.limiteCredito);
             }
 
-            var serasaData = {
-                score: score || 'N/A',
-                limiteCredito: limiteCreditoNumero
-            };
             await fillSerasaFields(serasaData);
 
         } catch (err) {
