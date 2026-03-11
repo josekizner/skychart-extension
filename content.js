@@ -1621,13 +1621,18 @@ try {
 
     // Badge de Score: lê score do storage e mostra badge perto do nome do cliente
     function scanForScoreBadge() {
-        if (document.getElementById('sk-serasa-badge')) return;
-
         // Pega o nome do cliente de div.titulo-accordion span
         var tituloSpan = document.querySelector('div.titulo-accordion span');
         if (!tituloSpan) return;
         var clientName = tituloSpan.textContent.trim();
         if (!clientName || clientName.length < 3) return;
+
+        // Se já tem badge mas é de OUTRO cliente, remove
+        var existingBadge = document.getElementById('sk-serasa-badge');
+        if (existingBadge) {
+            if (existingBadge.getAttribute('data-client') === clientName) return; // mesmo cliente, ok
+            existingBadge.remove(); // cliente diferente, remove
+        }
 
         // Checa storage primeiro (instantâneo!)
         var storageKey = 'serasa_' + clientName.substring(0, 50).replace(/\s+/g, '_');
@@ -1635,10 +1640,8 @@ try {
             if (document.getElementById('sk-serasa-badge')) return;
             
             var score = null;
-            var fromStorage = false;
             if (data[storageKey]) {
                 score = data[storageKey].score;
-                fromStorage = true;
             }
 
             // Se não tem no storage, tenta ler do dsObservacao (se visível)
@@ -1652,15 +1655,6 @@ try {
             }
 
             if (!score) return;
-
-            // Se achou no dsObservacao mas não no storage, salva pro futuro
-            if (!fromStorage) {
-                var saveData = {};
-                saveData[storageKey] = { score: score, data: new Date().toISOString() };
-                chrome.storage.local.set(saveData);
-                SkDebug.log('Serasa', 'OK', '💾 Score ' + score + ' salvo no storage');
-            }
-
             injectScoreBadge(score);
         });
     }
@@ -1685,6 +1679,10 @@ try {
             'background:' + bg + ';color:' + color + ';border:1px solid ' + color + ';' +
             'font-weight:600;vertical-align:middle;cursor:default;';
         badge.title = 'Score Serasa extraído automaticamente';
+
+        // Marca o cliente no badge pra detectar mudança
+        var currentClient = document.querySelector('div.titulo-accordion span');
+        badge.setAttribute('data-client', currentClient ? currentClient.textContent.trim() : '');
 
         // Insere dentro de div.titulo-accordion, ao lado do nome do cliente
         var tituloDiv = document.querySelector('div.titulo-accordion');
