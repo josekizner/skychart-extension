@@ -267,6 +267,7 @@
             ['Processo Ref.', data.processo_ref, false],
             ['Incoterm', data.incoterm, false],
             ['Equipamento', data.equipamento, true],
+            ['Qtd Containers', data.quantidade_containers, true],
             ['Origem', data.origem, true],
             ['Destino', data.destino, true],
             ['Mercadoria', data.mercadoria, false],
