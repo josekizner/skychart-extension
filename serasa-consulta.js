@@ -71,61 +71,30 @@
                 return;
             }
 
-            // Browser preenche email/senha via autofill, mas React nao detecta
-            // Precisamos re-setar os valores via nativeInputValueSetter pra React reconhecer
+            // Campos ja preenchidos pelo browser
+            // So precisa clicar no campo username pra Angular validar, depois clicar Acessar
             setTimeout(function() {
-                var emailField = document.querySelector('input[type="email"], input[name="email"], input[placeholder*="mail"], input[placeholder*="celular"]');
-                var senhaField = document.querySelector('input[type="password"]');
-
-                if (emailField && emailField.value) {
-                    var emailVal = emailField.value;
-                    var emailSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                    emailSetter.call(emailField, '');
-                    emailField.dispatchEvent(new Event('input', { bubbles: true }));
-                    
-                    setTimeout(function() {
-                        emailSetter.call(emailField, emailVal);
-                        emailField.dispatchEvent(new Event('input', { bubbles: true }));
-                        emailField.dispatchEvent(new Event('change', { bubbles: true }));
-                        emailField.dispatchEvent(new Event('blur', { bubbles: true }));
-                        console.log('[Atom Serasa] Email re-setado:', emailVal);
-                    }, 100);
+                var usernameField = document.getElementById('username');
+                if (usernameField) {
+                    usernameField.click();
+                    usernameField.focus();
+                    console.log('[Atom Serasa] Click no campo username');
                 }
 
-                if (senhaField && senhaField.value) {
-                    var senhaVal = senhaField.value;
-                    var senhaSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                    
+                setTimeout(function() {
+                    // Click fora do campo (body) pra disparar blur
+                    document.body.click();
+
                     setTimeout(function() {
-                        senhaSetter.call(senhaField, '');
-                        senhaField.dispatchEvent(new Event('input', { bubbles: true }));
-                        
-                        setTimeout(function() {
-                            senhaSetter.call(senhaField, senhaVal);
-                            senhaField.dispatchEvent(new Event('input', { bubbles: true }));
-                            senhaField.dispatchEvent(new Event('change', { bubbles: true }));
-                            senhaField.dispatchEvent(new Event('blur', { bubbles: true }));
-                            console.log('[Atom Serasa] Senha re-setada');
-
-                            // Agora o React sabe que os campos estao preenchidos
-                            // Clica no botao Acessar
-                            setTimeout(function() {
-                                var acessarBtn = findButtonByText('acessar');
-                                if (!acessarBtn) acessarBtn = findButtonByText('entrar');
-                                if (!acessarBtn) acessarBtn = document.querySelector('button[type="submit"]');
-
-                                if (acessarBtn) {
-                                    acessarBtn.removeAttribute('disabled');
-                                    acessarBtn.disabled = false;
-                                    console.log('[Atom Serasa] Clicando em Acessar...');
-                                    acessarBtn.click();
-                                } else {
-                                    console.log('[Atom Serasa] Botao nao encontrado');
-                                }
-                            }, 500);
-                        }, 200);
-                    }, 200);
-                }
+                        var acessarBtn = document.getElementById('btn-acessar');
+                        if (acessarBtn) {
+                            console.log('[Atom Serasa] Clicando em Acessar...');
+                            acessarBtn.click();
+                        } else {
+                            console.log('[Atom Serasa] #btn-acessar nao encontrado');
+                        }
+                    }, 500);
+                }, 500);
             }, 1500);
         });
     }
