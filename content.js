@@ -282,7 +282,6 @@ try {
 
     // Preenche validade da rota com data de hoje
     function fillValidadeRota() {
-        // Formata data de hoje como dd/MM/yyyy
         var now = new Date();
         var dd = String(now.getDate()).padStart(2, '0');
         var mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -291,35 +290,107 @@ try {
 
         console.log('[Atom Oferta] Preenchendo validade:', today);
 
-        // Procura input de validade — classe ng-tns-c62 sem ID fixo
-        // Geralmente está próximo do label "Validade" ou é o primeiro p-calendar input na seção de rota
-        var validadeInput = null;
+        // Procura input de validade:
+        // 1. Procura label com "Validade" e pega o input mais proximo
+        // 2. Ou pega p-calendar input vazio
+        var validadeInput = findInputNearLabel('Validade');
 
-        // Tenta por placeholder vazio + classe ng-tns + tipo text dentro de p-calendar
-        var calendarInputs = document.querySelectorAll('p-calendar input, .ui-calendar input, input[class*="ng-tns-c62"]');
-        for (var i = 0; i < calendarInputs.length; i++) {
-            // Pega o que estiver vazio (sem valor preenchido)
-            if (!calendarInputs[i].value || calendarInputs[i].value.trim() === '') {
-                validadeInput = calendarInputs[i];
-                break;
+        if (!validadeInput) {
+            // Fallback: qualquer input de calendar vazio
+            var allCalInputs = document.querySelectorAll('p-calendar input[type="text"], input[class*="ng-tns"][class*="ui-inputtext"]');
+            for (var i = 0; i < allCalInputs.length; i++) {
+                if (!allCalInputs[i].value || allCalInputs[i].value.trim() === '') {
+                    validadeInput = allCalInputs[i];
+                    break;
+                }
             }
         }
 
         if (!validadeInput) {
-            console.log('[Atom Oferta] Input de validade nao encontrado');
+            console.log('[Atom Oferta] Input de validade nao encontrado — usando Vision...');
+            if (typeof VisionAgent !== 'undefined') {
+                VisionAgent.findElement('campo de data "Validade da rota" que esta vazio, proximo ao texto Validade')
+                .then(function(result) {
+                    if (result.found && result.x && result.y) {
+                        return VisionAgent.act({ type: 'type', x: result.x, y: result.y, text: today });
+                    }
+                });
+            }
             return;
         }
 
-        validadeInput.focus();
-        validadeInput.click();
-        validadeInput.value = today;
-        validadeInput.dispatchEvent(new Event('input', { bubbles: true }));
-        validadeInput.dispatchEvent(new Event('change', { bubbles: true }));
-        validadeInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13 }));
-        validadeInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', keyCode: 13 }));
-        validadeInput.dispatchEvent(new Event('blur', { bubbles: true }));
+        // Método Angular-compatible: nativeInputValueSetter + char-by-char
+        typeIntoAngularInput(validadeInput, today, function() {
+            // Verifica se realmente preencheu
+            setTimeout(function() {
+                if (validadeInput.value && validadeInput.value.trim() !== '') {
+                    console.log('[Atom Oferta] ✓ Validade confirmada:', validadeInput.value);
+                } else {
+                    console.log('[Atom Oferta] ✗ Validade nao preencheu — Vision fallback...');
+                    if (typeof VisionAgent !== 'undefined') {
+                        VisionAgent.see('O campo de data "Validade" esta preenchido com a data de hoje? Se nao, encontre o campo e me diga as coordenadas.')
+                        .then(function(analysis) {
+                            if (!analysis.success && analysis.action) {
+                                VisionAgent.act({ type: 'click', x: analysis.action.x, y: analysis.action.y })
+                                .then(function() {
+                                    return new Promise(function(r) { setTimeout(r, 300); });
+                                })
+                                .then(function() {
+                                    var el = document.activeElement;
+                                    if (el) typeIntoAngularInput(el, today);
+                                });
+                            }
+                        });
+                    }
+                }
+            }, 500);
+        });
+    }
 
-        console.log('[Atom Oferta] Validade preenchida:', today);
+    // Encontra input proximo a um label com texto especifico
+    function findInputNearLabel(labelText) {
+        var labels = document.querySelectorAll('label, span.ui-float-label > label, .form-group label');
+        for (var i = 0; i < labels.length; i++) {
+            if (labels[i].textContent.trim().indexOf(labelText) >= 0) {
+                // Procura input irmao ou proximo
+                var parent = labels[i].parentElement;
+                if (parent) {
+                    var input = parent.querySelector('input[type="text"]');
+                    if (input) return input;
+                }
+            }
+        }
+        return null;
+    }
+
+    // Digita num input Angular (PrimeNG) usando nativeInputValueSetter + eventos
+    function typeIntoAngularInput(input, text, callback) {
+        input.focus();
+        input.click();
+
+        // Limpa
+        var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        nativeSetter.call(input, '');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+
+        // Digita char por char
+        var idx = 0;
+        var timer = setInterval(function() {
+            if (idx < text.length) {
+                var currentVal = input.value + text[idx];
+                nativeSetter.call(input, currentVal);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: text[idx] }));
+                input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: text[idx] }));
+                idx++;
+            } else {
+                clearInterval(timer);
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                input.dispatchEvent(new Event('blur', { bubbles: true }));
+                console.log('[Atom Oferta] Validade digitada:', input.value);
+                if (callback) callback();
+            }
+        }, 50);
     }
 
     // Preenche autocomplete por ID (reutilizavel)
