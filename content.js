@@ -27,8 +27,139 @@ try {
         if (msg.action === 'navigateToOferta') {
             console.log('[Atom] Navegando pra ofertas via SPA hash...');
             window.location.hash = '#/app/oferta';
+            
+            // Espera a pagina renderizar e processa cotacao pendente
+            setTimeout(function() {
+                chrome.storage.local.get('pendingQuotation', function(data) {
+                    if (!data.pendingQuotation) {
+                        console.log('[Atom] Sem cotacao pendente');
+                        return;
+                    }
+                    var quote = data.pendingQuotation;
+                    console.log('[Atom] Cotacao pendente encontrada:', quote);
+                    chrome.storage.local.remove('pendingQuotation');
+                    
+                    processOfertaFromEmail(quote);
+                });
+            }, 2000);
         }
     });
+
+    // ========================================================================
+    // EMAIL AGENT — Processa cotacao vinda do Outlook
+    // ========================================================================
+
+    function processOfertaFromEmail(quote) {
+        console.log('[Atom Oferta] Processando cotacao:', quote.cliente);
+
+        // 1. Encontra o campo Cliente/Agente (autocomplete input)
+        var clienteInput = document.querySelector('p-autocomplete input, input.ui-autocomplete-input');
+        if (!clienteInput) {
+            // Tenta pelo label
+            var labels = document.querySelectorAll('label');
+            for (var i = 0; i < labels.length; i++) {
+                if (labels[i].textContent.indexOf('Cliente') >= 0) {
+                    var container = labels[i].closest('.ui-g-12, .ui-field, div');
+                    if (container) {
+                        clienteInput = container.querySelector('input');
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!clienteInput) {
+            console.log('[Atom Oferta] Campo cliente nao encontrado');
+            showToast('Campo cliente nao encontrado na tela de ofertas', 'error', 5000);
+            return;
+        }
+
+        console.log('[Atom Oferta] Campo cliente encontrado, digitando:', quote.cliente);
+
+        // Foca no campo
+        clienteInput.focus();
+        clienteInput.click();
+
+        // Limpa e digita o nome do cliente
+        clienteInput.value = '';
+        clienteInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+        // Digita caractere por caractere (Angular precisa de input events)
+        var clienteName = quote.cliente || quote.empresa_remetente || '';
+        var charIndex = 0;
+
+        function typeNextChar() {
+            if (charIndex < clienteName.length) {
+                clienteInput.value += clienteName[charIndex];
+                clienteInput.dispatchEvent(new Event('input', { bubbles: true }));
+                clienteInput.dispatchEvent(new Event('keyup', { bubbles: true }));
+                charIndex++;
+                setTimeout(typeNextChar, 50);
+            } else {
+                console.log('[Atom Oferta] Nome digitado, esperando dropdown...');
+                // Espera o dropdown aparecer
+                waitForDropdown();
+            }
+        }
+
+        typeNextChar();
+    }
+
+    function waitForDropdown() {
+        var attempts = 0;
+        var maxAttempts = 20; // 10 segundos
+
+        function check() {
+            // Procura dropdown de sugestoes do PrimeNG autocomplete
+            var dropdown = document.querySelector('.ui-autocomplete-panel, .ui-autocomplete-list-item, .p-autocomplete-panel, .p-autocomplete-items');
+            var items = document.querySelectorAll('.ui-autocomplete-list-item, .p-autocomplete-item, li[role="option"]');
+
+            if (items.length > 0) {
+                console.log('[Atom Oferta] Dropdown apareceu com', items.length, 'opcoes');
+                // Seleciona o primeiro item
+                var first = items[0];
+                first.click();
+                console.log('[Atom Oferta] Cliente selecionado:', first.textContent.trim());
+
+                // Agora clica em "Nova oferta"
+                setTimeout(clickNovaOferta, 1000);
+                return;
+            }
+
+            attempts++;
+            if (attempts < maxAttempts) {
+                setTimeout(check, 500);
+            } else {
+                console.log('[Atom Oferta] Dropdown nao apareceu');
+                showToast('Dropdown de clientes nao apareceu. Selecione manualmente.', 'warning', 5000);
+            }
+        }
+
+        check();
+    }
+
+    function clickNovaOferta() {
+        // Procura botao "Nova oferta" 
+        var buttons = document.querySelectorAll('button, .ui-button');
+        var novaOfertaBtn = null;
+
+        for (var i = 0; i < buttons.length; i++) {
+            var text = buttons[i].textContent.trim().toLowerCase();
+            if (text.indexOf('nova oferta') >= 0) {
+                novaOfertaBtn = buttons[i];
+                break;
+            }
+        }
+
+        if (novaOfertaBtn) {
+            console.log('[Atom Oferta] Clicando em Nova oferta...');
+            novaOfertaBtn.click();
+            showToast('Oferta criada! Preencha os detalhes.', 'success', 5000);
+        } else {
+            console.log('[Atom Oferta] Botao Nova oferta nao encontrado');
+            showToast('Botao "Nova oferta" nao encontrado.', 'warning', 5000);
+        }
+    }
 
     // ========================================================================
     // BOOKING TRACKING — Botão  ao lado do campo Booking
