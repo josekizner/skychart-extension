@@ -532,16 +532,19 @@ Analise o email abaixo e extraia os dados da cotacao. Retorne APENAS JSON puro (
 }
 
 REGRAS DE IDENTIFICACAO DO CLIENTE (MUITO IMPORTANTE):
+- Use SEMPRE o nome COMPLETO da empresa como aparece na assinatura ou logo (ex: "IDB do Brasil", NAO apenas "IDB").
 - EMAILS ENCAMINHADOS (assunto com "ENC:", "FW:", "FWD:"): O email foi ENCAMINHADO por alguem (freight forwarder, agente, funcionario). O CLIENTE nao e quem encaminhou!
   - Procure a ASSINATURA ORIGINAL dentro do corpo (abaixo de "De:", "From:", etc.)
-  - O CLIENTE e a EMPRESA na assinatura ORIGINAL (ex: se assinatura tem logo "IDB DO BRASIL", cliente = "IDB")
-  - Se a assinatura tem o dominio @idbdobrasil.com.br → cliente = "IDB"
+  - O CLIENTE e a EMPRESA na assinatura ORIGINAL (ex: se assinatura tem logo "IDB DO BRASIL TRADING", cliente = "IDB do Brasil")
+  - Se a assinatura tem o dominio @idbdobrasil.com.br → cliente = "IDB do Brasil"
   - Mond Shipping, Skyline, Mond = sao VOCE (agente/forwarder), NUNCA sao o cliente
-  - Se a referencia comeca com "IDB-" → cliente = "IDB"
-  - Se a referencia comeca com "UNL" → cliente provavelmente = "UNITERMI" ou similar
-- EMAILS DIRETOS: Use o remetente como cliente.
+  - Se a referencia comeca com "IDB-" → cliente = "IDB do Brasil"
+  - Se a referencia comeca com "UNL" → cliente provavelmente = "Unitermi"
+  - Se a referencia comeca com "DAMA" → cliente provavelmente = "Damacomex"
+- EMAILS DIRETOS: Use o remetente como cliente, com nome COMPLETO da empresa.
 - Se o assunto contem "CLIENTE:" use esse nome como cliente.
-- Se nao conseguir identificar, use o nome da empresa da assinatura ORIGINAL ou dominio do email ORIGINAL.
+- Se nao conseguir identificar, use o nome COMPLETO da empresa da assinatura ORIGINAL ou dominio do email ORIGINAL.
+- NUNCA abrevie o nome do cliente. Use o nome como o cliente se identifica (ex: "Unitermi", "IDB do Brasil", "Damacomex").
 
 REGRAS PARA ORIGEM E DESTINO:
 - Para origem e destino, SEMPRE use o nome do PORTO (ex: NINGBO, NAVEGANTES, SHANGHAI).
