@@ -2,57 +2,288 @@
 <html>
 <head>
   <meta charset="UTF-8">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { width: 300px; font-family: 'Segoe UI', sans-serif; padding: 16px; background: #1a1f2e; color: #e2e8f0; }
-    h2 { font-size: 15px; color: #fff; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; }
-    .logo { width: 24px; height: 24px; border-radius: 4px; }
-    .status-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; padding: 8px 10px; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: 8px; font-size: 12px; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; }
-    .section { margin-bottom: 14px; }
-    .section-title { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-    label { display: block; font-size: 12px; color: #cbd5e1; margin-bottom: 4px; }
-    input[type="email"], input[type="text"] {
-      width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: 12px;
-      background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #fff;
-      outline: none; transition: border 0.2s;
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 320px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(145deg, #0c0e14 0%, #111827 50%, #0c1220 100%);
+      color: #e2e8f0;
+      overflow: hidden;
     }
-    input:focus { border-color: #3b82f6; }
-    .btn { display: block; width: 100%; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; transition: background 0.2s; }
-    .btn-save { background: #3b82f6; color: #fff; margin-top: 8px; }
-    .btn-save:hover { background: #2563eb; }
-    .saved-msg { display: none; color: #10b981; font-size: 11px; text-align: center; margin-top: 6px; }
-    .agents { display: flex; flex-wrap: wrap; gap: 6px; }
-    .agent-badge { padding: 4px 10px; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3); border-radius: 12px; font-size: 11px; color: #93c5fd; }
-    .footer { font-size: 10px; color: #475569; text-align: center; margin-top: 14px; border-top: 1px solid #1e293b; padding-top: 10px; }
+
+    /* Header */
+    .header {
+      padding: 20px 20px 16px;
+      text-align: center;
+      position: relative;
+    }
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 20px; right: 20px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(99,102,241,0.3), transparent);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .atom-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+    }
+    .brand-text h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff 0%, #c7d2fe 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .brand-text .subtitle {
+      font-size: 10px;
+      color: #64748b;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    /* Status */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 12px;
+      padding: 5px 14px;
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.2);
+      border-radius: 20px;
+      font-size: 11px;
+      color: #6ee7b7;
+      font-weight: 500;
+    }
+    .pulse {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+      50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+    }
+
+    /* Agents Grid */
+    .section {
+      padding: 14px 20px;
+    }
+    .section-label {
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #475569;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .agents-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .agent-card {
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .agent-card:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.12);
+      transform: translateY(-1px);
+    }
+    .agent-icon {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .agent-icon.cambio { background: rgba(59,130,246,0.15); }
+    .agent-icon.serasa { background: rgba(16,185,129,0.15); }
+    .agent-icon.frete { background: rgba(245,158,11,0.15); }
+    .agent-icon.tracking { background: rgba(168,85,247,0.15); }
+    .agent-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+    .agent-desc {
+      font-size: 9px;
+      color: #64748b;
+      margin-top: 1px;
+    }
+
+    /* Settings */
+    .settings {
+      padding: 0 20px 14px;
+    }
+    .settings-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .settings-card .section-label { margin-bottom: 8px; }
+    .input-group {
+      position: relative;
+    }
+    .input-group label {
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 500;
+      margin-bottom: 4px;
+      display: block;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 9px 12px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+      transition: border 0.2s, box-shadow 0.2s;
+    }
+    .input-group input:focus {
+      border-color: rgba(99,102,241,0.5);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+    }
+    .input-group input::placeholder { color: #334155; }
+
+    .btn-save {
+      width: 100%;
+      padding: 9px;
+      margin-top: 10px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.3px;
+    }
+    .btn-save:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 4px 16px rgba(99,102,241,0.3);
+    }
+    .btn-save:active { transform: scale(0.98); }
+    .saved-msg {
+      display: none;
+      color: #6ee7b7;
+      font-size: 10px;
+      text-align: center;
+      margin-top: 6px;
+      font-weight: 500;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 10px 20px 14px;
+      text-align: center;
+      font-size: 9px;
+      color: #334155;
+      letter-spacing: 0.5px;
+    }
+    .footer span { color: #475569; }
   </style>
 </head>
 <body>
-  <h2><img src="icon48.png" class="logo"> Skychart AI</h2>
 
-  <div class="status-bar">
-    <div class="status-dot"></div>
-    <span>Extensão ativa</span>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Agentes ativos</div>
-    <div class="agents">
-      <span class="agent-badge">📄 Câmbio</span>
-      <span class="agent-badge">🔍 Serasa</span>
-      <span class="agent-badge">🚢 Frete</span>
-      <span class="agent-badge">📦 Tracking</span>
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">
+      <div class="atom-icon">⚛</div>
+      <div class="brand-text">
+        <h1>Atom</h1>
+        <div class="subtitle">Multiagentes &bull; Mond Shipping</div>
+      </div>
+    </div>
+    <div class="status-pill">
+      <div class="pulse"></div>
+      Todos os agentes ativos
     </div>
   </div>
 
+  <!-- Agents -->
   <div class="section">
-    <div class="section-title">⚙️ Configurações - Alerta de Frete</div>
-    <label for="pricing-email">E-mail do Pricing:</label>
-    <input type="email" id="pricing-email" placeholder="email@empresa.com.br">
-    <button class="btn btn-save" id="save-btn">Salvar</button>
-    <div class="saved-msg" id="saved-msg">✅ Salvo com sucesso!</div>
+    <div class="section-label">Agentes</div>
+    <div class="agents-grid">
+      <div class="agent-card">
+        <div class="agent-icon cambio">📄</div>
+        <div>
+          <div class="agent-name">Câmbio</div>
+          <div class="agent-desc">Extração de PDF</div>
+        </div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-icon serasa">🔍</div>
+        <div>
+          <div class="agent-name">Serasa</div>
+          <div class="agent-desc">Score & crédito</div>
+        </div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-icon frete">🚢</div>
+        <div>
+          <div class="agent-name">Frete</div>
+          <div class="agent-desc">Análise de mercado</div>
+        </div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-icon tracking">📦</div>
+        <div>
+          <div class="agent-name">Tracking</div>
+          <div class="agent-desc">Rastreio Maersk</div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div class="footer">Mond Shipping &bull; v2.1</div>
+  <!-- Settings -->
+  <div class="settings">
+    <div class="settings-card">
+      <div class="section-label">⚙️ Configurações</div>
+      <div class="input-group">
+        <label>E-mail de alerta (Pricing)</label>
+        <input type="email" id="pricing-email" placeholder="email@mondshipping.com.br">
+      </div>
+      <button class="btn-save" id="save-btn">Salvar</button>
+      <div class="saved-msg" id="saved-msg">✅ Configuração salva</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Mond Shipping &bull; <span>v2.1</span>
+  </div>
 
   <script>
     var defaultEmail = 'paulo.zanella@mondshipping.com.br';
@@ -60,24 +291,25 @@
     var saveBtn = document.getElementById('save-btn');
     var savedMsg = document.getElementById('saved-msg');
 
-    // Carrega email salvo
     chrome.storage.local.get('pricingEmail', function(data) {
       emailInput.value = data.pricingEmail || defaultEmail;
     });
 
-    // Salva
     saveBtn.addEventListener('click', function() {
       var email = emailInput.value.trim();
       if (!email || !email.includes('@')) {
-        emailInput.style.borderColor = '#ef4444';
+        emailInput.style.borderColor = 'rgba(239,68,68,0.5)';
+        emailInput.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.1)';
         return;
       }
       chrome.storage.local.set({ pricingEmail: email }, function() {
         savedMsg.style.display = 'block';
         saveBtn.textContent = '✅ Salvo!';
+        saveBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
         setTimeout(function() {
           savedMsg.style.display = 'none';
           saveBtn.textContent = 'Salvar';
+          saveBtn.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
         }, 2000);
       });
     });

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Skychart AI: Super Agente",
+  "name": "Atom - Multiagentes | Mond Shipping",
   "version": "2.1",
-  "description": "Super agente inteligente que detecta componentes PrimeNG e preenche formulários automaticamente.",
+  "description": "Plataforma de multiagentes inteligentes para automação de processos Mond Shipping.",
   "permissions": [
     "storage",
     "activeTab",
