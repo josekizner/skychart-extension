@@ -276,7 +276,13 @@ try {
         for (var i = 0; i < allBtns.length; i++) {
             if (allBtns[i].textContent.trim() === text) {
                 console.log('[Atom Oferta] Clicando em:', text);
-                allBtns[i].click();
+                // PrimeNG: precisa clicar no BUTTON pai, nao no span interno
+                var clickTarget = allBtns[i];
+                if (clickTarget.tagName === 'SPAN') {
+                    var parentBtn = clickTarget.closest('button') || clickTarget.closest('.ui-button');
+                    if (parentBtn) clickTarget = parentBtn;
+                }
+                clickTarget.click();
                 return true;
             }
         }
@@ -288,28 +294,72 @@ try {
     function readAcordoComercial(quote) {
         console.log('[Atom Oferta] Lendo Acordo Comercial...');
 
-        // Clica no accordion "Acordo comercial" pra expandir
+        // Encontra o accordion "Acordo comercial"
+        var acordoHeader = null;
+        var acordoTab = null;
         var accordions = document.querySelectorAll('.ui-accordion-header-text');
         for (var i = 0; i < accordions.length; i++) {
             if (accordions[i].textContent.trim().indexOf('Acordo comercial') >= 0) {
-                var header = accordions[i].closest('.ui-accordion-header') || accordions[i].parentElement;
-                if (header) header.click();
-                console.log('[Atom Oferta] Accordion Acordo Comercial expandido');
+                acordoHeader = accordions[i];
+                acordoTab = accordions[i].closest('p-accordiontab') || accordions[i].closest('.ui-accordion-header').parentElement;
                 break;
             }
+        }
+
+        if (!acordoHeader) {
+            console.log('[Atom Oferta] Accordion Acordo Comercial nao encontrado');
+            return;
+        }
+
+        // Verifica se já está expandido (aria-expanded ou classe active)
+        var headerEl = acordoHeader.closest('.ui-accordion-header') || acordoHeader.parentElement;
+        var isExpanded = headerEl && (headerEl.getAttribute('aria-expanded') === 'true' || headerEl.classList.contains('ui-state-active'));
+
+        if (!isExpanded && headerEl) {
+            headerEl.click();
+            console.log('[Atom Oferta] Accordion Acordo Comercial aberto');
+        } else {
+            console.log('[Atom Oferta] Accordion Acordo Comercial ja estava aberto');
         }
 
         // Espera conteúdo carregar e lê
         setTimeout(function() {
             var acordoContent = '';
-            var acordoPanels = document.querySelectorAll('.ui-accordion-content');
-            for (var j = 0; j < acordoPanels.length; j++) {
-                if (acordoPanels[j].offsetHeight > 0) {
-                    acordoContent = acordoPanels[j].textContent || acordoPanels[j].innerText || '';
+
+            // Tenta ler conteudo do tab especifico
+            if (acordoTab) {
+                var contentPanel = acordoTab.querySelector('.ui-accordion-content');
+                if (contentPanel) {
+                    acordoContent = contentPanel.textContent || contentPanel.innerText || '';
                 }
             }
 
-            console.log('[Atom Oferta] Conteúdo do acordo:', acordoContent.substring(0, 200));
+            // Fallback: pega o conteudo visivel mais proximo do header
+            if (!acordoContent && headerEl) {
+                var nextSibling = headerEl.nextElementSibling;
+                if (nextSibling && nextSibling.classList.contains('ui-accordion-content-wrapper')) {
+                    var innerContent = nextSibling.querySelector('.ui-accordion-content');
+                    if (innerContent) {
+                        acordoContent = innerContent.textContent || innerContent.innerText || '';
+                    } else {
+                        acordoContent = nextSibling.textContent || nextSibling.innerText || '';
+                    }
+                }
+            }
+
+            // Fallback 2: ultimo accord content visivel
+            if (!acordoContent) {
+                var allPanels = document.querySelectorAll('.ui-accordion-content');
+                for (var j = allPanels.length - 1; j >= 0; j--) {
+                    if (allPanels[j].offsetHeight > 0 && allPanels[j].textContent.trim()) {
+                        acordoContent = allPanels[j].textContent || allPanels[j].innerText || '';
+                        break;
+                    }
+                }
+            }
+
+            acordoContent = acordoContent.trim();
+            console.log('[Atom Oferta] Conteúdo do acordo (' + acordoContent.length + ' chars):', acordoContent.substring(0, 300));
 
             // Extrai regras do acordo
             var rules = {
@@ -317,28 +367,40 @@ try {
                 incluirIOF: false,
                 armadoresBloqueados: [],
                 observacoes: [],
+                textoCompleto: acordoContent.substring(0, 500),
                 lastUpdated: new Date().toISOString()
             };
 
             var text = acordoContent.toUpperCase();
 
             // Check IOF
-            if (text.indexOf('IOF') >= 0 && (text.indexOf('INCLUIR') >= 0 || text.indexOf('INCLUSO') >= 0)) {
+            if (text.indexOf('IOF') >= 0 && (text.indexOf('INCLUIR') >= 0 || text.indexOf('INCLUSO') >= 0 || text.indexOf('INCLUI') >= 0)) {
                 rules.incluirIOF = true;
                 console.log('[Atom Oferta] ⚠ Regra: INCLUIR IOF na cotação');
             }
 
-            // Check armadores bloqueados
-            var armadores = ['MSC', 'MAERSK', 'CMA', 'HAPAG', 'COSCO', 'ONE', 'EVERGREEN', 'ZIM', 'YANG MING', 'HMM'];
+            // Check armadores bloqueados — busca padrões como "NÃO OFERECER MSC" ou "NÃO TRABALHA COM MSC"
+            var armadores = ['MSC', 'MAERSK', 'CMA CGM', 'CMA', 'HAPAG', 'COSCO', 'ONE', 'EVERGREEN', 'ZIM', 'YANG MING', 'HMM', 'PIL'];
             for (var a = 0; a < armadores.length; a++) {
-                if (text.indexOf(armadores[a]) >= 0 && (text.indexOf('NÃO') >= 0 || text.indexOf('NAO') >= 0 || text.indexOf('NOT') >= 0)) {
-                    // Verifica se o "NÃO" está perto do armador
+                if (text.indexOf(armadores[a]) >= 0) {
+                    // Verifica contexto negativo perto do armador
                     var armIdx = text.indexOf(armadores[a]);
-                    var nearbyText = text.substring(Math.max(0, armIdx - 50), armIdx + 50);
-                    if (nearbyText.indexOf('NÃO') >= 0 || nearbyText.indexOf('NAO') >= 0) {
+                    var nearbyText = text.substring(Math.max(0, armIdx - 80), Math.min(text.length, armIdx + 80));
+                    if (nearbyText.indexOf('NÃO') >= 0 || nearbyText.indexOf('NAO') >= 0 || 
+                        nearbyText.indexOf('NOT') >= 0 || nearbyText.indexOf('EXCETO') >= 0 ||
+                        nearbyText.indexOf('BLOQUEADO') >= 0 || nearbyText.indexOf('PROIBIDO') >= 0) {
                         rules.armadoresBloqueados.push(armadores[a]);
                         console.log('[Atom Oferta] ⚠ Armador BLOQUEADO:', armadores[a]);
                     }
+                }
+            }
+
+            // Extrai observações gerais do texto
+            var lines = acordoContent.split('\n');
+            for (var ln = 0; ln < lines.length; ln++) {
+                var line = lines[ln].trim();
+                if (line.length > 10 && line.length < 200) {
+                    rules.observacoes.push(line);
                 }
             }
 
@@ -353,10 +415,13 @@ try {
             var resumo = [];
             if (rules.incluirIOF) resumo.push('IOF: Incluir');
             if (rules.armadoresBloqueados.length > 0) resumo.push('Bloqueados: ' + rules.armadoresBloqueados.join(', '));
+            if (rules.observacoes.length > 0) resumo.push(rules.observacoes.length + ' regras encontradas');
             if (resumo.length > 0) {
-                showToast('Acordo: ' + resumo.join(' | '), 'warning', 5000);
+                showToast('Acordo: ' + resumo.join(' | '), 'warning', 6000);
+            } else if (acordoContent.length > 0) {
+                showToast('Acordo lido: ' + acordoContent.substring(0, 80) + '...', 'info', 4000);
             }
-        }, 1500);
+        }, 2500);
     }
 
     // Preenche Origem e Destino nos multiselects do tarifário

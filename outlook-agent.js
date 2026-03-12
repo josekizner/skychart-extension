@@ -341,9 +341,13 @@
             }
 
             if (rules.observacoes && rules.observacoes.length > 0) {
-                rules.observacoes.forEach(function(obs) {
-                    rulesHtml.push('<div style="color:#ccc;">• ' + obs + '</div>');
-                });
+                var maxShow = Math.min(rules.observacoes.length, 3);
+                for (var oi = 0; oi < maxShow; oi++) {
+                    rulesHtml.push('<div style="color:#ccc;font-size:10px;">• ' + rules.observacoes[oi] + '</div>');
+                }
+                if (rules.observacoes.length > 3) {
+                    rulesHtml.push('<div style="color:#888;font-size:10px;">+ ' + (rules.observacoes.length - 3) + ' regras mais...</div>');
+                }
             }
 
             rulesHtml.push('</div>');
