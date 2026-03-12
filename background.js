@@ -287,6 +287,48 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true;
   }
+
+  // OUTLOOK: Analisa email de cotacao via Gemini
+  if (request.action === "analyzeQuotationEmail") {
+    var emailText = "ASSUNTO: " + (request.subject || "") + "\n\nDE: " + (request.from || "") + "\n\nCORPO:\n" + (request.body || "");
+    
+    console.log("[Email Agent] Analisando cotacao...");
+
+    var quotationPrompt = QUOTATION_PROMPT + "\n\nEMAIL:\n" + emailText;
+
+    fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: quotationPrompt }] }],
+        generationConfig: { temperature: 0.1 }
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      var text = result.candidates[0].content.parts[0].text;
+      // Limpa markdown
+      text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      var data = JSON.parse(text);
+      console.log("[Email Agent] Dados extraidos:", data);
+      sendResponse({ success: true, data: data });
+    })
+    .catch(function(err) {
+      console.error("[Email Agent] Erro Gemini:", err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true;
+  }
+
+  // OUTLOOK: Abre Skychart na tela de ofertas
+  if (request.action === "openSkychartOferta") {
+    chrome.tabs.create({
+      url: "https://app2.skychart.com.br/skyline-mond-83474/#/app/oferta",
+      active: true
+    });
+    sendResponse({ success: true });
+    return false;
+  }
 });
 
 const SERASA_PROMPT = `
@@ -301,6 +343,34 @@ Extraia os seguintes campos deste documento PDF e retorne em formato JSON puro (
 REGRAS:
 - Para "score": procure por "Score Serasa" e pegue o número inteiro ao lado.
 - Para "limiteCredito": procure por "Limite de Crédito Sugerido" e pegue o valor numérico.
+- Retorne APENAS o JSON, nada mais.
+`;
+
+const QUOTATION_PROMPT = `
+Voce e um extrator de dados especializado em cotacoes de frete maritimo/aereo.
+Analise o email abaixo e extraia os dados da cotacao. Retorne APENAS JSON puro (sem markdown, sem \`\`\`).
+
+{
+  "cliente": "nome do cliente/empresa que solicita a cotacao (busque no campo CLIENTE do assunto, ou na assinatura do email, ou no dominio do email do remetente)",
+  "remetente": "nome da pessoa que enviou o email",
+  "empresa_remetente": "empresa do remetente (da assinatura ou dominio do email)",
+  "processo_ref": "numero de referencia/processo mencionado (ex: IDB-20857/26)",
+  "incoterm": "FOB, CIF, EXW, etc",
+  "equipamento": "tipo de container (40HC, 20DV, NOR, etc)",
+  "origem": "porto/cidade de origem",
+  "destino": "porto/cidade de destino",
+  "mercadoria": "descricao da mercadoria/carga",
+  "ncm": "codigos NCM mencionados",
+  "peso_bruto": "peso bruto total em KG",
+  "valor_mercadoria": "valor da mercadoria (incluir moeda)",
+  "observacoes": "notas adicionais relevantes"
+}
+
+REGRAS:
+- Se o assunto contem "CLIENTE:" use esse nome como cliente.
+- Se nao tem CLIENTE no assunto, use o nome da empresa da assinatura ou dominio do email.
+- Para origem e destino, SEMPRE use o nome do PORTO (ex: NINGBO, NAVEGANTES, SHANGHAI).
+- Se equipamento diz "ou NOR", inclua ambas opcoes.
 - Retorne APENAS o JSON, nada mais.
 `;
 

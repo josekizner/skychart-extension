@@ -15,7 +15,9 @@
     "https://www.maersk.com/*",
     "https://server-mond.tail46f98e.ts.net/*",
     "https://docs.google.com/*",
-    "https://www.serasaempreendedor.com.br/*"
+    "https://www.serasaempreendedor.com.br/*",
+    "https://outlook.office.com/*",
+    "https://outlook.office365.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -52,6 +54,18 @@
       ],
       "js": [
         "serasa-consulta.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://outlook.office.com/*",
+        "https://outlook.office365.com/*"
+      ],
+      "js": [
+        "outlook-agent.js"
+      ],
+      "css": [
+        "outlook-agent.css"
       ]
     }
   ],
