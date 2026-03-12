@@ -211,11 +211,22 @@ try {
             var modalidadeInput = document.getElementById('cdModalidadeFrete');
             if (modalidadeInput) {
                 fillAutocompleteById('cdModalidadeFrete', modalidade, function() {
-                    // 2. Depois preenche Incoterm
+                    // 2. Preenche Incoterm
                     setTimeout(function() {
                         fillAutocompleteById('cdIncoterm-oferta', incoterm, function() {
-                            console.log('[Atom Oferta] Campos obrigatorios preenchidos!');
-                            showToast('Oferta pronta! Revise os dados.', 'success', 5000);
+                            // 3. Preenche Pricing (Paulo Zanella pra marítimo)
+                            setTimeout(function() {
+                                fillAutocompleteById('cdPricing', 'Paulo Zanella', function() {
+                                    // 4. Preenche Referência Cliente (processo_ref)
+                                    setTimeout(function() {
+                                        if (quote.processo_ref) {
+                                            fillPlainInput('formularioIdentificacao-dsReferenciaPessoa', quote.processo_ref);
+                                        }
+                                        console.log('[Atom Oferta] Todos os campos preenchidos!');
+                                        showToast('Oferta pronta! Revise os dados.', 'success', 5000);
+                                    }, 500);
+                                });
+                            }, 1500);
                         });
                     }, 1500);
                 });
@@ -223,6 +234,21 @@ try {
                 console.log('[Atom Oferta] Campo Modalidade nao encontrado');
             }
         });
+    }
+
+    // Preenche input simples (nao-autocomplete)
+    function fillPlainInput(inputId, value) {
+        var input = document.getElementById(inputId);
+        if (!input) {
+            console.log('[Atom Oferta] Input simples', inputId, 'nao encontrado');
+            return;
+        }
+        console.log('[Atom Oferta] Preenchendo simples', inputId, ':', value);
+        input.focus();
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('blur', { bubbles: true }));
     }
 
     // Preenche autocomplete por ID (reutilizavel)
