@@ -227,17 +227,21 @@ try {
                                             clickButtonByText('Cadastrar');
                                             console.log('[Atom Oferta] Cadastrado!');
 
-                                            // 6. Clica em Adicionar rota
+                                            // 6. Lê Acordo Comercial e salva regras
                                             setTimeout(function() {
-                                                clickButtonByText('Adicionar rota');
-                                                console.log('[Atom Oferta] Adicionar rota clicado!');
+                                                readAcordoComercial(quote);
 
-                                                // 7. Preenche validade da rota (data de hoje)
+                                                // 7. Clica em Adicionar rota via tarifário
                                                 setTimeout(function() {
-                                                    fillValidadeRota();
-                                                    showToast('Oferta completa! Rota adicionada.', 'success', 5000);
+                                                    clickButtonByText('Adicionar rota via tarifário');
+                                                    console.log('[Atom Oferta] Adicionar rota via tarifário clicado!');
+
+                                                    // 8. Preenche Origem e Destino nos multiselects
+                                                    setTimeout(function() {
+                                                        fillTarifarioOrigemDestino(quote);
+                                                    }, 2000);
                                                 }, 2000);
-                                            }, 2000);
+                                            }, 3000);
                                         }, 1000);
                                     }, 500);
                                 });
@@ -278,6 +282,235 @@ try {
         }
         console.log('[Atom Oferta] Botao "' + text + '" nao encontrado');
         return false;
+    }
+
+    // Lê o Acordo Comercial e salva regras na memória
+    function readAcordoComercial(quote) {
+        console.log('[Atom Oferta] Lendo Acordo Comercial...');
+
+        // Clica no accordion "Acordo comercial" pra expandir
+        var accordions = document.querySelectorAll('.ui-accordion-header-text');
+        for (var i = 0; i < accordions.length; i++) {
+            if (accordions[i].textContent.trim().indexOf('Acordo comercial') >= 0) {
+                var header = accordions[i].closest('.ui-accordion-header') || accordions[i].parentElement;
+                if (header) header.click();
+                console.log('[Atom Oferta] Accordion Acordo Comercial expandido');
+                break;
+            }
+        }
+
+        // Espera conteúdo carregar e lê
+        setTimeout(function() {
+            var acordoContent = '';
+            var acordoPanels = document.querySelectorAll('.ui-accordion-content');
+            for (var j = 0; j < acordoPanels.length; j++) {
+                if (acordoPanels[j].offsetHeight > 0) {
+                    acordoContent = acordoPanels[j].textContent || acordoPanels[j].innerText || '';
+                }
+            }
+
+            console.log('[Atom Oferta] Conteúdo do acordo:', acordoContent.substring(0, 200));
+
+            // Extrai regras do acordo
+            var rules = {
+                cliente: quote.cliente || '',
+                incluirIOF: false,
+                armadoresBloqueados: [],
+                observacoes: [],
+                lastUpdated: new Date().toISOString()
+            };
+
+            var text = acordoContent.toUpperCase();
+
+            // Check IOF
+            if (text.indexOf('IOF') >= 0 && (text.indexOf('INCLUIR') >= 0 || text.indexOf('INCLUSO') >= 0)) {
+                rules.incluirIOF = true;
+                console.log('[Atom Oferta] ⚠ Regra: INCLUIR IOF na cotação');
+            }
+
+            // Check armadores bloqueados
+            var armadores = ['MSC', 'MAERSK', 'CMA', 'HAPAG', 'COSCO', 'ONE', 'EVERGREEN', 'ZIM', 'YANG MING', 'HMM'];
+            for (var a = 0; a < armadores.length; a++) {
+                if (text.indexOf(armadores[a]) >= 0 && (text.indexOf('NÃO') >= 0 || text.indexOf('NAO') >= 0 || text.indexOf('NOT') >= 0)) {
+                    // Verifica se o "NÃO" está perto do armador
+                    var armIdx = text.indexOf(armadores[a]);
+                    var nearbyText = text.substring(Math.max(0, armIdx - 50), armIdx + 50);
+                    if (nearbyText.indexOf('NÃO') >= 0 || nearbyText.indexOf('NAO') >= 0) {
+                        rules.armadoresBloqueados.push(armadores[a]);
+                        console.log('[Atom Oferta] ⚠ Armador BLOQUEADO:', armadores[a]);
+                    }
+                }
+            }
+
+            // Salva regras na memória por cliente
+            var clienteKey = 'acordo_' + (quote.cliente || 'unknown').toLowerCase().replace(/\s+/g, '_');
+            var storageObj = {};
+            storageObj[clienteKey] = rules;
+            chrome.storage.local.set(storageObj);
+            console.log('[Atom Oferta] Regras salvas para', clienteKey, rules);
+
+            // Toast com resumo
+            var resumo = [];
+            if (rules.incluirIOF) resumo.push('IOF: Incluir');
+            if (rules.armadoresBloqueados.length > 0) resumo.push('Bloqueados: ' + rules.armadoresBloqueados.join(', '));
+            if (resumo.length > 0) {
+                showToast('Acordo: ' + resumo.join(' | '), 'warning', 5000);
+            }
+        }, 1500);
+    }
+
+    // Preenche Origem e Destino nos multiselects do tarifário
+    function fillTarifarioOrigemDestino(quote) {
+        var origem = quote.origem || '';
+        var destino = quote.destino || '';
+
+        console.log('[Atom Oferta] Tarifário — Origem:', origem, '| Destino:', destino);
+
+        // Pega todos os multiselects na tela
+        var multiselects = document.querySelectorAll('p-multiselect, .ui-multiselect');
+        console.log('[Atom Oferta] Multiselects encontrados:', multiselects.length);
+
+        // O primeiro é Origem, o segundo é País de Origem, terceiro Destino, etc.
+        // Vamos procurar pelo label contextual
+        var origemMulti = null;
+        var destinoMulti = null;
+
+        var formGroups = document.querySelectorAll('.form-group, .ui-g-12, .ui-g-6, .ui-g-4, .ui-g-3, .ui-g-2, [class*="col"]');
+        for (var g = 0; g < formGroups.length; g++) {
+            var labelEl = formGroups[g].querySelector('label');
+            if (!labelEl) continue;
+            var labelText = labelEl.textContent.trim();
+
+            if (labelText.indexOf('Origem') >= 0 && labelText.indexOf('País') < 0 && !origemMulti) {
+                origemMulti = formGroups[g].querySelector('.ui-multiselect, p-multiselect');
+            }
+            if (labelText.indexOf('Destino') >= 0 && labelText.indexOf('País') < 0 && labelText.indexOf('DTA') < 0 && !destinoMulti) {
+                destinoMulti = formGroups[g].querySelector('.ui-multiselect, p-multiselect');
+            }
+        }
+
+        if (!origemMulti || !destinoMulti) {
+            // Fallback: usa posição — primeiro e terceiro multiselect
+            if (multiselects.length >= 2) {
+                origemMulti = origemMulti || multiselects[0];
+                destinoMulti = destinoMulti || multiselects[1];
+            }
+        }
+
+        // 1. Preenche Origem primeiro
+        fillMultiselect(origemMulti, origem, function() {
+            console.log('[Atom Oferta] Origem selecionada!');
+
+            // 2. Depois preenche Destino
+            setTimeout(function() {
+                fillMultiselect(destinoMulti, destino, function() {
+                    console.log('[Atom Oferta] Destino selecionado!');
+
+                    // 3. Clica em Filtrar
+                    setTimeout(function() {
+                        clickButtonByText('Filtrar');
+                        console.log('[Atom Oferta] Filtrar clicado!');
+                        showToast('Tarifário filtrado! Revise os resultados.', 'success', 5000);
+                    }, 1000);
+                });
+            }, 2000);
+        });
+    }
+
+    // Preenche um multiselect PrimeNG
+    function fillMultiselect(multiEl, searchText, callback) {
+        if (!multiEl) {
+            console.log('[Atom Oferta] Multiselect nao encontrado');
+            if (callback) callback();
+            return;
+        }
+
+        console.log('[Atom Oferta] Abrindo multiselect, buscando:', searchText);
+
+        // 1. Clica pra abrir o dropdown
+        var clickTarget = multiEl.querySelector('.ui-multiselect-label') || multiEl.querySelector('label') || multiEl;
+        clickTarget.click();
+
+        // 2. Espera abrir e digita no campo de busca
+        setTimeout(function() {
+            // Procura o input de busca dentro do painel do multiselect
+            var searchInput = null;
+            var panels = document.querySelectorAll('.ui-multiselect-panel, .ui-multiselect-items-wrapper');
+            for (var p = 0; p < panels.length; p++) {
+                if (panels[p].offsetHeight > 0) {
+                    searchInput = panels[p].querySelector('input[type="text"], input.ui-inputtext');
+                    if (searchInput) break;
+                }
+            }
+
+            // Também tenta dentro do próprio multiselect
+            if (!searchInput) {
+                searchInput = multiEl.querySelector('.ui-multiselect-filter-container input, input[role="textbox"]');
+            }
+
+            if (!searchInput) {
+                // Tenta qualquer input visivel no panel aberto
+                var allInputs = document.querySelectorAll('.ui-multiselect-panel input[type="text"]');
+                for (var ai = 0; ai < allInputs.length; ai++) {
+                    if (allInputs[ai].offsetHeight > 0) {
+                        searchInput = allInputs[ai];
+                        break;
+                    }
+                }
+            }
+
+            if (searchInput) {
+                // Digita char por char
+                var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                searchInput.focus();
+                nativeSetter.call(searchInput, '');
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+                var idx = 0;
+                var timer = setInterval(function() {
+                    if (idx < searchText.length) {
+                        var val = searchInput.value + searchText[idx];
+                        nativeSetter.call(searchInput, val);
+                        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        searchInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: searchText[idx] }));
+                        searchInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: searchText[idx] }));
+                        idx++;
+                    } else {
+                        clearInterval(timer);
+
+                        // 3. Espera resultado filtrar e clica no primeiro checkbox
+                        setTimeout(function() {
+                            var checkboxes = null;
+                            var visiblePanels = document.querySelectorAll('.ui-multiselect-panel, .ui-multiselect-items-wrapper');
+                            for (var vp = 0; vp < visiblePanels.length; vp++) {
+                                if (visiblePanels[vp].offsetHeight > 0) {
+                                    checkboxes = visiblePanels[vp].querySelectorAll('.ui-chkbox-icon, .ui-multiselect-item .ui-chkbox');
+                                    if (checkboxes && checkboxes.length > 0) break;
+                                }
+                            }
+
+                            if (checkboxes && checkboxes.length > 0) {
+                                // Clica no primeiro item (checkbox ou li)
+                                var firstItem = checkboxes[0].closest('li') || checkboxes[0].closest('.ui-multiselect-item') || checkboxes[0];
+                                firstItem.click();
+                                console.log('[Atom Oferta] Item selecionado no multiselect');
+                            } else {
+                                console.log('[Atom Oferta] Nenhum item encontrado no multiselect');
+                            }
+
+                            // Fecha o multiselect clicando fora
+                            setTimeout(function() {
+                                document.body.click();
+                                if (callback) callback();
+                            }, 500);
+                        }, 1500);
+                    }
+                }, 60);
+            } else {
+                console.log('[Atom Oferta] Input de busca do multiselect nao encontrado');
+                if (callback) callback();
+            }
+        }, 800);
     }
 
     // Preenche validade da rota com data de hoje
