@@ -55,7 +55,6 @@ try {
         // 1. Encontra o campo Cliente/Agente (autocomplete input)
         var clienteInput = document.querySelector('p-autocomplete input, input.ui-autocomplete-input');
         if (!clienteInput) {
-            // Tenta pelo label
             var labels = document.querySelectorAll('label');
             for (var i = 0; i < labels.length; i++) {
                 if (labels[i].textContent.indexOf('Cliente') >= 0) {
@@ -74,68 +73,60 @@ try {
             return;
         }
 
-        console.log('[Atom Oferta] Campo cliente encontrado, digitando:', quote.cliente);
+        var clienteName = quote.cliente || quote.empresa_remetente || '';
+        console.log('[Atom Oferta] Campo cliente encontrado, digitando:', clienteName);
 
-        // Foca no campo
+        // Mesmo metodo do smart-agent.js: char-by-char com KeyboardEvents
+        clienteInput.value = '';
+        clienteInput.dispatchEvent(new Event('input', { bubbles: true }));
         clienteInput.focus();
         clienteInput.click();
 
-        // Limpa e digita o nome do cliente
-        clienteInput.value = '';
-        clienteInput.dispatchEvent(new Event('input', { bubbles: true }));
-
-        // Digita caractere por caractere (Angular precisa de input events)
-        var clienteName = quote.cliente || quote.empresa_remetente || '';
-        var charIndex = 0;
-
-        function typeNextChar() {
-            if (charIndex < clienteName.length) {
-                clienteInput.value += clienteName[charIndex];
+        var idx = 0;
+        var timer = setInterval(function() {
+            if (idx < clienteName.length) {
+                clienteInput.value += clienteName[idx];
                 clienteInput.dispatchEvent(new Event('input', { bubbles: true }));
-                clienteInput.dispatchEvent(new Event('keyup', { bubbles: true }));
-                charIndex++;
-                setTimeout(typeNextChar, 50);
+                clienteInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: clienteName[idx] }));
+                clienteInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: clienteName[idx] }));
+                idx++;
             } else {
-                console.log('[Atom Oferta] Nome digitado, esperando dropdown...');
-                // Espera o dropdown aparecer
-                waitForDropdown();
-            }
-        }
+                clearInterval(timer);
+                console.log('[Atom Oferta] Nome digitado, forçando dropdown com ArrowDown...');
 
-        typeNextChar();
+                // ArrowDown pra forçar o dropdown abrir (igual smart-agent.js)
+                clienteInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }));
+                clienteInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'ArrowDown' }));
+
+                // Espera o dropdown aparecer (polling igual smart-agent.js)
+                waitAndSelectClient(0, clienteInput);
+            }
+        }, 60);
     }
 
-    function waitForDropdown() {
-        var attempts = 0;
-        var maxAttempts = 20; // 10 segundos
-
-        function check() {
-            // Procura dropdown de sugestoes do PrimeNG autocomplete
-            var dropdown = document.querySelector('.ui-autocomplete-panel, .ui-autocomplete-list-item, .p-autocomplete-panel, .p-autocomplete-items');
-            var items = document.querySelectorAll('.ui-autocomplete-list-item, .p-autocomplete-item, li[role="option"]');
-
-            if (items.length > 0) {
-                console.log('[Atom Oferta] Dropdown apareceu com', items.length, 'opcoes');
-                // Seleciona o primeiro item
-                var first = items[0];
-                first.click();
-                console.log('[Atom Oferta] Cliente selecionado:', first.textContent.trim());
-
-                // Agora clica em "Nova oferta"
-                setTimeout(clickNovaOferta, 1000);
-                return;
-            }
-
-            attempts++;
-            if (attempts < maxAttempts) {
-                setTimeout(check, 500);
-            } else {
-                console.log('[Atom Oferta] Dropdown nao apareceu');
-                showToast('Dropdown de clientes nao apareceu. Selecione manualmente.', 'warning', 5000);
-            }
+    function waitAndSelectClient(attempt, input) {
+        if (attempt >= 25) {
+            console.log('[Atom Oferta] Autocomplete nao abriu apos', attempt, 'tentativas');
+            showToast('Dropdown de clientes nao apareceu. Selecione manualmente.', 'warning', 5000);
+            return;
         }
 
-        check();
+        setTimeout(function() {
+            var panels = document.querySelectorAll('.ui-autocomplete-panel, .p-autocomplete-panel, .ui-autocomplete-items');
+            for (var p = 0; p < panels.length; p++) {
+                if (panels[p].offsetHeight > 0) {
+                    var items = panels[p].querySelectorAll('li');
+                    if (items.length > 0) {
+                        items[0].click();
+                        console.log('[Atom Oferta] Cliente selecionado:', items[0].textContent.trim());
+                        // Clica em Nova oferta
+                        setTimeout(clickNovaOferta, 1000);
+                        return;
+                    }
+                }
+            }
+            waitAndSelectClient(attempt + 1, input);
+        }, 600);
     }
 
     function clickNovaOferta() {
