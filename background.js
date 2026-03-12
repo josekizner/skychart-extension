@@ -30,7 +30,7 @@ async function checkForUpdates() {
           newVersion: remote.version,
           currentVersion: CURRENT_VERSION,
           changelog: remote.changelog || ""
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
   } catch (e) {
@@ -78,7 +78,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (skychartTabId) {
       // Volta pra aba do Skychart pra usuario supervisionar
-      chrome.tabs.update(skychartTabId, { active: true }).catch(() => {});
+      chrome.tabs.update(skychartTabId, { active: true }).catch(() => { });
 
       chrome.tabs.sendMessage(skychartTabId, {
         action: 'trackingDataReady',
@@ -88,7 +88,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       // Fecha a aba da Maersk após 3 segundos
       setTimeout(() => {
-        chrome.tabs.remove(maerskTabId).catch(() => {});
+        chrome.tabs.remove(maerskTabId).catch(() => { });
       }, 3000);
 
       delete pendingTrackingTabs[maerskTabId];
@@ -142,7 +142,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // SERASA: Captura URL da aba nova que abrir, fecha ela, e retorna URL
   if (request.action === "captureNewTabUrl") {
     const senderTabId = sender.tab ? sender.tab.id : null;
-    
+
     (async () => {
       try {
         // Registra listener ANTES do clique
@@ -160,7 +160,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               try {
                 const t = await chrome.tabs.get(tab.id);
                 resolve({ tabId: tab.id, url: t.url || t.pendingUrl });
-              } catch(e) {
+              } catch (e) {
                 resolve({ tabId: tab.id, url: tab.pendingUrl || tab.url });
               }
             }, 3000);
@@ -170,7 +170,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         // Manda content clicar
         if (senderTabId) {
-          chrome.tabs.sendMessage(senderTabId, { action: 'clickSerasaDownload' }).catch(() => {});
+          chrome.tabs.sendMessage(senderTabId, { action: 'clickSerasaDownload' }).catch(() => { });
         }
 
         const newTab = await tabPromise;
@@ -183,15 +183,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         console.log("[Serasa] URL capturada:", newTab.url);
 
         // Fecha a aba do PDF
-        chrome.tabs.remove(newTab.tabId).catch(() => {});
+        chrome.tabs.remove(newTab.tabId).catch(() => { });
 
         // Volta foco pro Skychart
         if (senderTabId) {
-          chrome.tabs.update(senderTabId, { active: true }).catch(() => {});
+          chrome.tabs.update(senderTabId, { active: true }).catch(() => { });
         }
 
         sendResponse({ success: true, url: newTab.url });
-      } catch(err) {
+      } catch (err) {
         console.error("[Serasa] Erro:", err);
         sendResponse({ success: false, error: err.message });
       }

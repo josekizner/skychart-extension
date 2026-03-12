@@ -1699,6 +1699,7 @@ try {
 
     var _lastFreightProcesso = null;
     var _freightAnalyzing = false;
+    var _freightPreloaded = false;
 
     function scanForFreight() {
         if (location.href.indexOf('/app/operacional') < 0) {
@@ -1706,6 +1707,12 @@ try {
             if (freightPanel) freightPanel.remove();
             _lastFreightProcesso = null;
             return;
+        }
+
+        // Pré-carrega dados na primeira vez (cache)
+        if (!_freightPreloaded) {
+            _freightPreloaded = true;
+            chrome.runtime.sendMessage({ action: 'analyzeFreight', processoId: '__preload__' }, function() {});
         }
 
         // Procura o header "Identificação: IMXXXXX/XX"
@@ -1764,13 +1771,13 @@ try {
 
         var color, bg, border, icon, statusText;
         if (data.status === 'otimizado') {
-            color = '#10b981'; bg = 'rgba(16,185,129,0.08)'; border = 'rgba(16,185,129,0.3)';
+            color = '#10b981'; bg = '#0f2a1f'; border = 'rgba(16,185,129,0.5)';
             icon = '✅'; statusText = 'Frete Otimizado';
         } else if (data.status === 'acima') {
-            color = '#ef4444'; bg = 'rgba(239,68,68,0.08)'; border = 'rgba(239,68,68,0.3)';
+            color = '#ef4444'; bg = '#2a0f0f'; border = 'rgba(239,68,68,0.5)';
             icon = '🔴'; statusText = 'Acima do Mercado';
         } else {
-            color = '#f59e0b'; bg = 'rgba(245,158,11,0.08)'; border = 'rgba(245,158,11,0.3)';
+            color = '#f59e0b'; bg = '#2a1f0f'; border = 'rgba(245,158,11,0.5)';
             icon = '⚠️'; statusText = 'Sem Tarifa de Referência';
         }
 
