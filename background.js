@@ -320,14 +320,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  // OUTLOOK: Abre Skychart na tela de ofertas
+  // OUTLOOK: Abre Skychart na tela de ofertas (usa tab existente)
   if (request.action === "openSkychartOferta") {
-    chrome.tabs.create({
-      url: "https://app2.skychart.com.br/skyline-mond-83474/#/app/oferta",
-      active: true
+    chrome.tabs.query({ url: "https://app2.skychart.com.br/*" }, function(tabs) {
+      if (tabs && tabs.length > 0) {
+        // Usa tab existente — navega via hash (SPA)
+        var tab = tabs[0];
+        chrome.tabs.update(tab.id, { active: true }, function() {
+          chrome.tabs.sendMessage(tab.id, {
+            action: "navigateToOferta"
+          });
+        });
+        console.log("[Email Agent] Usando tab Skychart existente:", tab.id);
+      } else {
+        // Sem tab Skychart aberta — abre nova
+        chrome.tabs.create({
+          url: "https://app2.skychart.com.br/skyline-mond-83474/#/app/oferta",
+          active: true
+        });
+        console.log("[Email Agent] Abrindo nova tab Skychart");
+      }
+      sendResponse({ success: true });
     });
-    sendResponse({ success: true });
-    return false;
+    return true;
   }
 });
 

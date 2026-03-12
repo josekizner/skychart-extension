@@ -15,13 +15,18 @@ try {
 
     console.log("Skychart AI: Script carregado com sucesso.");
 
-    // Listener para notificações de atualização e tracking data
+    // Listener para notificações de atualização, tracking data e navegacao
     chrome.runtime.onMessage.addListener(function(msg) {
         if (msg.action === 'updateAvailable') {
             showToast(' Nova versão ' + msg.newVersion + ' disponível! Peça ao admin para atualizar. ' + (msg.changelog || ''), 'warning', 15000);
         }
         if (msg.action === 'trackingDataReady') {
             handleTrackingData(msg.data, msg.error);
+        }
+        // Navegacao SPA: email agent pede pra ir pra oferta
+        if (msg.action === 'navigateToOferta') {
+            console.log('[Atom] Navegando pra ofertas via SPA hash...');
+            window.location.hash = '#/app/oferta';
         }
     });
 
