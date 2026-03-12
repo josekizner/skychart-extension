@@ -65,9 +65,6 @@
         panel.appendChild(rightHandle);
         panel.appendChild(cornerHandle);
 
-        // Restaura tamanho salvo ao expandir
-        restorePanelSize(panel);
-
         // Drag logic
         function makeDraggable(handle, axis) {
             var startY, startX, startH, startW;
@@ -358,6 +355,9 @@
     function collapsePanel() {
         var panel = document.getElementById('atom-outlook-panel');
         panel.classList.remove('expanded');
+        // Limpa estilos inline pra voltar ao tamanho compacto do CSS
+        panel.style.width = '';
+        panel.style.height = '';
         var preview = panel.querySelector('#atom-outlook-preview');
         if (preview) preview.remove();
         var actions = panel.querySelector('#atom-outlook-actions');
