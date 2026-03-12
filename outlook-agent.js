@@ -65,6 +65,9 @@
         panel.appendChild(rightHandle);
         panel.appendChild(cornerHandle);
 
+        // Restaura tamanho salvo ao expandir
+        restorePanelSize(panel);
+
         // Drag logic
         function makeDraggable(handle, axis) {
             var startY, startX, startH, startW;
@@ -82,7 +85,6 @@
 
                 function onMove(ev) {
                     if (axis === 'y' || axis === 'both') {
-                        // Puxa pra cima = mais alto
                         var dy = startY - ev.clientY;
                         var newH = Math.max(150, Math.min(window.innerHeight - 60, startH + dy));
                         panel.style.height = newH + 'px';
@@ -97,6 +99,8 @@
                 function onUp() {
                     document.removeEventListener('mousemove', onMove);
                     document.removeEventListener('mouseup', onUp);
+                    // Salva tamanho
+                    savePanelSize(panel);
                 }
 
                 document.addEventListener('mousemove', onMove);
@@ -107,6 +111,25 @@
         makeDraggable(topHandle, 'y');
         makeDraggable(rightHandle, 'x');
         makeDraggable(cornerHandle, 'both');
+    }
+
+    function savePanelSize(panel) {
+        var size = {
+            width: panel.offsetWidth,
+            height: panel.offsetHeight
+        };
+        chrome.storage.local.set({ atomPanelSize: size });
+        console.log('[Atom Email] Tamanho salvo:', size.width + 'x' + size.height);
+    }
+
+    function restorePanelSize(panel) {
+        chrome.storage.local.get('atomPanelSize', function(data) {
+            if (data.atomPanelSize) {
+                panel.style.width = data.atomPanelSize.width + 'px';
+                panel.style.height = data.atomPanelSize.height + 'px';
+                console.log('[Atom Email] Tamanho restaurado:', data.atomPanelSize.width + 'x' + data.atomPanelSize.height);
+            }
+        });
     }
 
     // ==========================================
