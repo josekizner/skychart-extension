@@ -364,6 +364,57 @@
         });
     }
 
+    // Escuta mudanças no storage — quando Skychart salva regras do acordo, atualiza o painel
+    chrome.storage.onChanged.addListener(function(changes, areaName) {
+        if (areaName !== 'local') return;
+        for (var key in changes) {
+            if (key.indexOf('acordo_') === 0) {
+                console.log('[Atom Email] Regras atualizadas no storage:', key);
+                // Remove regras antigas e exibe as novas
+                var panel = document.getElementById('atom-outlook-panel');
+                if (!panel) return;
+                var oldRules = panel.querySelector('#atom-client-rules');
+                if (oldRules) oldRules.remove();
+
+                var rules = changes[key].newValue;
+                if (!rules) return;
+
+                var rulesHtml = ['<div id="atom-client-rules" style="padding:8px 10px;background:rgba(255,152,0,0.15);border-top:1px solid rgba(255,152,0,0.3);font-size:11px;">'];
+                rulesHtml.push('<div style="color:#ff9800;font-weight:bold;margin-bottom:4px;">⚠ Acordo Comercial — ' + (rules.cliente || '') + '</div>');
+
+                if (rules.incluirIOF) {
+                    rulesHtml.push('<div style="color:#ffcc02;">✦ IOF: INCLUIR na cotação</div>');
+                }
+
+                if (rules.armadoresBloqueados && rules.armadoresBloqueados.length > 0) {
+                    rulesHtml.push('<div style="color:#ff5252;">✦ NÃO oferecer: ' + rules.armadoresBloqueados.join(', ') + '</div>');
+                }
+
+                if (rules.observacoes && rules.observacoes.length > 0) {
+                    var maxShow = Math.min(rules.observacoes.length, 4);
+                    for (var oi = 0; oi < maxShow; oi++) {
+                        rulesHtml.push('<div style="color:#ccc;font-size:10px;">• ' + rules.observacoes[oi] + '</div>');
+                    }
+                    if (rules.observacoes.length > 4) {
+                        rulesHtml.push('<div style="color:#888;font-size:10px;">+ ' + (rules.observacoes.length - 4) + ' regras mais...</div>');
+                    }
+                }
+
+                rulesHtml.push('</div>');
+
+                // Insere antes dos botões ou no final
+                var actionsDiv = panel.querySelector('#atom-outlook-actions');
+                if (actionsDiv) {
+                    actionsDiv.insertAdjacentHTML('beforebegin', rulesHtml.join('\n'));
+                } else {
+                    panel.insertAdjacentHTML('beforeend', rulesHtml.join('\n'));
+                }
+
+                console.log('[Atom Email] Regras do acordo exibidas em tempo real!');
+            }
+        }
+    });
+
     function showPreview(html) {
         var panel = document.getElementById('atom-outlook-panel');
         var oldPreview = panel.querySelector('#atom-outlook-preview');
