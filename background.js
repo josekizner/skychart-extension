@@ -260,37 +260,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     var y = request.y;
     console.log("[Serasa] Real click at", x, y, "on tab", tabId);
 
-    chrome.debugger.attach({ tabId: tabId }, "1.3", function() {
-      if (chrome.runtime.lastError) {
-        console.error("[Serasa] Debugger attach error:", chrome.runtime.lastError.message);
-        sendResponse({ success: false, error: chrome.runtime.lastError.message });
-        return;
-      }
-
-      // mousePressed
-      chrome.debugger.sendCommand({ tabId: tabId }, "Input.dispatchMouseEvent", {
+    function doRealClick(tid, cx, cy) {
+      chrome.debugger.sendCommand({ tabId: tid }, "Input.dispatchMouseEvent", {
         type: "mousePressed",
-        x: x, y: y,
-        button: "left",
-        clickCount: 1
+        x: cx, y: cy, button: "left", clickCount: 1
       }, function() {
-        // mouseReleased
-        chrome.debugger.sendCommand({ tabId: tabId }, "Input.dispatchMouseEvent", {
+        if (chrome.runtime.lastError) {
+          console.error("[Serasa] mousePressed error:", chrome.runtime.lastError.message);
+        }
+        chrome.debugger.sendCommand({ tabId: tid }, "Input.dispatchMouseEvent", {
           type: "mouseReleased",
-          x: x, y: y,
-          button: "left",
-          clickCount: 1
+          x: cx, y: cy, button: "left", clickCount: 1
         }, function() {
-          console.log("[Serasa] Real click sent at", x, y);
-          // Detach debugger
-          setTimeout(function() {
-            chrome.debugger.detach({ tabId: tabId }, function() {
-              console.log("[Serasa] Debugger detached");
-            });
-          }, 1000);
+          console.log("[Serasa] Real click OK at", cx, cy);
           sendResponse({ success: true });
         });
       });
+    }
+
+    chrome.debugger.attach({ tabId: tabId }, "1.3", function() {
+      if (chrome.runtime.lastError) {
+        // Ja esta attached — tenta clicar mesmo assim
+        console.log("[Serasa] Debugger ja attached, clicando...");
+      }
+      doRealClick(tabId, x, y);
     });
     return true;
   }
