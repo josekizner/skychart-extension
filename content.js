@@ -1837,20 +1837,23 @@ try {
             alertBtn.onmouseover = function() { this.style.background = '#dc2626'; };
             alertBtn.onmouseout = function() { this.style.background = '#ef4444'; };
             alertBtn.onclick = function() {
-                var subject = encodeURIComponent('⚠️ Alerta Frete: ' + data.processoId + ' - ' + data.origem + ' → ' + data.destino);
-                var body = encodeURIComponent(
-                    'Olá Paulo,\n\n' +
-                    'O processo ' + data.processoId + ' está com frete acima do mercado.\n\n' +
-                    '📍 Rota: ' + data.origem + ' → ' + data.destino + '\n' +
-                    '📦 Container: ' + data.tipoContainer + ' (' + data.numContainers + 'x)\n' +
-                    '🚢 Armador atual: ' + data.armador + '\n' +
-                    '💰 Frete pago/cntr: ' + fretePago + '\n' +
-                    '✅ Melhor tarifa: ' + melhorTarifa + ' (' + (data.melhorArmador || 'N/A') + ' via ' + (data.melhorAgente || 'N/A') + ')\n' +
-                    '📊 Diferença: +' + diferenca + ' por container\n' +
-                    '📅 Validade: ' + (data.validade || 'N/A') + '\n\n' +
-                    'Enviado automaticamente pela extensão Skychart AI.'
-                );
-                window.open('mailto:paulo.zanella@mondshipping.com.br?subject=' + subject + '&body=' + body);
+                chrome.storage.local.get('pricingEmail', function(stored) {
+                    var pricingEmail = stored.pricingEmail || 'paulo.zanella@mondshipping.com.br';
+                    var subject = encodeURIComponent('⚠️ Alerta Frete: ' + data.processoId + ' - ' + data.origem + ' → ' + data.destino);
+                    var body = encodeURIComponent(
+                        'Olá,\n\n' +
+                        'O processo ' + data.processoId + ' está com frete acima do mercado.\n\n' +
+                        '📍 Rota: ' + data.origem + ' → ' + data.destino + '\n' +
+                        '📦 Container: ' + data.tipoContainer + ' (' + data.numContainers + 'x)\n' +
+                        '🚢 Armador atual: ' + data.armador + '\n' +
+                        '💰 Frete pago/cntr: ' + fretePago + '\n' +
+                        '✅ Melhor tarifa: ' + melhorTarifa + ' (' + (data.melhorArmador || 'N/A') + ' via ' + (data.melhorAgente || 'N/A') + ')\n' +
+                        '📊 Diferença: +' + diferenca + ' por container\n' +
+                        '📅 Validade: ' + (data.validade || 'N/A') + '\n\n' +
+                        'Enviado automaticamente pela extensão Skychart AI.'
+                    );
+                    window.open('mailto:' + pricingEmail + '?subject=' + subject + '&body=' + body);
+                });
                 alertBtn.textContent = '✅ E-mail aberto!';
                 alertBtn.style.background = '#10b981';
                 setTimeout(function() {
