@@ -6,7 +6,7 @@
     left: 8px;
     z-index: 99999;
     height: 38px;
-    width: 360px;
+    width: auto;
     background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
     border: 1px solid rgba(99, 102, 241, 0.3);
     border-radius: 10px;
@@ -101,9 +101,13 @@
 }
 
 #atom-outlook-bar .atom-status {
-    margin-left: auto;
     font-size: 11px;
     color: #64748b;
+    display: none;
+}
+
+#atom-outlook-panel.expanded #atom-outlook-bar .atom-status {
+    display: inline;
 }
 
 #atom-outlook-bar .atom-status.active {
