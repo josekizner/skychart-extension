@@ -73,52 +73,28 @@
 
             console.log('[Atom Serasa] CNPJ pendente, fazendo login...');
 
+            // Login e senha ja estao salvos no browser
+            // So precisa clicar fora dos campos pra habilitar o botao Acessar
             setTimeout(function() {
-                // Preenche email
-                var emailField = document.querySelector('input[type="email"], input[name="email"], input[placeholder*="mail"], input[placeholder*="celular"]');
-                if (emailField) {
-                    simulateInput(emailField, SERASA_CREDS.email);
-                    console.log('[Atom Serasa] Email preenchido');
-                }
+                // Clica em area vazia da tela pra liberar o botao
+                var header = document.querySelector('h1, h2, p, div.login-header, body');
+                if (header) header.click();
+                document.body.click();
+                console.log('[Atom Serasa] Click na tela pra liberar Acessar');
 
-                // Preenche senha
+                // Espera o botao habilitar e clica
                 setTimeout(function() {
-                    var senhaField = document.querySelector('input[type="password"]');
-                    if (senhaField) {
-                        simulateInput(senhaField, SERASA_CREDS.senha);
-                        console.log('[Atom Serasa] Senha preenchida');
+                    var acessarBtn = findButtonByText('acessar');
+                    if (!acessarBtn) acessarBtn = findButtonByText('entrar');
+                    if (!acessarBtn) acessarBtn = document.querySelector('button[type="submit"]');
+
+                    if (acessarBtn) {
+                        console.log('[Atom Serasa] Clicando em Acessar...');
+                        acessarBtn.click();
+                    } else {
+                        console.log('[Atom Serasa] Botao Acessar nao encontrado');
                     }
-
-                    // Tira o foco dos campos (blur) pra habilitar o botao
-                    setTimeout(function() {
-                        if (senhaField) {
-                            senhaField.dispatchEvent(new Event('blur', { bubbles: true }));
-                            senhaField.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
-                        }
-                        if (emailField) {
-                            emailField.dispatchEvent(new Event('blur', { bubbles: true }));
-                            emailField.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
-                        }
-                        // Clica no body pra simular click fora
-                        document.body.click();
-                        console.log('[Atom Serasa] Blur + body click disparados');
-
-                        // Agora clica no Acessar
-                        setTimeout(function() {
-                            var acessarBtn = findButtonByText('acessar');
-                            if (!acessarBtn) acessarBtn = findButtonByText('entrar');
-                            if (!acessarBtn) acessarBtn = findButtonByText('login');
-                            if (!acessarBtn) acessarBtn = document.querySelector('button[type="submit"]');
-
-                            if (acessarBtn) {
-                                console.log('[Atom Serasa] Clicando em Acessar...');
-                                acessarBtn.click();
-                            } else {
-                                console.log('[Atom Serasa] Botao Acessar nao encontrado');
-                            }
-                        }, 800);
-                    }, 300);
-                }, 300);
+                }, 1000);
             }, 1500);
         });
     }
