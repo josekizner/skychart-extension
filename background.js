@@ -237,9 +237,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })
       .catch(error => {
         console.error("[Freight] Erro:", error);
-        sendResponse({ success: false, error: error.message });
+       sendResponse({ success: false, error: error.message });
       });
     return true;
+  }
+
+  // SERASA CONSULTA: Abre aba do Serasa Empreendedor com CNPJ
+  if (request.action === "openSerasaConsulta") {
+    console.log("[Serasa Consulta] Abrindo para CNPJ:", request.cnpj);
+    chrome.tabs.create({
+      url: "https://www.serasaempreendedor.com.br/v2/consulta-serasa",
+      active: true
+    });
+    sendResponse({ success: true });
+    return false;
   }
 });
 

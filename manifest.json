@@ -13,7 +13,8 @@
     "https://generativelanguage.googleapis.com/*",
     "https://www.maersk.com/*",
     "https://server-mond.tail46f98e.ts.net/*",
-    "https://docs.google.com/*"
+    "https://docs.google.com/*",
+    "https://www.serasaempreendedor.com.br/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -42,6 +43,14 @@
       ],
       "js": [
         "maersk-scraper.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.serasaempreendedor.com.br/*"
+      ],
+      "js": [
+        "serasa-consulta.js"
       ]
     }
   ],

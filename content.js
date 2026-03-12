@@ -1287,19 +1287,101 @@ try {
         }
         if (!creditoHeader) return;
 
-        // Cria botão ao lado do accordion "Controle de créditos"
-        var btn = document.createElement('button');
-        btn.className = 'sk-serasa-btn';
-        btn.innerHTML = ' Analisar Serasa';
-        btn.style.cssText = 'margin:5px 0 5px 10px;padding:6px 14px;background:linear-gradient(135deg,#1565C0,#42A5F5);color:white;border:none;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,0.2);';
-        btn.title = 'Lê o PDF Serasa e preenche Score + Limite no Controle de Créditos';
-        btn.addEventListener('click', function(e) {
+        // Container para os botões
+        var btnContainer = document.createElement('div');
+        btnContainer.className = 'sk-serasa-btn';
+        btnContainer.style.cssText = 'display:inline-flex;gap:6px;margin:5px 0 5px 10px;';
+
+        // Botão "Check Score" (antigo "Analisar Serasa")
+        var btnScore = document.createElement('button');
+        btnScore.innerHTML = 'Check Score';
+        btnScore.style.cssText = 'padding:6px 14px;background:linear-gradient(135deg,#1565C0,#42A5F5);color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,0.2);transition:all 0.2s;';
+        btnScore.title = 'Le o PDF Serasa e preenche Score + Limite no Controle de Creditos';
+        btnScore.onmouseover = function() { this.style.filter = 'brightness(1.15)'; };
+        btnScore.onmouseout = function() { this.style.filter = 'none'; };
+        btnScore.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             startSerasaAnalysis();
         });
-        creditoHeader.parentElement.insertBefore(btn, creditoHeader);
-        SkDebug.log('Serasa', 'OK', ' Botão injetado (perto de Controle de Créditos)');
+
+        // Botão "Consulta Serasa" (novo)
+        var btnConsulta = document.createElement('button');
+        btnConsulta.innerHTML = 'Consulta Serasa';
+        btnConsulta.style.cssText = 'padding:6px 14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,0.2);transition:all 0.2s;';
+        btnConsulta.title = 'Abre o Serasa Empreendedor e consulta o CNPJ deste cliente';
+        btnConsulta.onmouseover = function() { this.style.filter = 'brightness(1.15)'; };
+        btnConsulta.onmouseout = function() { this.style.filter = 'none'; };
+        btnConsulta.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            startSerasaConsulta();
+        });
+
+        btnContainer.appendChild(btnScore);
+        btnContainer.appendChild(btnConsulta);
+        creditoHeader.parentElement.insertBefore(btnContainer, creditoHeader);
+        SkDebug.log('Serasa', 'OK', 'Botoes Check Score + Consulta Serasa injetados');
+    }
+
+    // Extrai CNPJ do cliente na pagina /app/pessoa
+    function extractClientCNPJ() {
+        // Tenta pegar do campo CNPJ direto (label + input)
+        var labels = document.querySelectorAll('label, span, td');
+        for (var i = 0; i < labels.length; i++) {
+            var text = (labels[i].textContent || '').trim();
+            if (text === 'CNPJ' || text === 'CPF/CNPJ') {
+                // Pega o input/span proximo
+                var parent = labels[i].parentElement;
+                if (parent) {
+                    var input = parent.querySelector('input, span.ui-autocomplete-token-label');
+                    if (input) {
+                        var val = (input.value || input.textContent || '').trim();
+                        var cnpjMatch = val.match(/(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})/);
+                        if (cnpjMatch) return cnpjMatch[1].replace(/\D/g, '');
+                    }
+                }
+            }
+        }
+
+        // Fallback: pega do dropdown autocomplete (formato "NOME - CNPJ")
+        var autoInput = document.querySelector('input.ui-autocomplete-input[placeholder="Busque por algo..."]');
+        if (autoInput) {
+            var val = autoInput.value || '';
+            var cnpjMatch = val.match(/(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})/);
+            if (cnpjMatch) return cnpjMatch[1].replace(/\D/g, '');
+        }
+
+        // Fallback: qualquer texto na pagina que contenha CNPJ
+        var allInputs = document.querySelectorAll('input[type="text"], span, td');
+        for (var j = 0; j < allInputs.length; j++) {
+            var content = (allInputs[j].value || allInputs[j].textContent || '').trim();
+            var match = content.match(/(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/);
+            if (match) return match[1].replace(/\D/g, '');
+        }
+
+        return null;
+    }
+
+    // Inicia consulta Serasa (abre tab com CNPJ)
+    function startSerasaConsulta() {
+        var cnpj = extractClientCNPJ();
+        if (!cnpj) {
+            showToast('CNPJ nao encontrado na pagina', 'warning', 5000);
+            SkDebug.log('Serasa', 'FAIL', 'CNPJ nao encontrado');
+            return;
+        }
+
+        SkDebug.log('Serasa', 'EXEC', 'Consulta Serasa: CNPJ ' + cnpj);
+        showToast('Abrindo Serasa para CNPJ ' + cnpj + '...', 'info', 5000);
+
+        // Salva CNPJ no storage e pede pro background abrir a aba
+        chrome.storage.local.set({ serasaCNPJ: cnpj }, function() {
+            chrome.runtime.sendMessage({
+                action: 'openSerasaConsulta',
+                cnpj: cnpj
+            });
+        });
     }
 
     async function startSerasaAnalysis() {
