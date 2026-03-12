@@ -71,31 +71,37 @@
                 return;
             }
 
-            console.log('[Atom Serasa] CNPJ pendente, fazendo login...');
-
             // Login e senha ja estao salvos no browser
-            // So precisa clicar fora dos campos pra habilitar o botao Acessar
+            // Botao Acessar so habilita com click real do usuario
+            // Solucao: remove disabled e força o click/submit
             setTimeout(function() {
-                // Clica em area vazia da tela pra liberar o botao
-                var header = document.querySelector('h1, h2, p, div.login-header, body');
-                if (header) header.click();
-                document.body.click();
-                console.log('[Atom Serasa] Click na tela pra liberar Acessar');
+                var acessarBtn = findButtonByText('acessar');
+                if (!acessarBtn) acessarBtn = findButtonByText('entrar');
+                if (!acessarBtn) acessarBtn = document.querySelector('button[type="submit"]');
 
-                // Espera o botao habilitar e clica
-                setTimeout(function() {
-                    var acessarBtn = findButtonByText('acessar');
-                    if (!acessarBtn) acessarBtn = findButtonByText('entrar');
-                    if (!acessarBtn) acessarBtn = document.querySelector('button[type="submit"]');
+                if (acessarBtn) {
+                    // Remove qualquer disabled
+                    acessarBtn.removeAttribute('disabled');
+                    acessarBtn.disabled = false;
+                    acessarBtn.classList.remove('disabled');
+                    acessarBtn.style.pointerEvents = 'auto';
+                    acessarBtn.style.opacity = '1';
 
-                    if (acessarBtn) {
-                        console.log('[Atom Serasa] Clicando em Acessar...');
-                        acessarBtn.click();
-                    } else {
-                        console.log('[Atom Serasa] Botao Acessar nao encontrado');
-                    }
-                }, 1000);
-            }, 1500);
+                    console.log('[Atom Serasa] Botao Acessar desbloqueado, clicando...');
+                    acessarBtn.click();
+
+                    // Fallback: submit do form
+                    setTimeout(function() {
+                        var form = acessarBtn.closest('form');
+                        if (form) {
+                            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                            console.log('[Atom Serasa] Form submit disparado');
+                        }
+                    }, 500);
+                } else {
+                    console.log('[Atom Serasa] Botao Acessar nao encontrado');
+                }
+            }, 2000);
         });
     }
 
