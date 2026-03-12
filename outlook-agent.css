@@ -22,18 +22,55 @@
     bottom: 8px;
     left: 8px;
     height: 340px;
-    min-height: 200px;
-    max-height: calc(100vh - 80px);
+    min-height: 150px;
+    max-height: calc(100vh - 60px);
     width: 260px;
-    min-width: 200px;
-    max-width: 500px;
+    min-width: 180px;
+    max-width: 600px;
     flex-direction: column;
     align-items: stretch;
     padding: 0;
     border-radius: 10px;
-    overflow: auto;
-    resize: both;
-    direction: ltr;
+    overflow: hidden;
+}
+
+/* Drag handles pra resize */
+.atom-resize-top {
+    position: absolute;
+    top: -4px;
+    left: 10px;
+    right: 10px;
+    height: 8px;
+    cursor: n-resize;
+    z-index: 100001;
+}
+
+.atom-resize-right {
+    position: absolute;
+    top: 10px;
+    right: -4px;
+    bottom: 10px;
+    width: 8px;
+    cursor: e-resize;
+    z-index: 100001;
+}
+
+.atom-resize-corner {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 14px;
+    height: 14px;
+    cursor: ne-resize;
+    z-index: 100002;
+    border-radius: 50%;
+    background: rgba(99, 102, 241, 0.5);
+    border: 2px solid rgba(99, 102, 241, 0.8);
+    transition: background 0.2s;
+}
+
+.atom-resize-corner:hover {
+    background: rgba(99, 102, 241, 0.9);
 }
 
 /* Barra compacta */

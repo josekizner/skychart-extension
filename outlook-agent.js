@@ -40,7 +40,73 @@
             });
         });
 
+        // Resize handles
+        setupResize(panel);
+
         console.log('[Atom Email] Painel criado');
+    }
+
+    // ==========================================
+    // RESIZE — Drag handles pra redimensionar
+    // ==========================================
+
+    function setupResize(panel) {
+        // Cria handles
+        var topHandle = document.createElement('div');
+        topHandle.className = 'atom-resize-top';
+
+        var rightHandle = document.createElement('div');
+        rightHandle.className = 'atom-resize-right';
+
+        var cornerHandle = document.createElement('div');
+        cornerHandle.className = 'atom-resize-corner';
+
+        panel.appendChild(topHandle);
+        panel.appendChild(rightHandle);
+        panel.appendChild(cornerHandle);
+
+        // Drag logic
+        function makeDraggable(handle, axis) {
+            var startY, startX, startH, startW;
+
+            handle.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (!panel.classList.contains('expanded')) return;
+
+                startY = e.clientY;
+                startX = e.clientX;
+                startH = panel.offsetHeight;
+                startW = panel.offsetWidth;
+
+                function onMove(ev) {
+                    if (axis === 'y' || axis === 'both') {
+                        // Puxa pra cima = mais alto
+                        var dy = startY - ev.clientY;
+                        var newH = Math.max(150, Math.min(window.innerHeight - 60, startH + dy));
+                        panel.style.height = newH + 'px';
+                    }
+                    if (axis === 'x' || axis === 'both') {
+                        var dx = ev.clientX - startX;
+                        var newW = Math.max(180, Math.min(600, startW + dx));
+                        panel.style.width = newW + 'px';
+                    }
+                }
+
+                function onUp() {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                }
+
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        }
+
+        makeDraggable(topHandle, 'y');
+        makeDraggable(rightHandle, 'x');
+        makeDraggable(cornerHandle, 'both');
     }
 
     // ==========================================
