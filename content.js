@@ -1827,6 +1827,40 @@ try {
             'border-radius:12px;padding:14px 18px;max-width:380px;' +
             'box-shadow:0 8px 32px rgba(0,0,0,0.4);font-family:Inter,sans-serif;';
 
+        // Botão "Alertar Pricing" (só aparece se acima do mercado)
+        if (data.status === 'acima') {
+            var alertBtn = document.createElement('button');
+            alertBtn.textContent = '📧 Alertar Pricing';
+            alertBtn.style.cssText = 'display:block;width:100%;margin-top:10px;padding:8px 12px;' +
+                'background:#ef4444;color:#fff;border:none;border-radius:8px;cursor:pointer;' +
+                'font-size:12px;font-weight:600;transition:background 0.2s;';
+            alertBtn.onmouseover = function() { this.style.background = '#dc2626'; };
+            alertBtn.onmouseout = function() { this.style.background = '#ef4444'; };
+            alertBtn.onclick = function() {
+                var subject = encodeURIComponent('⚠️ Alerta Frete: ' + data.processoId + ' - ' + data.origem + ' → ' + data.destino);
+                var body = encodeURIComponent(
+                    'Olá Paulo,\n\n' +
+                    'O processo ' + data.processoId + ' está com frete acima do mercado.\n\n' +
+                    '📍 Rota: ' + data.origem + ' → ' + data.destino + '\n' +
+                    '📦 Container: ' + data.tipoContainer + ' (' + data.numContainers + 'x)\n' +
+                    '🚢 Armador atual: ' + data.armador + '\n' +
+                    '💰 Frete pago/cntr: ' + fretePago + '\n' +
+                    '✅ Melhor tarifa: ' + melhorTarifa + ' (' + (data.melhorArmador || 'N/A') + ' via ' + (data.melhorAgente || 'N/A') + ')\n' +
+                    '📊 Diferença: +' + diferenca + ' por container\n' +
+                    '📅 Validade: ' + (data.validade || 'N/A') + '\n\n' +
+                    'Enviado automaticamente pela extensão Skychart AI.'
+                );
+                window.open('mailto:paulo.zanella@mondshipping.com.br?subject=' + subject + '&body=' + body);
+                alertBtn.textContent = '✅ E-mail aberto!';
+                alertBtn.style.background = '#10b981';
+                setTimeout(function() {
+                    alertBtn.textContent = '📧 Alertar Pricing';
+                    alertBtn.style.background = '#ef4444';
+                }, 3000);
+            };
+            panel.appendChild(alertBtn);
+        }
+
         // Botão fechar
         var closeBtn = document.createElement('span');
         closeBtn.textContent = '×';
