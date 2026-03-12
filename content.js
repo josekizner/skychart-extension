@@ -270,29 +270,40 @@ try {
         input.dispatchEvent(new Event('blur', { bubbles: true }));
     }
 
-    // Clica num botao pelo texto
+    // Clica num botao pelo texto — pega o ULTIMO match (evita toolbar)
     function clickButtonByText(text) {
         var allBtns = document.querySelectorAll('.ui-button-text, button, .ui-button, span.ui-clickable');
+        var matches = [];
         for (var i = 0; i < allBtns.length; i++) {
             if (allBtns[i].textContent.trim() === text) {
-                console.log('[Atom Oferta] Clicando em:', text);
-                // PrimeNG: precisa clicar no BUTTON pai, nao no span interno
-                var clickTarget = allBtns[i];
-                if (clickTarget.tagName === 'SPAN') {
-                    var parentBtn = clickTarget.closest('button') || clickTarget.closest('.ui-button') || clickTarget.closest('a');
-                    if (parentBtn) clickTarget = parentBtn;
-                }
-                // Simula click completo (mousedown + mouseup + click) pra PrimeNG
-                clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
-                clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
-                clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                // Fallback: click programatico tambem
-                clickTarget.click();
-                return true;
+                matches.push(allBtns[i]);
             }
         }
-        console.log('[Atom Oferta] Botao "' + text + '" nao encontrado');
-        return false;
+
+        if (matches.length === 0) {
+            console.log('[Atom Oferta] Botao "' + text + '" nao encontrado');
+            return false;
+        }
+
+        // Pega o ULTIMO match (botoes de formulario ficam abaixo dos de toolbar)
+        var elem = matches[matches.length - 1];
+        console.log('[Atom Oferta] Clicando em:', text, '(' + matches.length + ' encontrados, usando ultimo)');
+
+        // PrimeNG: precisa clicar no BUTTON pai, nao no span interno
+        var clickTarget = elem;
+        if (clickTarget.tagName === 'SPAN') {
+            var parentBtn = clickTarget.closest('button') || clickTarget.closest('.ui-button') || clickTarget.closest('a');
+            if (parentBtn) {
+                clickTarget = parentBtn;
+                console.log('[Atom Oferta] Subindo pro parent:', clickTarget.tagName, clickTarget.className.substring(0, 60));
+            }
+        }
+
+        // Simula click completo (mousedown + mouseup + click) pra PrimeNG
+        clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+        clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+        clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        return true;
     }
 
     // Lê o Acordo Comercial e salva regras na memória
@@ -320,14 +331,19 @@ try {
         var headerEl = acordoHeader.closest('.ui-accordion-header') || acordoHeader.parentElement;
         var isExpanded = headerEl && (headerEl.getAttribute('aria-expanded') === 'true' || headerEl.classList.contains('ui-state-active'));
 
-        if (!isExpanded && headerEl) {
-            headerEl.click();
+        if (!isExpanded) {
+            // PrimeNG: o click precisa ser no <a> dentro do header, nao no div
+            var anchorEl = headerEl ? (headerEl.querySelector('a') || headerEl) : acordoHeader;
+            console.log('[Atom Oferta] Clicando no accordion via:', anchorEl.tagName);
+            anchorEl.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+            anchorEl.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+            anchorEl.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
             console.log('[Atom Oferta] Accordion Acordo Comercial aberto');
         } else {
             console.log('[Atom Oferta] Accordion Acordo Comercial ja estava aberto');
         }
 
-        // Espera conteúdo carregar e lê
+        // Espera conteúdo carregar (CKEditor iframe precisa de tempo)
         setTimeout(function() {
             var acordoContent = '';
 
@@ -455,7 +471,7 @@ try {
             } else if (acordoContent.length > 0) {
                 showToast('Acordo lido: ' + acordoContent.substring(0, 80) + '...', 'info', 4000);
             }
-        }, 2500);
+        }, 3500);
     }
 
     // Preenche Origem e Destino nos multiselects do tarifário
