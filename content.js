@@ -222,8 +222,12 @@ try {
                                         if (quote.processo_ref) {
                                             fillPlainInput('formularioIdentificacao-dsReferenciaPessoa', quote.processo_ref);
                                         }
-                                        console.log('[Atom Oferta] Todos os campos preenchidos!');
-                                        showToast('Oferta pronta! Revise os dados.', 'success', 5000);
+                                        // 5. Clica em Cadastrar
+                                        setTimeout(function() {
+                                            clickButtonByText('Cadastrar');
+                                            console.log('[Atom Oferta] Todos os campos preenchidos e cadastrado!');
+                                            showToast('Oferta cadastrada!', 'success', 5000);
+                                        }, 1000);
                                     }, 500);
                                 });
                             }, 1500);
@@ -249,6 +253,20 @@ try {
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+
+    // Clica num botao pelo texto
+    function clickButtonByText(text) {
+        var allBtns = document.querySelectorAll('.ui-button-text, button, .ui-button, span.ui-clickable');
+        for (var i = 0; i < allBtns.length; i++) {
+            if (allBtns[i].textContent.trim() === text) {
+                console.log('[Atom Oferta] Clicando em:', text);
+                allBtns[i].click();
+                return true;
+            }
+        }
+        console.log('[Atom Oferta] Botao "' + text + '" nao encontrado');
+        return false;
     }
 
     // Preenche autocomplete por ID (reutilizavel)
