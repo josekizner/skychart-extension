@@ -147,41 +147,62 @@
         });
     }
 
-    // Fecha o popup de "nova consulta" se aparecer
+    // Fecha o popup de "nova consulta" — REMOVE do DOM
     function dismissPopup(callback) {
         var attempts = 0;
-        var maxAttempts = 20; // 10 segundos
+        var maxAttempts = 20;
 
         function tryDismiss() {
             var continueBtn = document.getElementById('btnKeepCurrentB');
             if (!continueBtn) continueBtn = findButtonByText('continuar usando a vers');
 
             if (continueBtn) {
-                console.log('[Atom Serasa] Popup encontrado! Clicando em #btnKeepCurrentB...');
+                console.log('[Atom Serasa] Popup encontrado, removendo do DOM...');
                 
-                // Tenta click normal primeiro (é um button simples)
-                continueBtn.click();
-                
-                // Verifica se o popup sumiu depois do click
-                setTimeout(function() {
-                    var stillThere = document.getElementById('btnKeepCurrentB');
-                    if (stillThere) {
-                        // Click normal nao funcionou, tenta real click via debugger
-                        console.log('[Atom Serasa] Click normal nao funcionou, usando debugger...');
-                        var rect = continueBtn.getBoundingClientRect();
-                        var x = Math.round(rect.left + rect.width / 2);
-                        var y = Math.round(rect.top + rect.height / 2);
-                        chrome.runtime.sendMessage({
-                            action: 'serasaRealClick',
-                            x: x, y: y
-                        }, function() {
-                            setTimeout(callback, 1000);
-                        });
-                    } else {
-                        console.log('[Atom Serasa] Popup fechado!');
-                        setTimeout(callback, 500);
+                // Sobe na arvore DOM pra achar o container do modal
+                var modal = continueBtn;
+                for (var i = 0; i < 10; i++) {
+                    if (!modal.parentElement) break;
+                    modal = modal.parentElement;
+                    var style = window.getComputedStyle(modal);
+                    // Modal geralmente tem position fixed/absolute e z-index alto
+                    if (style.position === 'fixed' || style.position === 'absolute') {
+                        if (parseInt(style.zIndex) > 100 || modal.classList.toString().indexOf('modal') >= 0 || modal.classList.toString().indexOf('dialog') >= 0 || modal.classList.toString().indexOf('overlay') >= 0) {
+                            break;
+                        }
                     }
-                }, 800);
+                }
+                
+                // Remove o modal
+                if (modal && modal !== document.body && modal !== document.documentElement) {
+                    console.log('[Atom Serasa] Removendo modal:', modal.tagName, modal.className);
+                    modal.remove();
+                } else {
+                    // Fallback: remove o pai direto do botao (container do popup)
+                    var parent = continueBtn.parentElement;
+                    while (parent && parent !== document.body) {
+                        var ps = window.getComputedStyle(parent);
+                        if (ps.position === 'fixed' || ps.position === 'absolute' || parent.offsetWidth > 400) {
+                            parent.remove();
+                            console.log('[Atom Serasa] Removido container do popup');
+                            break;
+                        }
+                        parent = parent.parentElement;
+                    }
+                }
+                
+                // Remove qualquer backdrop/overlay
+                var overlays = document.querySelectorAll('.cdk-overlay-container, .modal-backdrop, .cdk-overlay-backdrop, [class*="overlay"], [class*="backdrop"]');
+                overlays.forEach(function(el) { 
+                    el.style.display = 'none';
+                    console.log('[Atom Serasa] Overlay ocultado:', el.className);
+                });
+                
+                // Remove overflow hidden do body
+                document.body.style.overflow = '';
+                document.body.style.overflowY = '';
+                
+                setTimeout(callback, 500);
                 return;
             }
 
