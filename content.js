@@ -1691,7 +1691,147 @@ try {
         }
 
         SkDebug.log('Serasa', 'OK', '🏷️ Badge Score ' + score + ' injetado');
-    }    // ========================================================================
+    }
+
+    // ========================================================================
+    // FRETE: Comparação de frete no operacional
+    // ========================================================================
+
+    var _lastFreightProcesso = null;
+    var _freightAnalyzing = false;
+
+    function scanForFreight() {
+        if (location.href.indexOf('/app/operacional') < 0) {
+            var freightPanel = document.getElementById('sk-freight-panel');
+            if (freightPanel) freightPanel.remove();
+            _lastFreightProcesso = null;
+            return;
+        }
+
+        // Procura o header "Identificação: IMXXXXX/XX"
+        var headers = document.querySelectorAll('span, div, td');
+        var processoId = null;
+        for (var h = 0; h < headers.length; h++) {
+            var txt = headers[h].textContent || '';
+            var match = txt.match(/Identifica[çc][aã]o:\s*(IM\d+\/\d+)/i);
+            if (match) {
+                processoId = match[1];
+                break;
+            }
+        }
+
+        if (!processoId) return;
+        if (processoId === _lastFreightProcesso) return;
+        _lastFreightProcesso = processoId;
+
+        // Remove painel antigo
+        var oldPanel = document.getElementById('sk-freight-panel');
+        if (oldPanel) oldPanel.remove();
+
+        if (_freightAnalyzing) return;
+        _freightAnalyzing = true;
+
+        SkDebug.log('Frete', 'INFO', '📊 Analisando ' + processoId + '...');
+
+        chrome.runtime.sendMessage(
+            { action: 'analyzeFreight', processoId: processoId },
+            function(response) {
+                _freightAnalyzing = false;
+                if (!response || !response.success) {
+                    SkDebug.log('Frete', 'FAIL', '❌ ' + (response ? response.error : 'sem resposta'));
+                    return;
+                }
+                var result = response.result;
+                if (!result.found) {
+                    SkDebug.log('Frete', 'INFO', '⚠️ Processo não encontrado na API');
+                    return;
+                }
+                if (!result.applicable) {
+                    SkDebug.log('Frete', 'INFO', '⚠️ ' + result.reason);
+                    return;
+                }
+                if (result.noFreight) {
+                    SkDebug.log('Frete', 'INFO', '⚠️ Sem custo de frete marítimo');
+                    return;
+                }
+                injectFreightPanel(result);
+            }
+        );
+    }
+
+    function injectFreightPanel(data) {
+        if (document.getElementById('sk-freight-panel')) return;
+
+        var color, bg, border, icon, statusText;
+        if (data.status === 'otimizado') {
+            color = '#10b981'; bg = 'rgba(16,185,129,0.08)'; border = 'rgba(16,185,129,0.3)';
+            icon = '✅'; statusText = 'Frete Otimizado';
+        } else if (data.status === 'acima') {
+            color = '#ef4444'; bg = 'rgba(239,68,68,0.08)'; border = 'rgba(239,68,68,0.3)';
+            icon = '🔴'; statusText = 'Acima do Mercado';
+        } else {
+            color = '#f59e0b'; bg = 'rgba(245,158,11,0.08)'; border = 'rgba(245,158,11,0.3)';
+            icon = '⚠️'; statusText = 'Sem Tarifa de Referência';
+        }
+
+        var fretePago = data.fretePago ? 'US$ ' + data.fretePago.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : 'N/A';
+        var melhorTarifa = data.melhorTarifa ? 'US$ ' + data.melhorTarifa.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : 'N/A';
+        var diferenca = (typeof data.diferenca === 'number') ? 'US$ ' + Math.abs(data.diferenca).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
+
+        var html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+        html += '<span style="font-size:18px;">' + icon + '</span>';
+        html += '<strong style="font-size:14px;color:' + color + ';">' + statusText + '</strong>';
+        html += '</div>';
+
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px;color:#ccc;">';
+        html += '<span>Rota:</span><strong style="color:#fff;">' + data.origem + ' → ' + data.destino + '</strong>';
+        html += '<span>Armador atual:</span><strong style="color:#fff;">' + data.armador + '</strong>';
+        html += '<span>Frete pago/cntr:</span><strong style="color:#fff;">' + fretePago + '</strong>';
+
+        if (data.melhorTarifa !== null) {
+            html += '<span>Melhor tarifa:</span><strong style="color:' + color + ';">' + melhorTarifa + '</strong>';
+            html += '<span>Armador melhor:</span><strong style="color:#fff;">' + (data.melhorArmador || 'N/A') + '</strong>';
+            html += '<span>Agente:</span><strong style="color:#fff;">' + (data.melhorAgente || 'N/A') + '</strong>';
+            if (data.diferenca > 0) {
+                html += '<span>Diferença:</span><strong style="color:#ef4444;">+' + diferenca + ' por cntr</strong>';
+            }
+            if (data.validade) {
+                html += '<span>Validade:</span><strong style="color:#fff;">' + data.validade + '</strong>';
+            }
+        }
+        html += '</div>';
+
+        // Alternativas
+        if (data.alternativas && data.alternativas.length > 1) {
+            html += '<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.1);font-size:11px;color:#999;">';
+            html += '<strong>Outras opções:</strong><br>';
+            for (var i = 1; i < data.alternativas.length && i < 3; i++) {
+                var alt = data.alternativas[i];
+                html += alt.armador + ' via ' + alt.agente + ': <strong style="color:#fff;">US$ ' + alt.frete.toLocaleString('pt-BR', {minimumFractionDigits:2}) + '</strong><br>';
+            }
+            html += '</div>';
+        }
+
+        var panel = document.createElement('div');
+        panel.id = 'sk-freight-panel';
+        panel.innerHTML = html;
+        panel.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:99999;' +
+            'background:' + bg + ';backdrop-filter:blur(12px);border:1px solid ' + border + ';' +
+            'border-radius:12px;padding:14px 18px;max-width:380px;' +
+            'box-shadow:0 8px 32px rgba(0,0,0,0.4);font-family:Inter,sans-serif;';
+
+        // Botão fechar
+        var closeBtn = document.createElement('span');
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = 'position:absolute;top:6px;right:10px;cursor:pointer;font-size:16px;color:#666;';
+        closeBtn.onclick = function() { panel.remove(); };
+        panel.appendChild(closeBtn);
+
+        document.body.appendChild(panel);
+        SkDebug.log('Frete', 'OK', '📊 Painel: ' + data.status + ' | Pago: ' + fretePago + ' | Melhor: ' + melhorTarifa);
+    }
+
+    // ========================================================================
     // INIT — Inicializa tudo
     // ========================================================================
 
@@ -1706,6 +1846,7 @@ try {
         if (hud) hud.style.display = isCambio ? 'flex' : 'none';
         if (lastUrl !== location.href) { lastUrl = location.href; updateStatus("Pronto"); }
         scanForSerasa();
+        scanForFreight();
     }
 
     var scanTimeout = null;

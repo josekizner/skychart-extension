@@ -227,6 +227,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     return true;
   }
+
+  // FRETE: Análise de comparação de frete por processo
+  if (request.action === "analyzeFreight") {
+    analyzeProcess(request.processoId)
+      .then(result => {
+        console.log("[Freight] Resultado:", request.processoId, result.status);
+        sendResponse({ success: true, result });
+      })
+      .catch(error => {
+        console.error("[Freight] Erro:", error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true;
+  }
 });
 
 const SERASA_PROMPT = `
@@ -466,4 +480,183 @@ async function analyzeDOMWithGemini(request) {
     console.error("[Gemini DOM] Erro:", error);
     throw error;
   }
+}
+
+// ========================================================================
+// FRETE: Comparação de frete (Analisador de Recompras)
+// ========================================================================
+
+const FREIGHT_API_TOKEN = 'b2e7c1f4-8a2d-4e3b-9c6a-7f1e2d5a9b3c';
+const FREIGHT_OPERACIONAL_URL = 'https://server-mond.tail46f98e.ts.net/api/operacional';
+const FREIGHT_CUSTO_URL = 'https://server-mond.tail46f98e.ts.net/api/custo';
+const FREIGHT_TARIFARIO_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSyYYzHyP8DWLOP8tPJhXeTZZuDq2DgPDtQ1aJM2vyL6O6IwWb5EVxBUPkSFu74uXGhFO_VUIsPyNWB/pub?output=csv';
+
+// Cache de 5 minutos
+let freightCache = { data: null, timestamp: 0 };
+const CACHE_TTL = 5 * 60 * 1000;
+
+function parseCsvSimple(csvText, currencyFields) {
+  const rows = [];
+  let currentRow = [];
+  let currentField = '';
+  let inQuotes = false;
+  const text = csvText.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === '"') {
+      if (inQuotes && text[i + 1] === '"') { currentField += '"'; i++; }
+      else { inQuotes = !inQuotes; }
+    } else if (char === ',' && !inQuotes) {
+      currentRow.push(currentField); currentField = '';
+    } else if (char === '\n' && !inQuotes) {
+      currentRow.push(currentField); rows.push(currentRow); currentRow = []; currentField = '';
+    } else {
+      currentField += char;
+    }
+  }
+  currentRow.push(currentField); rows.push(currentRow);
+
+  if (rows.length < 2) return [];
+  const headers = rows[0].map(h => h.trim().toUpperCase());
+  return rows.slice(1).filter(r => r.length > 1 || r[0] !== '').map(row => {
+    const obj = {};
+    headers.forEach((h, idx) => {
+      let key = h;
+      if (h === 'VL. TOTAL FRETE') key = 'FRETE POR CNTR';
+      if (h === 'CONTAINER') key = 'TIPO_CONTAINER';
+      const val = (row[idx] || '').trim();
+      if (currencyFields.includes(key)) {
+        const cleaned = val.replace(/R?\$ ?/g, '').replace(/\./g, '').replace(',', '.');
+        obj[key] = parseFloat(cleaned) || NaN;
+      } else {
+        obj[key] = val;
+      }
+    });
+    return obj;
+  });
+}
+
+async function fetchFreightData() {
+  const now = Date.now();
+  if (freightCache.data && (now - freightCache.timestamp) < CACHE_TTL) {
+    console.log("[Freight] Usando cache");
+    return freightCache.data;
+  }
+
+  console.log("[Freight] Buscando dados das APIs...");
+  const headers = { 'Authorization': `Bearer ${FREIGHT_API_TOKEN}` };
+
+  const [opRes, custoRes, tarifRes] = await Promise.all([
+    fetch(FREIGHT_OPERACIONAL_URL, { headers }),
+    fetch(FREIGHT_CUSTO_URL, { headers }),
+    fetch(FREIGHT_TARIFARIO_URL)
+  ]);
+
+  if (!opRes.ok) throw new Error('API Operacional falhou: ' + opRes.status);
+  if (!custoRes.ok) throw new Error('API Custo falhou: ' + custoRes.status);
+  if (!tarifRes.ok) throw new Error('Tarifário falhou: ' + tarifRes.status);
+
+  const [opJson, custoJson, tarifCsv] = await Promise.all([
+    opRes.json(), custoRes.json(), tarifRes.text()
+  ]);
+
+  const operacional = Array.isArray(opJson) ? opJson : opJson.data;
+  const custos = Array.isArray(custoJson) ? custoJson : custoJson.data;
+  const tarifas = parseCsvSimple(tarifCsv, ['FRETE POR CNTR']);
+
+  // Mapa de custos (Frete Maritimo) por CD_MOVIMENTO
+  const custoMap = new Map();
+  for (const item of custos) {
+    if (item.DS_TAXA === 'Frete Maritimo' && item.CD_MOVIMENTO && item.VL_TOTAL_COMPRA != null) {
+      const current = custoMap.get(item.CD_MOVIMENTO) || 0;
+      const val = parseFloat(String(item.VL_TOTAL_COMPRA).replace(',', '.'));
+      if (!isNaN(val)) custoMap.set(item.CD_MOVIMENTO, current + val);
+    }
+  }
+
+  // Mapa de tarifas por rota (ORIGEM-DESTINO-TIPO_CONTAINER)
+  const tarifaMap = new Map();
+  for (const t of tarifas) {
+    const origem = (t.ORIGEM || '').split(' - ')[0].trim().toUpperCase();
+    const destino = (t.DESTINO || '').split(' - ')[0].trim().toUpperCase();
+    const tipo = (t.TIPO_CONTAINER || '').trim().toUpperCase();
+    const frete = t['FRETE POR CNTR'];
+    if (!origem || !destino || !tipo || isNaN(frete) || frete <= 0) continue;
+
+    const key = `${origem}-${destino}-${tipo}`;
+    if (!tarifaMap.has(key)) tarifaMap.set(key, []);
+    tarifaMap.get(key).push({
+      frete, armador: t.ARMADOR || 'N/A', agente: t.AGENTE || 'N/A',
+      validade: t['FIM VALIDADE'] || 'N/A', freeTime: t['FREE TIME'] || 'N/A'
+    });
+  }
+  // Ordena por menor frete
+  for (const arr of tarifaMap.values()) arr.sort((a, b) => a.frete - b.frete);
+
+  const result = { operacional, custoMap, tarifaMap };
+  freightCache = { data: result, timestamp: now };
+  console.log("[Freight] Cache atualizado:", operacional.length, "processos,", tarifaMap.size, "rotas");
+  return result;
+}
+
+async function analyzeProcess(processoId) {
+  const { operacional, custoMap, tarifaMap } = await fetchFreightData();
+
+  // Busca o processo
+  const proc = operacional.find(p => p.PROCESSO === processoId);
+  if (!proc) return { found: false, error: 'Processo não encontrado na API' };
+
+  // Info básica
+  const origem = (proc.ORIGEM || '').trim().toUpperCase();
+  const destino = (proc.DESTINO || '').trim().toUpperCase();
+  const armador = proc.ARMADOR || 'N/A';
+  const produto = proc.PRODUTO || '';
+  const tipoFrete = proc.DS_TIPO_FRETE || '';
+
+  // Não é FCL ou não é marítima? Sem análise
+  if (produto !== 'Importação Marítima' || tipoFrete !== 'FCL') {
+    return { found: true, applicable: false, reason: 'Não é Importação Marítima FCL' };
+  }
+
+  // Calcula frete pago
+  const totalFrete = custoMap.get(proc.CD_MOVIMENTO);
+  if (totalFrete === undefined) {
+    return { found: true, applicable: true, noFreight: true, origem, destino, armador };
+  }
+
+  const qtdStr = String(proc.DS_QUANTIDADE_CONTAINERS || '1');
+  const numContainers = parseInt(qtdStr, 10) || 1;
+  const fretePorCntr = totalFrete / numContainers;
+
+  // Tipo de container
+  let tipoContainer = 'N/A';
+  const match = qtdStr.match(/^\d+\s*x\s*(.*)$/);
+  if (match && match[1]) tipoContainer = match[1].trim().toUpperCase();
+
+  // Busca melhor tarifa
+  const key = `${origem}-${destino}-${tipoContainer}`;
+  const tarifas = tarifaMap.get(key) || [];
+  const melhorTarifa = tarifas.length > 0 ? tarifas[0] : null;
+
+  const diferenca = melhorTarifa ? fretePorCntr - melhorTarifa.frete : null;
+  const status = melhorTarifa
+    ? (diferenca > 0 ? 'acima' : 'otimizado')
+    : 'sem_tarifa';
+
+  return {
+    found: true,
+    applicable: true,
+    processoId,
+    origem, destino, armador, tipoContainer,
+    fretePago: fretePorCntr,
+    numContainers,
+    melhorTarifa: melhorTarifa ? melhorTarifa.frete : null,
+    melhorArmador: melhorTarifa ? melhorTarifa.armador : null,
+    melhorAgente: melhorTarifa ? melhorTarifa.agente : null,
+    validade: melhorTarifa ? melhorTarifa.validade : null,
+    diferenca,
+    status,
+    alternativas: tarifas.slice(0, 3) // Top 3 opções
+  };
 }

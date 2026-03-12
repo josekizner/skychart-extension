@@ -1,0 +1,5 @@
+{
+  "name": "Analisador de Recompras",
+  "description": "Uma aplicação para analisar e comparar custos de frete entre processos da base Recompras e o tarifário atual, identificando oportunidades de economia.",
+  "requestFramePermissions": []
+}
