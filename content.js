@@ -279,9 +279,14 @@ try {
                 // PrimeNG: precisa clicar no BUTTON pai, nao no span interno
                 var clickTarget = allBtns[i];
                 if (clickTarget.tagName === 'SPAN') {
-                    var parentBtn = clickTarget.closest('button') || clickTarget.closest('.ui-button');
+                    var parentBtn = clickTarget.closest('button') || clickTarget.closest('.ui-button') || clickTarget.closest('a');
                     if (parentBtn) clickTarget = parentBtn;
                 }
+                // Simula click completo (mousedown + mouseup + click) pra PrimeNG
+                clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+                clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+                clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                // Fallback: click programatico tambem
                 clickTarget.click();
                 return true;
             }
@@ -326,34 +331,63 @@ try {
         setTimeout(function() {
             var acordoContent = '';
 
-            // Tenta ler conteudo do tab especifico
-            if (acordoTab) {
-                var contentPanel = acordoTab.querySelector('.ui-accordion-content');
-                if (contentPanel) {
-                    acordoContent = contentPanel.textContent || contentPanel.innerText || '';
+            // O conteudo do Acordo Comercial está dentro de iframes CKEditor!
+            // Procura iframes CKEditor dentro do accordion
+            var searchRoot = acordoTab || (headerEl ? headerEl.parentElement : document);
+
+            // Estratégia 1: Encontrar iframes CKEditor
+            var iframes = searchRoot.querySelectorAll('iframe');
+            if (!iframes.length) {
+                // Se nao encontrou no tab, tenta no documento inteiro (seção acordo)
+                iframes = document.querySelectorAll('.ui-accordion-content iframe, .ui-accordion-content-wrapper iframe');
+            }
+
+            for (var fi = 0; fi < iframes.length; fi++) {
+                try {
+                    var iframeDoc = iframes[fi].contentDocument || iframes[fi].contentWindow.document;
+                    if (iframeDoc && iframeDoc.body) {
+                        var iframeText = iframeDoc.body.textContent || iframeDoc.body.innerText || '';
+                        if (iframeText.trim().length > 5) {
+                            acordoContent += iframeText.trim() + '\n';
+                            console.log('[Atom Oferta] CKEditor iframe lido (' + iframeText.length + ' chars)');
+                        }
+                    }
+                } catch (e) {
+                    console.log('[Atom Oferta] Iframe bloqueado (cross-origin):', e.message);
                 }
             }
 
-            // Fallback: pega o conteudo visivel mais proximo do header
-            if (!acordoContent && headerEl) {
-                var nextSibling = headerEl.nextElementSibling;
-                if (nextSibling && nextSibling.classList.contains('ui-accordion-content-wrapper')) {
-                    var innerContent = nextSibling.querySelector('.ui-accordion-content');
-                    if (innerContent) {
-                        acordoContent = innerContent.textContent || innerContent.innerText || '';
-                    } else {
-                        acordoContent = nextSibling.textContent || nextSibling.innerText || '';
+            // Estratégia 2: Usar CKEDITOR API global (se disponível)
+            if (!acordoContent && typeof CKEDITOR !== 'undefined' && CKEDITOR.instances) {
+                for (var name in CKEDITOR.instances) {
+                    var editor = CKEDITOR.instances[name];
+                    // Procura editores que pertencem ao acordo comercial
+                    if (editor.getData) {
+                        var html = editor.getData();
+                        // Remove HTML tags pra pegar texto puro
+                        var div = document.createElement('div');
+                        div.innerHTML = html;
+                        var editorText = div.textContent || div.innerText || '';
+                        if (editorText.trim().length > 10) {
+                            acordoContent += editorText.trim() + '\n';
+                            console.log('[Atom Oferta] CKEditor API lido:', name, '(' + editorText.length + ' chars)');
+                        }
                     }
                 }
             }
 
-            // Fallback 2: ultimo accord content visivel
+            // Estratégia 3: Fallback — textContent do accordion (se nao for CKEditor)
             if (!acordoContent) {
-                var allPanels = document.querySelectorAll('.ui-accordion-content');
-                for (var j = allPanels.length - 1; j >= 0; j--) {
-                    if (allPanels[j].offsetHeight > 0 && allPanels[j].textContent.trim()) {
-                        acordoContent = allPanels[j].textContent || allPanels[j].innerText || '';
-                        break;
+                if (acordoTab) {
+                    var contentPanel = acordoTab.querySelector('.ui-accordion-content');
+                    if (contentPanel) {
+                        acordoContent = contentPanel.textContent || contentPanel.innerText || '';
+                    }
+                }
+                if (!acordoContent && headerEl) {
+                    var nextSibling = headerEl.nextElementSibling;
+                    if (nextSibling) {
+                        acordoContent = nextSibling.textContent || nextSibling.innerText || '';
                     }
                 }
             }
