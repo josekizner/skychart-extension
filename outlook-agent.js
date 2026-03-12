@@ -229,6 +229,7 @@
         // Expande o painel
         var panel = document.getElementById('atom-outlook-panel');
         panel.classList.add('expanded');
+        restorePanelSize(panel);
 
         // Mostra loading
         showPreview('<div class="atom-loading"><div class="atom-spinner"></div>Analisando cotacao via Gemini...</div>');
