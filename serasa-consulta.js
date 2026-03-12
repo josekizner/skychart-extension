@@ -71,31 +71,27 @@
                 return;
             }
 
-            // Campos ja preenchidos pelo browser
-            // So precisa clicar no campo username pra Angular validar, depois clicar Acessar
+            // F12 habilita o botao = window resize faz Angular revalidar o form
             setTimeout(function() {
-                var usernameField = document.getElementById('username');
-                if (usernameField) {
-                    usernameField.click();
-                    usernameField.focus();
-                    console.log('[Atom Serasa] Click no campo username');
-                }
+                // Simula resize da janela (mesmo efeito de abrir/fechar DevTools)
+                window.dispatchEvent(new Event('resize'));
+                window.dispatchEvent(new Event('focus'));
+                window.dispatchEvent(new Event('scroll'));
+                document.dispatchEvent(new Event('click', { bubbles: true }));
+                document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                console.log('[Atom Serasa] Eventos resize/focus/click disparados');
 
                 setTimeout(function() {
-                    // Click fora do campo (body) pra disparar blur
-                    document.body.click();
-
-                    setTimeout(function() {
-                        var acessarBtn = document.getElementById('btn-acessar');
-                        if (acessarBtn) {
-                            console.log('[Atom Serasa] Clicando em Acessar...');
-                            acessarBtn.click();
-                        } else {
-                            console.log('[Atom Serasa] #btn-acessar nao encontrado');
-                        }
-                    }, 500);
-                }, 500);
-            }, 1500);
+                    var acessarBtn = document.getElementById('btn-acessar');
+                    if (acessarBtn) {
+                        console.log('[Atom Serasa] Clicando em #btn-acessar...');
+                        acessarBtn.click();
+                        // Tambem tenta com dispatchEvent
+                        acessarBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                    }
+                }, 800);
+            }, 2000);
         });
     }
 
