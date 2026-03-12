@@ -430,6 +430,33 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true;
   }
+
+  // AGENTIC: Gera plano via Gemini
+  if (request.action === "agenticPlan") {
+    console.log("[Agentic] Gerando plano...");
+
+    fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: request.prompt }] }],
+        generationConfig: { temperature: 0.2 }
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      var text = result.candidates[0].content.parts[0].text;
+      text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      var data = JSON.parse(text);
+      console.log("[Agentic] Plano gerado:", data.steps.length, "steps");
+      sendResponse({ success: true, data: data });
+    })
+    .catch(function(err) {
+      console.error("[Agentic] Erro:", err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true;
+  }
 });
 
 const VISION_ANALYZE_PROMPT = `

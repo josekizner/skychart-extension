@@ -35,6 +35,7 @@
         "smart-agent.js",
         "dom-scanner.js",
         "vision-agent.js",
+        "agentic-loop.js",
         "content.js"
       ],
       "css": [
