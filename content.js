@@ -37,7 +37,7 @@ try {
                     }
                     var quote = data.pendingQuotation;
                     console.log('[Atom] Cotacao pendente encontrada:', quote);
-                    chrome.storage.local.remove('pendingQuotation');
+                    window._atomQuote = quote;
                     
                     processOfertaFromEmail(quote);
                 });
@@ -162,7 +162,6 @@ try {
             return;
         }
 
-        // Normaliza pra comparacao (remove acentos)
         function normalize(str) {
             return (str || '').toLowerCase()
                 .replace(/ã/g, 'a').replace(/á/g, 'a').replace(/â/g, 'a')
@@ -174,21 +173,118 @@ try {
 
         var targetNorm = normalize(modalTipo);
         
-        // Procura botoes no modal (spans com classe ui-button-text)
         var allButtons = document.querySelectorAll('.ui-button-text, button, .ui-button');
         for (var i = 0; i < allButtons.length; i++) {
             var btnText = normalize(allButtons[i].textContent);
             if (btnText === targetNorm || btnText.indexOf(targetNorm) >= 0) {
                 console.log('[Atom Oferta] Modal tipo encontrado:', allButtons[i].textContent.trim());
                 allButtons[i].click();
-                showToast('Oferta criada! Tipo: ' + modalTipo, 'success', 5000);
+
+                // Espera tela de oferta carregar e preenche campos obrigatorios
+                setTimeout(function() {
+                    fillOfertaFields();
+                }, 2000);
                 return;
             }
         }
 
-        // Nao achou ainda, tenta de novo
         setTimeout(function() { selectModalTipo(modalTipo, attempt + 1); }, 500);
     }
+
+    // Preenche campos obrigatorios da oferta (Modalidade de Frete e Incoterm)
+    function fillOfertaFields() {
+        chrome.storage.local.get('pendingQuotation', function(data) {
+            // Se ja foi removido, pega do que foi salvo antes
+            var quote = data.pendingQuotation || window._atomQuote || {};
+            
+            // Determina modalidade de frete
+            var modalidade = 'FCL'; // default pra maritimo com container
+            if (quote.equipamento && quote.equipamento.toLowerCase().indexOf('lcl') >= 0) {
+                modalidade = 'LCL';
+            }
+
+            var incoterm = quote.incoterm || 'FOB';
+
+            console.log('[Atom Oferta] Preenchendo: Modalidade=' + modalidade + ', Incoterm=' + incoterm);
+
+            // 1. Preenche Modalidade de Frete
+            var modalidadeInput = document.getElementById('cdModalidadeFrete');
+            if (modalidadeInput) {
+                fillAutocompleteById('cdModalidadeFrete', modalidade, function() {
+                    // 2. Depois preenche Incoterm
+                    setTimeout(function() {
+                        fillAutocompleteById('cdIncoterm-oferta', incoterm, function() {
+                            console.log('[Atom Oferta] Campos obrigatorios preenchidos!');
+                            showToast('Oferta pronta! Revise os dados.', 'success', 5000);
+                        });
+                    }, 1500);
+                });
+            } else {
+                console.log('[Atom Oferta] Campo Modalidade nao encontrado');
+            }
+        });
+    }
+
+    // Preenche autocomplete por ID (reutilizavel)
+    function fillAutocompleteById(inputId, value, callback) {
+        var input = document.getElementById(inputId);
+        if (!input) {
+            console.log('[Atom Oferta] Input', inputId, 'nao encontrado');
+            if (callback) callback();
+            return;
+        }
+
+        console.log('[Atom Oferta] Preenchendo', inputId, 'com:', value);
+
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.focus();
+        input.click();
+
+        var idx = 0;
+        var timer = setInterval(function() {
+            if (idx < value.length) {
+                input.value += value[idx];
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: value[idx] }));
+                input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: value[idx] }));
+                idx++;
+            } else {
+                clearInterval(timer);
+
+                input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }));
+                input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'ArrowDown' }));
+
+                // Espera dropdown e seleciona primeiro
+                waitAndSelectFirst(0, input, callback);
+            }
+        }, 60);
+    }
+
+    function waitAndSelectFirst(attempt, input, callback) {
+        if (attempt >= 20) {
+            console.log('[Atom Oferta] Dropdown nao apareceu pra', input.id);
+            if (callback) callback();
+            return;
+        }
+
+        setTimeout(function() {
+            var panels = document.querySelectorAll('.ui-autocomplete-panel, .p-autocomplete-panel, .ui-autocomplete-items');
+            for (var p = 0; p < panels.length; p++) {
+                if (panels[p].offsetHeight > 0) {
+                    var items = panels[p].querySelectorAll('li');
+                    if (items.length > 0) {
+                        items[0].click();
+                        console.log('[Atom Oferta]', input.id, 'selecionado:', items[0].textContent.trim());
+                        if (callback) callback();
+                        return;
+                    }
+                }
+            }
+            waitAndSelectFirst(attempt + 1, input, callback);
+        }, 500);
+    }
+
 
     // ========================================================================
     // BOOKING TRACKING — Botão  ao lado do campo Booking
