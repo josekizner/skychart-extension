@@ -71,26 +71,44 @@
                 return;
             }
 
-            // F12 habilita o botao = window resize faz Angular revalidar o form
+            // Qualquer click real habilita o botao
+            // Usamos chrome.debugger via background pra click com isTrusted=true
             setTimeout(function() {
-                // Simula resize da janela (mesmo efeito de abrir/fechar DevTools)
-                window.dispatchEvent(new Event('resize'));
-                window.dispatchEvent(new Event('focus'));
-                window.dispatchEvent(new Event('scroll'));
-                document.dispatchEvent(new Event('click', { bubbles: true }));
-                document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-                document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-                console.log('[Atom Serasa] Eventos resize/focus/click disparados');
-
-                setTimeout(function() {
-                    var acessarBtn = document.getElementById('btn-acessar');
-                    if (acessarBtn) {
-                        console.log('[Atom Serasa] Clicando em #btn-acessar...');
-                        acessarBtn.click();
-                        // Tambem tenta com dispatchEvent
-                        acessarBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-                    }
-                }, 800);
+                // Pega coordenadas do checkbox "Lembrar meu login" pra clicar
+                var checkbox = document.getElementById('mat-mdc-checkbox-1-input');
+                if (!checkbox) checkbox = document.querySelector('input[type="checkbox"]');
+                
+                var targetEl = checkbox || document.getElementById('username');
+                
+                if (targetEl) {
+                    var rect = targetEl.getBoundingClientRect();
+                    var x = Math.round(rect.left + rect.width / 2);
+                    var y = Math.round(rect.top + rect.height / 2);
+                    
+                    console.log('[Atom Serasa] Real click no checkbox em', x, y);
+                    chrome.runtime.sendMessage({
+                        action: 'serasaRealClick',
+                        x: x, y: y
+                    }, function() {
+                        // Agora clica no Acessar
+                        setTimeout(function() {
+                            var acessarBtn = document.getElementById('btn-acessar');
+                            if (acessarBtn) {
+                                var btnRect = acessarBtn.getBoundingClientRect();
+                                var bx = Math.round(btnRect.left + btnRect.width / 2);
+                                var by = Math.round(btnRect.top + btnRect.height / 2);
+                                
+                                console.log('[Atom Serasa] Real click no Acessar em', bx, by);
+                                chrome.runtime.sendMessage({
+                                    action: 'serasaRealClick',
+                                    x: bx, y: by
+                                });
+                            }
+                        }, 1000);
+                    });
+                } else {
+                    console.log('[Atom Serasa] Nenhum elemento encontrado pra click');
+                }
             }, 2000);
         });
     }

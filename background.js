@@ -252,6 +252,48 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ success: true });
     return false;
   }
+
+  // SERASA: Click real via chrome.debugger (isTrusted = true)
+  if (request.action === "serasaRealClick") {
+    var tabId = sender.tab.id;
+    var x = request.x;
+    var y = request.y;
+    console.log("[Serasa] Real click at", x, y, "on tab", tabId);
+
+    chrome.debugger.attach({ tabId: tabId }, "1.3", function() {
+      if (chrome.runtime.lastError) {
+        console.error("[Serasa] Debugger attach error:", chrome.runtime.lastError.message);
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+
+      // mousePressed
+      chrome.debugger.sendCommand({ tabId: tabId }, "Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        x: x, y: y,
+        button: "left",
+        clickCount: 1
+      }, function() {
+        // mouseReleased
+        chrome.debugger.sendCommand({ tabId: tabId }, "Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          x: x, y: y,
+          button: "left",
+          clickCount: 1
+        }, function() {
+          console.log("[Serasa] Real click sent at", x, y);
+          // Detach debugger
+          setTimeout(function() {
+            chrome.debugger.detach({ tabId: tabId }, function() {
+              console.log("[Serasa] Debugger detached");
+            });
+          }, 1000);
+          sendResponse({ success: true });
+        });
+      });
+    });
+    return true;
+  }
 });
 
 const SERASA_PROMPT = `
