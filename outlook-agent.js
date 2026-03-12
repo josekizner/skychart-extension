@@ -298,8 +298,13 @@
         if (oldPreview) oldPreview.remove();
         var oldActions = panel.querySelector('#atom-outlook-actions');
         if (oldActions) oldActions.remove();
+        var oldRules = panel.querySelector('#atom-client-rules');
+        if (oldRules) oldRules.remove();
 
         panel.insertAdjacentHTML('beforeend', html.join('\n'));
+
+        // Busca regras do cliente na memória e exibe
+        loadClientRules(data.cliente);
 
         // Botao confirmar
         document.getElementById('atom-confirm-quote').addEventListener('click', function() {
@@ -309,6 +314,49 @@
         // Botao cancelar
         document.getElementById('atom-cancel-quote').addEventListener('click', function() {
             collapsePanel();
+        });
+    }
+
+    // Carrega e exibe regras do cliente na memória
+    function loadClientRules(clienteName) {
+        if (!clienteName) return;
+        var clienteKey = 'acordo_' + clienteName.toLowerCase().replace(/\s+/g, '_');
+
+        chrome.storage.local.get(clienteKey, function(data) {
+            var rules = data[clienteKey];
+            if (!rules) return;
+
+            var panel = document.getElementById('atom-outlook-panel');
+            if (!panel) return;
+
+            var rulesHtml = ['<div id="atom-client-rules" style="padding:6px 10px;background:rgba(255,152,0,0.15);border-top:1px solid rgba(255,152,0,0.3);font-size:11px;">'];
+            rulesHtml.push('<div style="color:#ff9800;font-weight:bold;margin-bottom:4px;">⚠ Regras do Cliente</div>');
+
+            if (rules.incluirIOF) {
+                rulesHtml.push('<div style="color:#ffcc02;">• IOF: INCLUIR na cotação</div>');
+            }
+
+            if (rules.armadoresBloqueados && rules.armadoresBloqueados.length > 0) {
+                rulesHtml.push('<div style="color:#ff5252;">• NÃO oferecer: ' + rules.armadoresBloqueados.join(', ') + '</div>');
+            }
+
+            if (rules.observacoes && rules.observacoes.length > 0) {
+                rules.observacoes.forEach(function(obs) {
+                    rulesHtml.push('<div style="color:#ccc;">• ' + obs + '</div>');
+                });
+            }
+
+            rulesHtml.push('</div>');
+
+            // Insere antes dos botões de ação
+            var actionsDiv = panel.querySelector('#atom-outlook-actions');
+            if (actionsDiv) {
+                actionsDiv.insertAdjacentHTML('beforebegin', rulesHtml.join('\n'));
+            } else {
+                panel.insertAdjacentHTML('beforeend', rulesHtml.join('\n'));
+            }
+
+            console.log('[Atom Email] Regras do cliente exibidas:', clienteKey);
         });
     }
 

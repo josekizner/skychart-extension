@@ -374,6 +374,7 @@ try {
         // Vamos procurar pelo label contextual
         var origemMulti = null;
         var destinoMulti = null;
+        var containerMulti = null;
 
         var formGroups = document.querySelectorAll('.form-group, .ui-g-12, .ui-g-6, .ui-g-4, .ui-g-3, .ui-g-2, [class*="col"]');
         for (var g = 0; g < formGroups.length; g++) {
@@ -387,15 +388,20 @@ try {
             if (labelText.indexOf('Destino') >= 0 && labelText.indexOf('País') < 0 && labelText.indexOf('DTA') < 0 && !destinoMulti) {
                 destinoMulti = formGroups[g].querySelector('.ui-multiselect, p-multiselect');
             }
+            if ((labelText.indexOf('Container') >= 0 || labelText.indexOf('Containers') >= 0) && !containerMulti) {
+                containerMulti = formGroups[g].querySelector('.ui-multiselect, p-multiselect');
+            }
         }
 
         if (!origemMulti || !destinoMulti) {
-            // Fallback: usa posição — primeiro e terceiro multiselect
             if (multiselects.length >= 2) {
                 origemMulti = origemMulti || multiselects[0];
                 destinoMulti = destinoMulti || multiselects[1];
             }
         }
+
+        // Mapeia equipamento do email pro formato Skychart
+        var containerName = mapEquipmentToSkychart(quote.equipamento || '');
 
         // 1. Preenche Origem primeiro
         fillMultiselect(origemMulti, origem, function() {
@@ -406,15 +412,75 @@ try {
                 fillMultiselect(destinoMulti, destino, function() {
                     console.log('[Atom Oferta] Destino selecionado!');
 
-                    // 3. Clica em Filtrar
+                    // 3. Preenche Container
                     setTimeout(function() {
-                        clickButtonByText('Filtrar');
-                        console.log('[Atom Oferta] Filtrar clicado!');
-                        showToast('Tarifário filtrado! Revise os resultados.', 'success', 5000);
-                    }, 1000);
+                        if (containerMulti && containerName) {
+                            fillMultiselect(containerMulti, containerName, function() {
+                                console.log('[Atom Oferta] Container selecionado:', containerName);
+
+                                // 4. Clica em Filtrar
+                                setTimeout(function() {
+                                    clickButtonByText('Filtrar');
+                                    console.log('[Atom Oferta] Filtrar clicado!');
+                                    showToast('Tarifário filtrado!', 'success', 5000);
+                                }, 1000);
+                            });
+                        } else {
+                            console.log('[Atom Oferta] Container multiselect nao encontrado, pulando...');
+                            setTimeout(function() {
+                                clickButtonByText('Filtrar');
+                                showToast('Tarifário filtrado!', 'success', 5000);
+                            }, 1000);
+                        }
+                    }, 2000);
                 });
             }, 2000);
         });
+    }
+
+    // Mapeia código de equipamento pro nome no Skychart
+    function mapEquipmentToSkychart(equip) {
+        if (!equip) return '';
+        var e = equip.toUpperCase().trim();
+
+        var map = {
+            '20DV': "20' Dry",
+            '20DRY': "20' Dry",
+            '20GP': "20' Dry",
+            '20': "20' Dry",
+            '20RF': "20' Reefer",
+            '20OT': "20' Open Top",
+            '20FR': "20' Flat Rack",
+            '20FLAT': "20' Flat Rack",
+            '20NOR': "20' Dry",
+            '40DV': "40' Dry",
+            '40GP': "40' Dry",
+            '40': "40' Dry",
+            '40HC': "40' High Cube",
+            '40HQ': "40' High Cube",
+            '40HIGH': "40' High Cube",
+            '40RF': "40' Reefer",
+            '40RH': "40' Reefer High Cube",
+            '40OT': "40' Open Top",
+            '40FR': "40' Flat Rack",
+            '40FLAT': "40' Flat Rack (40L)",
+            '40NOR': "40' High Cube",
+            '20ISOTANK': "20' Isotank",
+            '20MULTI': "20' Multi",
+            'NOR': "40' High Cube"
+        };
+
+        // Tenta match direto
+        if (map[e]) return map[e];
+
+        // Tenta match parcial
+        for (var key in map) {
+            if (e.indexOf(key) >= 0) return map[key];
+        }
+
+        // Se não mapeou, retorna como está
+        console.log('[Atom Oferta] Equipamento nao mapeado:', equip);
+        return equip;
     }
 
     // Preenche um multiselect PrimeNG
