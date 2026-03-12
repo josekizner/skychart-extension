@@ -344,7 +344,127 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true;
   }
+
+  // ====================================================
+  // VISION AGENT — Screenshot + Gemini Multimodal
+  // ====================================================
+
+  // VISION: Captura screenshot da aba ativa
+  if (request.action === "visionScreenshot") {
+    chrome.tabs.captureVisibleTab(null, { format: "png" }, function(dataUrl) {
+      if (chrome.runtime.lastError) {
+        console.error("[Vision] Screenshot erro:", chrome.runtime.lastError);
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+      console.log("[Vision] Screenshot capturado");
+      sendResponse({ success: true, image: dataUrl });
+    });
+    return true;
+  }
+
+  // VISION: Analisa screenshot via Gemini multimodal
+  if (request.action === "visionAnalyze") {
+    var screenshot = request.screenshot; // data:image/png;base64,...
+    var instruction = request.instruction;
+    var viewport = request.viewport || {};
+
+    // Extrai base64 puro (remove o prefixo data:image/png;base64,)
+    var base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '');
+
+    var visionPrompt = VISION_ANALYZE_PROMPT
+      .replace('{INSTRUCTION}', instruction)
+      .replace('{WIDTH}', viewport.width || 1920)
+      .replace('{HEIGHT}', viewport.height || 1080);
+
+    console.log("[Vision] Analisando com Gemini multimodal...");
+
+    fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: base64Data
+              }
+            },
+            {
+              text: visionPrompt
+            }
+          ]
+        }],
+        generationConfig: { temperature: 0.1 }
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      var text = result.candidates[0].content.parts[0].text;
+      text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      var data = JSON.parse(text);
+      console.log("[Vision] Análise completa:", data);
+      sendResponse({ success: true, data: data });
+    })
+    .catch(function(err) {
+      console.error("[Vision] Erro Gemini:", err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true;
+  }
+
+  // VISION: Click em coordenadas via debugger
+  if (request.action === "visionClick") {
+    var vx = request.x;
+    var vy = request.y;
+    console.log("[Vision] Click em", vx, vy);
+
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      if (tabs.length > 0) {
+        doRealClick(tabs[0].id, vx, vy);
+        sendResponse({ success: true });
+      } else {
+        sendResponse({ success: false, error: "Sem aba ativa" });
+      }
+    });
+    return true;
+  }
 });
+
+const VISION_ANALYZE_PROMPT = `
+Voce e um agente visual inteligente. Analise o screenshot da tela e execute a instrucao.
+
+INSTRUCAO: {INSTRUCTION}
+
+VIEWPORT: {WIDTH}x{HEIGHT} pixels
+
+Retorne APENAS JSON puro (sem markdown, sem backticks):
+
+{
+  "found": true ou false (se encontrou o que foi pedido),
+  "description": "descricao do que voce ve na tela",
+  "action": {
+    "type": "click" ou "type" ou "scroll" ou "wait" ou null,
+    "x": coordenada_x_em_pixels (centro do elemento),
+    "y": coordenada_y_em_pixels (centro do elemento),
+    "text": "texto a digitar (se type)"
+  },
+  "success": true ou false (se e uma verificacao),
+  "suggestion": "sugestao do que fazer a seguir",
+  "elements_found": ["lista de elementos relevantes que voce identificou na tela"]
+}
+
+REGRAS:
+- As coordenadas X,Y devem ser o CENTRO do elemento alvo em pixels.
+- O viewport tem {WIDTH}x{HEIGHT} pixels, use isso pra calcular posicoes.
+- Se a instrucao pede pra clicar num botao, retorne type="click" com x,y do centro do botao.
+- Se pede pra digitar, retorne type="type" com x,y do campo e text com o valor.
+- Se o elemento nao esta visivel, sugira scroll.
+- Se e uma verificacao, foque em responder success true/false.
+- NUNCA retorne coordenadas fora do viewport.
+- Retorne APENAS o JSON.
+`;
 
 const SERASA_PROMPT = `
 Você é um extrator de dados especializado em relatórios de crédito Serasa.

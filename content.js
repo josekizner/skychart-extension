@@ -229,8 +229,45 @@ try {
     function fillAutocompleteById(inputId, value, callback) {
         var input = document.getElementById(inputId);
         if (!input) {
-            console.log('[Atom Oferta] Input', inputId, 'nao encontrado');
-            if (callback) callback();
+            console.log('[Atom Oferta] Input', inputId, 'nao encontrado — tentando Vision...');
+            
+            // FALLBACK: Vision Agent
+            if (typeof VisionAgent !== 'undefined') {
+                VisionAgent.findElement('campo de input com placeholder "Busque por algo" próximo ao label que contém "' + inputId.replace('cd', '').replace('-oferta', '') + '"')
+                .then(function(result) {
+                    if (result.found && result.x && result.y) {
+                        console.log('[Vision Fallback] Encontrado em', result.x, result.y);
+                        return VisionAgent.act({ type: 'click', x: result.x, y: result.y })
+                        .then(function() {
+                            return new Promise(function(resolve) { setTimeout(resolve, 300); });
+                        })
+                        .then(function() {
+                            var activeEl = document.activeElement;
+                            if (activeEl && activeEl.tagName === 'INPUT') {
+                                return VisionAgent.typeText(activeEl, value);
+                            }
+                        })
+                        .then(function() {
+                            setTimeout(function() {
+                                var panels = document.querySelectorAll('.ui-autocomplete-panel, .p-autocomplete-panel');
+                                for (var p = 0; p < panels.length; p++) {
+                                    if (panels[p].offsetHeight > 0) {
+                                        var items = panels[p].querySelectorAll('li');
+                                        if (items.length > 0) { items[0].click(); break; }
+                                    }
+                                }
+                                if (callback) callback();
+                            }, 2000);
+                        });
+                    } else {
+                        console.log('[Vision Fallback] Elemento nao encontrado visualmente');
+                        if (callback) callback();
+                    }
+                })
+                .catch(function() { if (callback) callback(); });
+            } else {
+                if (callback) callback();
+            }
             return;
         }
 
