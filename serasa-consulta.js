@@ -89,20 +89,35 @@
                         console.log('[Atom Serasa] Senha preenchida');
                     }
 
-                    // Clica no botao Acessar
+                    // Tira o foco dos campos (blur) pra habilitar o botao
                     setTimeout(function() {
-                        var acessarBtn = findButtonByText('acessar');
-                        if (!acessarBtn) acessarBtn = findButtonByText('entrar');
-                        if (!acessarBtn) acessarBtn = findButtonByText('login');
-                        if (!acessarBtn) acessarBtn = document.querySelector('button[type="submit"]');
-
-                        if (acessarBtn) {
-                            console.log('[Atom Serasa] Clicando em Acessar...');
-                            acessarBtn.click();
-                        } else {
-                            console.log('[Atom Serasa] Botao Acessar nao encontrado');
+                        if (senhaField) {
+                            senhaField.dispatchEvent(new Event('blur', { bubbles: true }));
+                            senhaField.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
                         }
-                    }, 500);
+                        if (emailField) {
+                            emailField.dispatchEvent(new Event('blur', { bubbles: true }));
+                            emailField.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+                        }
+                        // Clica no body pra simular click fora
+                        document.body.click();
+                        console.log('[Atom Serasa] Blur + body click disparados');
+
+                        // Agora clica no Acessar
+                        setTimeout(function() {
+                            var acessarBtn = findButtonByText('acessar');
+                            if (!acessarBtn) acessarBtn = findButtonByText('entrar');
+                            if (!acessarBtn) acessarBtn = findButtonByText('login');
+                            if (!acessarBtn) acessarBtn = document.querySelector('button[type="submit"]');
+
+                            if (acessarBtn) {
+                                console.log('[Atom Serasa] Clicando em Acessar...');
+                                acessarBtn.click();
+                            } else {
+                                console.log('[Atom Serasa] Botao Acessar nao encontrado');
+                            }
+                        }, 800);
+                    }, 300);
                 }, 300);
             }, 1500);
         });
