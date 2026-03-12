@@ -149,27 +149,26 @@
 
     // Fecha o popup de "nova consulta" se aparecer
     function dismissPopup(callback) {
-        // Tenta encontrar o botao "Continuar usando a versao atual"
         var attempts = 0;
-        var maxAttempts = 15; // 15 * 500ms = 7.5s
+        var maxAttempts = 15;
 
         function tryDismiss() {
-            var continueBtn = findButtonByText('continuar usando a vers');
-            if (!continueBtn) continueBtn = findButtonByText('versão atual');
-            if (!continueBtn) continueBtn = findButtonByText('versao atual');
+            // Busca pelo ID exato
+            var continueBtn = document.getElementById('btnKeepCurrentB');
+            if (!continueBtn) continueBtn = findButtonByText('continuar usando a vers');
 
             if (continueBtn) {
-                console.log('[Atom Serasa] Popup encontrado, clicando "Continuar usando a versao atual"...');
-                continueBtn.click();
-                setTimeout(callback, 800);
-                return;
-            }
+                var rect = continueBtn.getBoundingClientRect();
+                var x = Math.round(rect.left + rect.width / 2);
+                var y = Math.round(rect.top + rect.height / 2);
 
-            // Tenta tambem fechar qualquer modal/overlay com botao X
-            var closeBtn = document.querySelector('.modal-close, [aria-label="close"], .close-button');
-            if (closeBtn) {
-                closeBtn.click();
-                setTimeout(callback, 800);
+                console.log('[Atom Serasa] Popup: real click em #btnKeepCurrentB', x, y);
+                chrome.runtime.sendMessage({
+                    action: 'serasaRealClick',
+                    x: x, y: y
+                }, function() {
+                    setTimeout(callback, 1000);
+                });
                 return;
             }
 
@@ -177,7 +176,6 @@
             if (attempts < maxAttempts) {
                 setTimeout(tryDismiss, 500);
             } else {
-                // Nao achou popup, continua normalmente
                 console.log('[Atom Serasa] Sem popup, continuando...');
                 callback();
             }
