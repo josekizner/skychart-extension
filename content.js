@@ -225,8 +225,19 @@ try {
                                         // 5. Clica em Cadastrar
                                         setTimeout(function() {
                                             clickButtonByText('Cadastrar');
-                                            console.log('[Atom Oferta] Todos os campos preenchidos e cadastrado!');
-                                            showToast('Oferta cadastrada!', 'success', 5000);
+                                            console.log('[Atom Oferta] Cadastrado!');
+
+                                            // 6. Clica em Adicionar rota
+                                            setTimeout(function() {
+                                                clickButtonByText('Adicionar rota');
+                                                console.log('[Atom Oferta] Adicionar rota clicado!');
+
+                                                // 7. Preenche validade da rota (data de hoje)
+                                                setTimeout(function() {
+                                                    fillValidadeRota();
+                                                    showToast('Oferta completa! Rota adicionada.', 'success', 5000);
+                                                }, 2000);
+                                            }, 2000);
                                         }, 1000);
                                     }, 500);
                                 });
@@ -267,6 +278,48 @@ try {
         }
         console.log('[Atom Oferta] Botao "' + text + '" nao encontrado');
         return false;
+    }
+
+    // Preenche validade da rota com data de hoje
+    function fillValidadeRota() {
+        // Formata data de hoje como dd/MM/yyyy
+        var now = new Date();
+        var dd = String(now.getDate()).padStart(2, '0');
+        var mm = String(now.getMonth() + 1).padStart(2, '0');
+        var yyyy = now.getFullYear();
+        var today = dd + '/' + mm + '/' + yyyy;
+
+        console.log('[Atom Oferta] Preenchendo validade:', today);
+
+        // Procura input de validade — classe ng-tns-c62 sem ID fixo
+        // Geralmente está próximo do label "Validade" ou é o primeiro p-calendar input na seção de rota
+        var validadeInput = null;
+
+        // Tenta por placeholder vazio + classe ng-tns + tipo text dentro de p-calendar
+        var calendarInputs = document.querySelectorAll('p-calendar input, .ui-calendar input, input[class*="ng-tns-c62"]');
+        for (var i = 0; i < calendarInputs.length; i++) {
+            // Pega o que estiver vazio (sem valor preenchido)
+            if (!calendarInputs[i].value || calendarInputs[i].value.trim() === '') {
+                validadeInput = calendarInputs[i];
+                break;
+            }
+        }
+
+        if (!validadeInput) {
+            console.log('[Atom Oferta] Input de validade nao encontrado');
+            return;
+        }
+
+        validadeInput.focus();
+        validadeInput.click();
+        validadeInput.value = today;
+        validadeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        validadeInput.dispatchEvent(new Event('change', { bubbles: true }));
+        validadeInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13 }));
+        validadeInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', keyCode: 13 }));
+        validadeInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+        console.log('[Atom Oferta] Validade preenchida:', today);
     }
 
     // Preenche autocomplete por ID (reutilizavel)
