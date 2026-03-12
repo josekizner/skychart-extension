@@ -150,25 +150,38 @@
     // Fecha o popup de "nova consulta" se aparecer
     function dismissPopup(callback) {
         var attempts = 0;
-        var maxAttempts = 15;
+        var maxAttempts = 20; // 10 segundos
 
         function tryDismiss() {
-            // Busca pelo ID exato
             var continueBtn = document.getElementById('btnKeepCurrentB');
             if (!continueBtn) continueBtn = findButtonByText('continuar usando a vers');
 
             if (continueBtn) {
-                var rect = continueBtn.getBoundingClientRect();
-                var x = Math.round(rect.left + rect.width / 2);
-                var y = Math.round(rect.top + rect.height / 2);
-
-                console.log('[Atom Serasa] Popup: real click em #btnKeepCurrentB', x, y);
-                chrome.runtime.sendMessage({
-                    action: 'serasaRealClick',
-                    x: x, y: y
-                }, function() {
-                    setTimeout(callback, 1000);
-                });
+                console.log('[Atom Serasa] Popup encontrado! Clicando em #btnKeepCurrentB...');
+                
+                // Tenta click normal primeiro (é um button simples)
+                continueBtn.click();
+                
+                // Verifica se o popup sumiu depois do click
+                setTimeout(function() {
+                    var stillThere = document.getElementById('btnKeepCurrentB');
+                    if (stillThere) {
+                        // Click normal nao funcionou, tenta real click via debugger
+                        console.log('[Atom Serasa] Click normal nao funcionou, usando debugger...');
+                        var rect = continueBtn.getBoundingClientRect();
+                        var x = Math.round(rect.left + rect.width / 2);
+                        var y = Math.round(rect.top + rect.height / 2);
+                        chrome.runtime.sendMessage({
+                            action: 'serasaRealClick',
+                            x: x, y: y
+                        }, function() {
+                            setTimeout(callback, 1000);
+                        });
+                    } else {
+                        console.log('[Atom Serasa] Popup fechado!');
+                        setTimeout(callback, 500);
+                    }
+                }, 800);
                 return;
             }
 
