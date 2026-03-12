@@ -147,75 +147,40 @@
         });
     }
 
-    // Fecha o popup de "nova consulta" — REMOVE do DOM
+    // Fecha o popup — real click via debugger no botao
     function dismissPopup(callback) {
         var attempts = 0;
-        var maxAttempts = 20;
 
         function tryDismiss() {
-            var continueBtn = document.getElementById('btnKeepCurrentB');
-            if (!continueBtn) continueBtn = findButtonByText('continuar usando a vers');
+            var btn = document.getElementById('btnKeepCurrentB');
+            console.log('[Atom Serasa] Procurando #btnKeepCurrentB, tentativa', attempts, '- encontrado:', !!btn);
 
-            if (continueBtn) {
-                console.log('[Atom Serasa] Popup encontrado, removendo do DOM...');
-                
-                // Sobe na arvore DOM pra achar o container do modal
-                var modal = continueBtn;
-                for (var i = 0; i < 10; i++) {
-                    if (!modal.parentElement) break;
-                    modal = modal.parentElement;
-                    var style = window.getComputedStyle(modal);
-                    // Modal geralmente tem position fixed/absolute e z-index alto
-                    if (style.position === 'fixed' || style.position === 'absolute') {
-                        if (parseInt(style.zIndex) > 100 || modal.classList.toString().indexOf('modal') >= 0 || modal.classList.toString().indexOf('dialog') >= 0 || modal.classList.toString().indexOf('overlay') >= 0) {
-                            break;
-                        }
-                    }
-                }
-                
-                // Remove o modal
-                if (modal && modal !== document.body && modal !== document.documentElement) {
-                    console.log('[Atom Serasa] Removendo modal:', modal.tagName, modal.className);
-                    modal.remove();
-                } else {
-                    // Fallback: remove o pai direto do botao (container do popup)
-                    var parent = continueBtn.parentElement;
-                    while (parent && parent !== document.body) {
-                        var ps = window.getComputedStyle(parent);
-                        if (ps.position === 'fixed' || ps.position === 'absolute' || parent.offsetWidth > 400) {
-                            parent.remove();
-                            console.log('[Atom Serasa] Removido container do popup');
-                            break;
-                        }
-                        parent = parent.parentElement;
-                    }
-                }
-                
-                // Remove qualquer backdrop/overlay
-                var overlays = document.querySelectorAll('.cdk-overlay-container, .modal-backdrop, .cdk-overlay-backdrop, [class*="overlay"], [class*="backdrop"]');
-                overlays.forEach(function(el) { 
-                    el.style.display = 'none';
-                    console.log('[Atom Serasa] Overlay ocultado:', el.className);
+            if (btn) {
+                var rect = btn.getBoundingClientRect();
+                var x = Math.round(rect.left + rect.width / 2);
+                var y = Math.round(rect.top + rect.height / 2);
+                console.log('[Atom Serasa] #btnKeepCurrentB coords:', x, y, 'size:', rect.width, rect.height);
+
+                chrome.runtime.sendMessage({
+                    action: 'serasaRealClick',
+                    x: x, y: y
+                }, function(resp) {
+                    console.log('[Atom Serasa] Real click response:', resp);
+                    setTimeout(callback, 1500);
                 });
-                
-                // Remove overflow hidden do body
-                document.body.style.overflow = '';
-                document.body.style.overflowY = '';
-                
-                setTimeout(callback, 500);
                 return;
             }
 
             attempts++;
-            if (attempts < maxAttempts) {
+            if (attempts < 20) {
                 setTimeout(tryDismiss, 500);
             } else {
-                console.log('[Atom Serasa] Sem popup, continuando...');
+                console.log('[Atom Serasa] #btnKeepCurrentB nao encontrado, continuando...');
                 callback();
             }
         }
 
-        tryDismiss();
+        setTimeout(tryDismiss, 2000); // Espera 2s pra popup aparecer
     }
 
     // Preenche CNPJ e clica em Pesquisar
