@@ -18,7 +18,7 @@ try {
     // Listener para notificações de atualização e tracking data
     chrome.runtime.onMessage.addListener(function(msg) {
         if (msg.action === 'updateAvailable') {
-            showToast('🔄 Nova versão ' + msg.newVersion + ' disponível! Peça ao admin para atualizar. ' + (msg.changelog || ''), 'warning', 15000);
+            showToast(' Nova versão ' + msg.newVersion + ' disponível! Peça ao admin para atualizar. ' + (msg.changelog || ''), 'warning', 15000);
         }
         if (msg.action === 'trackingDataReady') {
             handleTrackingData(msg.data, msg.error);
@@ -26,7 +26,7 @@ try {
     });
 
     // ========================================================================
-    // BOOKING TRACKING — Botão 🔍 ao lado do campo Booking
+    // BOOKING TRACKING — Botão  ao lado do campo Booking
     // ========================================================================
 
     function injectBookingButton() {
@@ -86,7 +86,7 @@ try {
 
         var btn = document.createElement('button');
         btn.className = 'sk-tracking-btn';
-        btn.innerHTML = '🤖 Rastrear';
+        btn.innerHTML = ' Rastrear';
         btn.title = 'Agente busca dados de tracking no armador';
         btn.style.cssText = 'background:linear-gradient(135deg,#1a73e8,#0d47a1);color:#fff;border:none;border-radius:6px;padding:6px 14px;margin-left:8px;cursor:pointer;font-size:12px;font-weight:bold;vertical-align:middle;box-shadow:0 3px 8px rgba(26,115,232,0.4);transition:all 0.2s ease;font-family:Arial,sans-serif;';
         btn.addEventListener('mouseenter', function() { this.style.transform = 'scale(1.05)'; this.style.boxShadow = '0 4px 12px rgba(26,115,232,0.6)'; });
@@ -101,7 +101,7 @@ try {
         // Botão PARAR
         var stopBtn = document.createElement('button');
         stopBtn.className = 'sk-tracking-stop-btn';
-        stopBtn.innerHTML = '⛔ Parar';
+        stopBtn.innerHTML = ' Parar';
         stopBtn.title = 'Para o agente de tracking';
         stopBtn.style.cssText = 'display:none;background:#e74c3c;color:#fff;border:none;border-radius:6px;padding:6px 10px;margin-left:4px;cursor:pointer;font-size:11px;font-weight:bold;vertical-align:middle;transition:all 0.2s ease;font-family:Arial,sans-serif;';
         stopBtn.addEventListener('click', function(e) {
@@ -109,8 +109,8 @@ try {
             e.stopPropagation();
             window.skTrackingStop = true;
             stopBtn.style.display = 'none';
-            showToast('⛔ Tracking parado!', 'warning');
-            SkDebug.log('Tracking', 'SKIP', '⛔ Parado pelo usuário');
+            showToast(' Tracking parado!', 'warning');
+            SkDebug.log('Tracking', 'SKIP', ' Parado pelo usuário');
         });
         bookingInput.parentElement.appendChild(stopBtn);
 
@@ -119,7 +119,7 @@ try {
             stopBtn.style.display = 'inline-block';
         });
 
-        console.log('[Tracking] Botão 🤖 + ⛔ injetados!');
+        console.log('[Tracking] Botão  +  injetados!');
     }
 
     function startBookingTracking(bookingInputRef) {
@@ -133,7 +133,7 @@ try {
         var bookingNumber = bookingInput ? (bookingInput.value || bookingInput.textContent || '').trim() : '';
 
         if (!bookingNumber) {
-            showToast('⚠️ Preencha o campo Booking antes de rastrear!', 'warning');
+            showToast(' Preencha o campo Booking antes de rastrear!', 'warning');
             return;
         }
 
@@ -141,8 +141,8 @@ try {
         var carrier = detectCarrier();
 
         SkDebug.show();
-        SkDebug.log('Tracking', 'EXEC', '🔍 Buscando: ' + bookingNumber + ' (' + carrier + ')');
-        showToast('🔍 Buscando tracking: ' + bookingNumber + ' (' + carrier + ')...', 'info');
+        SkDebug.log('Tracking', 'EXEC', ' Buscando: ' + bookingNumber + ' (' + carrier + ')');
+        showToast(' Buscando tracking: ' + bookingNumber + ' (' + carrier + ')...', 'info');
 
         chrome.runtime.sendMessage({
             action: 'trackBooking',
@@ -163,23 +163,23 @@ try {
 
     function handleTrackingData(data, error) {
         if (error || !data) {
-            SkDebug.log('Tracking', 'FAIL', '❌ Erro no tracking: ' + (error || 'Sem dados'));
-            showToast('❌ Erro no tracking: ' + (error || 'Sem dados'), 'error');
+            SkDebug.log('Tracking', 'FAIL', ' Erro no tracking: ' + (error || 'Sem dados'));
+            showToast(' Erro no tracking: ' + (error || 'Sem dados'), 'error');
             return;
         }
 
         if (!data.events || data.events.length === 0) {
-            SkDebug.log('Tracking', 'FAIL', '⚠️ Nenhum evento de tracking encontrado');
-            showToast('⚠️ Nenhum evento de tracking encontrado', 'warning');
+            SkDebug.log('Tracking', 'FAIL', ' Nenhum evento de tracking encontrado');
+            showToast(' Nenhum evento de tracking encontrado', 'warning');
             return;
         }
 
-        SkDebug.log('Tracking', 'OK', '✅ Dados recebidos: Navio=' + data.vessel + ' Viagem=' + data.voyage);
-        SkDebug.log('Tracking', 'INFO', '📍 Origem: ' + data.from + ' → Destino: ' + data.to);
-        SkDebug.log('Tracking', 'INFO', '📅 Embarque: ' + data.departureDate + ' | ETA: ' + data.arrivalDate);
-        SkDebug.log('Tracking', 'INFO', '🔄 Transbordos: ' + (data.transshipments ? data.transshipments.length : 0));
+        SkDebug.log('Tracking', 'OK', ' Dados recebidos: Navio=' + data.vessel + ' Viagem=' + data.voyage);
+        SkDebug.log('Tracking', 'INFO', ' Origem: ' + data.from + ' → Destino: ' + data.to);
+        SkDebug.log('Tracking', 'INFO', ' Embarque: ' + data.departureDate + ' | ETA: ' + data.arrivalDate);
+        SkDebug.log('Tracking', 'INFO', ' Transbordos: ' + (data.transshipments ? data.transshipments.length : 0));
 
-        showToast('✅ Tracking: ' + data.vessel + ' / ' + data.voyage + ' — preenchendo campos...', 'success');
+        showToast(' Tracking: ' + data.vessel + ' / ' + data.voyage + ' — preenchendo campos...', 'success');
 
         fillTrackingFields(data);
     }
@@ -201,7 +201,7 @@ try {
 
         function stopped() {
             if (window.skTrackingStop) {
-                SkDebug.log('Tracking', 'SKIP', '⛔ Parado pelo usuário');
+                SkDebug.log('Tracking', 'SKIP', ' Parado pelo usuário');
                 return true;
             }
             return false;
@@ -214,8 +214,8 @@ try {
                 // SEM MEMÓRIA — memória causava match em campo errado
 
                 // Mostra toast pedindo clique
-                SkDebug.log(fieldName, 'INFO', '👆 Clique no campo "' + fieldName + '" para eu aprender!');
-                showToast('👆 CLIQUE no campo "' + fieldName + '" para o agente aprender!', 'warning', 30000);
+                SkDebug.log(fieldName, 'INFO', ' Clique no campo "' + fieldName + '" para eu aprender!');
+                showToast(' CLIQUE no campo "' + fieldName + '" para o agente aprender!', 'warning', 30000);
 
                 // Highlight visual: borda piscando em todos os inputs
                 document.body.style.cursor = 'crosshair';
@@ -272,7 +272,7 @@ try {
                         var testEl = null;
                         try { testEl = document.querySelector(selector); } catch(e) {}
                         if (testEl !== target) {
-                            SkDebug.log(fieldName, 'INFO', '⚠️ CSS path não é único, salvando por ÍNDICE');
+                            SkDebug.log(fieldName, 'INFO', ' CSS path não é único, salvando por ÍNDICE');
                             // Fallback: salva o ÍNDICE entre todos os autocompletes
                             var allAcInputs = document.querySelectorAll('input.ui-autocomplete-input');
                             var acIdx = Array.from(allAcInputs).indexOf(target);
@@ -288,8 +288,8 @@ try {
                             strategy: 'learned'
                         });
 
-                        SkDebug.log(fieldName, 'OK', '🧠 Aprendido! selector="' + selector + '"');
-                        showToast('🧠 Aprendido: ' + fieldName + ' → ' + selector, 'success', 5000);
+                        SkDebug.log(fieldName, 'OK', ' Aprendido! selector="' + selector + '"');
+                        showToast(' Aprendido: ' + fieldName + ' → ' + selector, 'success', 5000);
                         SkAgent.highlight(target);
 
                         resolve(target);
@@ -310,12 +310,12 @@ try {
         // ===== AUTO-DIAGNÓSTICO: O agente "abre o F12" sozinho =====
         function diagnoseAndFind(labelToFind, labelToExclude) {
             var allACs = document.querySelectorAll('input.ui-autocomplete-input');
-            SkDebug.log('Diagnóstico', 'INFO', '🔍 ' + allACs.length + ' autocompletes na página');
+            SkDebug.log('Diagnóstico', 'INFO', ' ' + allACs.length + ' autocompletes na página');
 
             // SCOPE: acha a seção accordion que contém o Viagem (âncora segura)
             var viagemAnchor = document.querySelector('#formularioEmbarque-dsViagem');
             var embarqueSection = viagemAnchor ? viagemAnchor.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
-            SkDebug.log('Diagnóstico', 'DEBUG', '📐 Seção: ' + (embarqueSection ? embarqueSection.tagName + '.' + (embarqueSection.className || '').substring(0, 30) : 'NÃO ENCONTRADA'));
+            SkDebug.log('Diagnóstico', 'DEBUG', ' Seção: ' + (embarqueSection ? embarqueSection.tagName + '.' + (embarqueSection.className || '').substring(0, 30) : 'NÃO ENCONTRADA'));
 
             var found = null;
             for (var i = 0; i < allACs.length; i++) {
@@ -323,7 +323,7 @@ try {
 
                 // GUARD: rejeita AC que NÃO está dentro da seção Embarque
                 if (embarqueSection && !embarqueSection.contains(ac)) {
-                    SkDebug.log('AC[' + i + ']', 'DEBUG', '⏭️ fora do Embarque — ignorado');
+                    SkDebug.log('AC[' + i + ']', 'DEBUG', ' fora do Embarque — ignorado');
                     continue;
                 }
 
@@ -350,14 +350,14 @@ try {
                 if (!found && sameTd.indexOf(labelToFind) >= 0) {
                     if (!labelToExclude || sameTd.indexOf(labelToExclude) < 0) {
                         found = ac;
-                        SkDebug.log('Diagnóstico', 'OK', '📍 MATCH! AC[' + i + '] same TD contém "' + labelToFind + '"');
+                        SkDebug.log('Diagnóstico', 'OK', ' MATCH! AC[' + i + '] same TD contém "' + labelToFind + '"');
                     }
                 }
                 // Se prevTd contém "navio" mas NÃO "feeder" → match
                 if (!found && prevTd.indexOf(labelToFind) >= 0) {
                     if (!labelToExclude || prevTd.indexOf(labelToExclude) < 0) {
                         found = ac;
-                        SkDebug.log('Diagnóstico', 'OK', '📍 MATCH! AC[' + i + '] prev TD contém "' + labelToFind + '"');
+                        SkDebug.log('Diagnóstico', 'OK', ' MATCH! AC[' + i + '] prev TD contém "' + labelToFind + '"');
                     }
                 }
             }
@@ -366,7 +366,7 @@ try {
 
         // ===== 1. NAVIO — Autocomplete =====
         if (!stopped()) {
-            SkDebug.log('Navio', 'EXEC', '🚢 ' + data.vessel);
+            SkDebug.log('Navio', 'EXEC', ' ' + data.vessel);
             var navioInput = null;
 
             // Seção embarque (pra validar memória)
@@ -398,9 +398,9 @@ try {
                         // SÓ USA se tá dentro da seção Embarque
                         if (memEl && embarqueSec && embarqueSec.contains(memEl)) {
                             navioInput = memEl;
-                            SkDebug.log('Navio', 'OK', '🧠 Memória válida: ' + navioSel);
+                            SkDebug.log('Navio', 'OK', ' Memória válida: ' + navioSel);
                         } else if (memEl) {
-                            SkDebug.log('Navio', 'FAIL', '🧠 Memória rejeitada (fora do Embarque): ' + navioSel);
+                            SkDebug.log('Navio', 'FAIL', ' Memória rejeitada (fora do Embarque): ' + navioSel);
                         }
                     }
                 } catch(e) {}
@@ -408,28 +408,28 @@ try {
 
             // TENTATIVA 3: Pede ajuda
             if (!navioInput) {
-                SkDebug.log('Navio', 'INFO', '🤔 Não achei. Clique no campo Navio!');
+                SkDebug.log('Navio', 'INFO', ' Não achei. Clique no campo Navio!');
                 navioInput = await askUserForField('Navio');
             }
 
             // PREENCHE com charByChar (PrimeNG precisa digitação gradual pro dropdown)
             if (navioInput) {
-                SkDebug.log('Navio', 'INFO', '⌨️ "' + data.vessel + '"...');
+                SkDebug.log('Navio', 'INFO', ' "' + data.vessel + '"...');
                 var r1 = await SkAgent.engine.charByChar(navioInput, data.vessel, { selectFirst: true, tabAfter: true });
                 if (r1.ok) {
-                    SkDebug.log('Navio', 'OK', '✅ ' + data.vessel + (r1.selected ? ' → ' + r1.selected : ''));
+                    SkDebug.log('Navio', 'OK', ' ' + data.vessel + (r1.selected ? ' → ' + r1.selected : ''));
                 } else {
-                    SkDebug.log('Navio', 'FAIL', '❌ ' + (r1.reason || 'Erro'));
+                    SkDebug.log('Navio', 'FAIL', ' ' + (r1.reason || 'Erro'));
                 }
             } else {
-                SkDebug.log('Navio', 'SKIP', '⏭️ Pulando');
+                SkDebug.log('Navio', 'SKIP', ' Pulando');
             }
             await SkAgent.delay(600);
         }
 
         // ===== 2. VIAGEM — #formularioEmbarque-dsViagem =====
         if (!stopped()) {
-            SkDebug.log('Viagem', 'EXEC', '🧭 ' + data.voyage);
+            SkDebug.log('Viagem', 'EXEC', ' ' + data.voyage);
             var viagemInput = document.querySelector('#formularioEmbarque-dsViagem');
             if (viagemInput) {
                 viagemInput.focus();
@@ -438,9 +438,9 @@ try {
                 viagemInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
                 viagemInput.dispatchEvent(new Event('blur', { bubbles: true }));
                 SkAgent.highlight(viagemInput);
-                SkDebug.log('Viagem', 'OK', '✅ ' + data.voyage);
+                SkDebug.log('Viagem', 'OK', ' ' + data.voyage);
             } else {
-                SkDebug.log('Viagem', 'FAIL', '❌ #formularioEmbarque-dsViagem não existe');
+                SkDebug.log('Viagem', 'FAIL', ' #formularioEmbarque-dsViagem não existe');
             }
             await SkAgent.delay(600);
         }
@@ -448,17 +448,17 @@ try {
         // ===== 3. PREVISÃO EMBARQUE — #formularioEmbarque-dtPrevisaoEmbarque =====
         if (!stopped()) {
             var embarqueDate = convertDate(data.departureDate);
-            SkDebug.log('Prev. Embarque', 'EXEC', '📅 ' + embarqueDate);
+            SkDebug.log('Prev. Embarque', 'EXEC', ' ' + embarqueDate);
             var embarqueInput = document.querySelector('#formularioEmbarque-dtPrevisaoEmbarque');
             if (embarqueInput) {
                 var r3 = await SkAgent.engine.charByChar(embarqueInput, embarqueDate, { selectFirst: false, tabAfter: true });
                 if (r3.ok) {
-                    SkDebug.log('Prev. Embarque', 'OK', '✅ ' + embarqueDate);
+                    SkDebug.log('Prev. Embarque', 'OK', ' ' + embarqueDate);
                 } else {
-                    SkDebug.log('Prev. Embarque', 'FAIL', '❌ ' + (r3.reason || 'Erro'));
+                    SkDebug.log('Prev. Embarque', 'FAIL', ' ' + (r3.reason || 'Erro'));
                 }
             } else {
-                SkDebug.log('Prev. Embarque', 'FAIL', '❌ #formularioEmbarque-dtPrevisaoEmbarque não existe');
+                SkDebug.log('Prev. Embarque', 'FAIL', ' #formularioEmbarque-dtPrevisaoEmbarque não existe');
             }
             await SkAgent.delay(600);
         }
@@ -466,35 +466,35 @@ try {
         // ===== 4. PREVISÃO ATRACAÇÃO — #formularioEmbarque-dtPrevisaoAtracacao =====
         if (!stopped()) {
             var etaDate = convertDate(data.arrivalDate);
-            SkDebug.log('Prev. Atracação', 'EXEC', '📅 ' + etaDate);
+            SkDebug.log('Prev. Atracação', 'EXEC', ' ' + etaDate);
             var etaInput = document.querySelector('#formularioEmbarque-dtPrevisaoAtracacao');
             if (etaInput) {
                 var r4 = await SkAgent.engine.charByChar(etaInput, etaDate, { selectFirst: false, tabAfter: true });
                 if (r4.ok) {
-                    SkDebug.log('Prev. Atracação', 'OK', '✅ ' + etaDate);
+                    SkDebug.log('Prev. Atracação', 'OK', ' ' + etaDate);
                 } else {
-                    SkDebug.log('Prev. Atracação', 'FAIL', '❌ ' + (r4.reason || 'Erro'));
+                    SkDebug.log('Prev. Atracação', 'FAIL', ' ' + (r4.reason || 'Erro'));
                 }
             } else {
-                SkDebug.log('Prev. Atracação', 'FAIL', '❌ #formularioEmbarque-dtPrevisaoAtracacao não existe');
+                SkDebug.log('Prev. Atracação', 'FAIL', ' #formularioEmbarque-dtPrevisaoAtracacao não existe');
             }
             await SkAgent.delay(600);
         }
 
         // ===== 5. TRANSBORDOS =====
         if (!stopped() && data.transshipments && data.transshipments.length > 0) {
-            SkDebug.log('Transbordos', 'INFO', '📦 ' + data.transshipments.length + ' transbordo(s):');
+            SkDebug.log('Transbordos', 'INFO', ' ' + data.transshipments.length + ' transbordo(s):');
             for (var t = 0; t < data.transshipments.length; t++) {
                 var ts = data.transshipments[t];
-                SkDebug.log('Transbordo ' + (t + 1), 'INFO', '📍 ' + ts.port + ' | ' + ts.vesselIn + ' → ' + ts.vesselOut + ' | ' + convertDate(ts.arrivalDate) + ' → ' + convertDate(ts.departureDate));
+                SkDebug.log('Transbordo ' + (t + 1), 'INFO', ' ' + ts.port + ' | ' + ts.vesselIn + ' → ' + ts.vesselOut + ' | ' + convertDate(ts.arrivalDate) + ' → ' + convertDate(ts.departureDate));
             }
-            showToast('📦 ' + data.transshipments.length + ' transbordo(s) detectado(s)', 'info', 5000);
+            showToast(' ' + data.transshipments.length + ' transbordo(s) detectado(s)', 'info', 5000);
         }
 
         // ===== 6. VERIFICAÇÃO + SELF-HEAL — Confere e corrige =====
         if (!stopped()) {
             await SkAgent.delay(800);
-            SkDebug.log('Verificação', 'EXEC', '🔎 Conferindo campos preenchidos...');
+            SkDebug.log('Verificação', 'EXEC', ' Conferindo campos preenchidos...');
 
             var checks = [
                 { label: 'Viagem', selector: '#formularioEmbarque-dsViagem', expected: data.voyage, strategy: 'native-set' },
@@ -510,9 +510,9 @@ try {
                 var val = chkEl ? (chkEl.value || '') : '';
 
                 if (val.length > 0) {
-                    SkDebug.log('Verificação', 'OK', '✅ ' + chk.label + ' = "' + val + '"');
+                    SkDebug.log('Verificação', 'OK', ' ' + chk.label + ' = "' + val + '"');
                 } else {
-                    SkDebug.log('Verificação', 'FAIL', '❌ ' + chk.label + ' VAZIO! Tentando corrigir...');
+                    SkDebug.log('Verificação', 'FAIL', ' ' + chk.label + ' VAZIO! Tentando corrigir...');
                     allOk = false;
 
                     // Self-heal: pede ao usuário
@@ -530,23 +530,23 @@ try {
                         await SkAgent.delay(500);
                         var newVal = healEl.value || '';
                         if (newVal.length > 0) {
-                            SkDebug.log('Verificação', 'OK', '🔧 ' + chk.label + ' corrigido! = "' + newVal + '"');
+                            SkDebug.log('Verificação', 'OK', ' ' + chk.label + ' corrigido! = "' + newVal + '"');
                         } else {
-                            SkDebug.log('Verificação', 'FAIL', '❌ ' + chk.label + ' ainda vazio após correção');
+                            SkDebug.log('Verificação', 'FAIL', ' ' + chk.label + ' ainda vazio após correção');
                         }
                     }
                 }
             }
 
             if (allOk) {
-                SkDebug.log('Verificação', 'OK', '✅ Todos campos conferidos!');
+                SkDebug.log('Verificação', 'OK', ' Todos campos conferidos!');
             }
         }
 
         // ===== 7. ATUALIZAR — Clica no botão Atualizar pra salvar =====
         if (!stopped()) {
             await SkAgent.delay(500);
-            SkDebug.log('Atualizar', 'EXEC', '💾 Clicando em Atualizar...');
+            SkDebug.log('Atualizar', 'EXEC', ' Clicando em Atualizar...');
 
             // Acha o botão Atualizar na SEÇÃO de Embarque (não outro Atualizar da página)
             var atualizarBtn = null;
@@ -580,7 +580,7 @@ try {
             }
 
             if (atualizarBtn) {
-                SkDebug.log('Atualizar', 'INFO', '📍 Botão: ' + atualizarBtn.tagName + ' type=' + (atualizarBtn.type || '?'));
+                SkDebug.log('Atualizar', 'INFO', ' Botão: ' + atualizarBtn.tagName + ' type=' + (atualizarBtn.type || '?'));
                 atualizarBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
                 await SkAgent.delay(800);
 
@@ -592,19 +592,19 @@ try {
                 var parentForm = atualizarBtn.closest('form');
                 if (parentForm) {
                     parentForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-                    SkDebug.log('Atualizar', 'INFO', '📤 Form submit disparado');
+                    SkDebug.log('Atualizar', 'INFO', ' Form submit disparado');
                 }
 
                 SkAgent.highlight(atualizarBtn);
-                SkDebug.log('Atualizar', 'OK', '✅ Clicado + submit!');
+                SkDebug.log('Atualizar', 'OK', ' Clicado + submit!');
                 await SkAgent.delay(3000); // espera resposta do servidor
             } else {
-                SkDebug.log('Atualizar', 'FAIL', '❌ Botão Atualizar não encontrado');
+                SkDebug.log('Atualizar', 'FAIL', ' Botão Atualizar não encontrado');
             }
         }
 
         if (!window.skTrackingStop) {
-            SkDebug.log('Tracking', 'OK', '🏁 Concluído! Preencher → Verificar → Atualizar ✅');
+            SkDebug.log('Tracking', 'OK', ' Concluído! Preencher → Verificar → Atualizar ');
         }
 
         // Esconde botão parar
@@ -666,7 +666,7 @@ try {
                     pdfs.push(files[f]);
                 } else if (files[f].name.toLowerCase().endsWith('.zip') || files[f].type === 'application/zip' || files[f].type === 'application/x-zip-compressed') {
                     // Extrai PDFs do ZIP
-                    updateStatus('📦 Extraindo ZIP...');
+                    updateStatus(' Extraindo ZIP...');
                     try {
                         var extracted = await extractPdfsFromZip(files[f]);
                         pdfs = pdfs.concat(extracted);
@@ -696,7 +696,7 @@ try {
 
         var pickBtn = document.createElement('div');
         pickBtn.style.cssText = 'text-align:center;cursor:pointer;padding:6px;background:rgba(52,152,219,0.2);border-radius:8px;font-size:11px;color:#aac0ff;margin-top:-5px;transition:all 0.3s;';
-        pickBtn.innerHTML = '📁 <span style="font-weight:600;">Selecionar PDFs</span>';
+        pickBtn.innerHTML = ' <span style="font-weight:600;">Selecionar PDFs</span>';
         pickBtn.onmouseover = function() { pickBtn.style.background = 'rgba(52,152,219,0.4)'; };
         pickBtn.onmouseout = function() { pickBtn.style.background = 'rgba(52,152,219,0.2)'; };
         pickBtn.onclick = function() { filePickerInput.click(); };
@@ -846,10 +846,10 @@ try {
     // ========================================================================
 
     async function processBatchFlow(pdfFiles) {
-        updateStatus('📦 Batch: ' + pdfFiles.length + ' PDFs');
+        updateStatus(' Batch: ' + pdfFiles.length + ' PDFs');
         SkDebug.clear();
         SkDebug.show();
-        SkDebug.log('Batch', 'EXEC', '📦 Modo batch: ' + pdfFiles.length + ' PDFs recebidos');
+        SkDebug.log('Batch', 'EXEC', ' Modo batch: ' + pdfFiles.length + ' PDFs recebidos');
 
         try {
             // 1. Lê e classifica todos os PDFs
@@ -891,7 +891,7 @@ try {
                     var usdValor = usdMatch ? usdMatch[1].replace(/[^\d.,]/g, '') : '';
 
                     contratos.push({ file: file, text: pdfText, fields: fields, foreignCo: foreignCo, usdValor: usdValor, name: file.name });
-                    SkDebug.log('Batch', 'INFO', '📄 Contrato: ' + file.name + ' (n:' + (fields.numeroContrato || '?') + ' co:' + (foreignCo.substring(0,30) || '?') + ' usd:' + (usdValor || '?') + ')');
+                    SkDebug.log('Batch', 'INFO', ' Contrato: ' + file.name + ' (n:' + (fields.numeroContrato || '?') + ' co:' + (foreignCo.substring(0,30) || '?') + ' usd:' + (usdValor || '?') + ')');
                 } else {
                     // Swift — extrai Creditor Name e Amount
                     var swiftAmount = '';
@@ -903,7 +903,7 @@ try {
                     if (credMatch) swiftCreditor = credMatch[1].trim();
 
                     swifts.push({ file: file, text: pdfText, valor: swiftAmount, creditor: swiftCreditor, name: file.name });
-                    SkDebug.log('Batch', 'INFO', '📋 Swift: ' + file.name + ' (usd:' + swiftAmount + ' creditor:' + (swiftCreditor.substring(0,30) || '?') + ')');
+                    SkDebug.log('Batch', 'INFO', ' Swift: ' + file.name + ' (usd:' + swiftAmount + ' creditor:' + (swiftCreditor.substring(0,30) || '?') + ')');
                 }
             }
 
@@ -946,7 +946,7 @@ try {
                 }
 
                 pairs.push({ contrato: ct, swift: matchedSwift });
-                SkDebug.log('Batch', 'INFO', '🔗 Par ' + (c+1) + ': ' + ct.name + (matchedSwift ? ' + ' + matchedSwift.name + ' (' + matchReason + ')' : ' (sem par)'));
+                SkDebug.log('Batch', 'INFO', ' Par ' + (c+1) + ': ' + ct.name + (matchedSwift ? ' + ' + matchedSwift.name + ' (' + matchReason + ')' : ' (sem par)'));
             }
 
             // Fallback: pareia restantes por ordem
@@ -954,17 +954,17 @@ try {
             var unmatchedS = swifts.filter(function(s) { return !s.matched; });
             if (unmatchedC.length > 0 && unmatchedS.length > 0) {
                 var fbCount = Math.min(unmatchedC.length, unmatchedS.length);
-                SkDebug.log('Batch', 'INFO', '🔄 Fallback por ordem: ' + fbCount + ' pares');
+                SkDebug.log('Batch', 'INFO', ' Fallback por ordem: ' + fbCount + ' pares');
                 for (var fb = 0; fb < fbCount; fb++) {
                     unmatchedC[fb].swift = unmatchedS[fb];
                     unmatchedS[fb].matched = true;
-                    SkDebug.log('Batch', 'INFO', '🔗 Fallback: ' + unmatchedC[fb].contrato.name + ' + ' + unmatchedS[fb].name);
+                    SkDebug.log('Batch', 'INFO', ' Fallback: ' + unmatchedC[fb].contrato.name + ' + ' + unmatchedS[fb].name);
                 }
             }
 
             for (var s2 = 0; s2 < swifts.length; s2++) {
                 if (!swifts[s2].matched) {
-                    SkDebug.log('Batch', 'INFO', '⚠️ Swift sem par: ' + swifts[s2].name);
+                    SkDebug.log('Batch', 'INFO', ' Swift sem par: ' + swifts[s2].name);
                 }
             }
 
@@ -972,10 +972,10 @@ try {
             var results = [];
 
             for (var pi = 0; pi < pairs.length; pi++) {
-                if (window.skStopActive) { SkDebug.log('Batch', 'INFO', '⛔ Batch abortado pelo usuário'); break; }
+                if (window.skStopActive) { SkDebug.log('Batch', 'INFO', ' Batch abortado pelo usuário'); break; }
 
                 var pair = pairs[pi];
-                updateStatus('📦 Batch ' + (pi+1) + '/' + pairs.length + ': ' + (pair.contrato.fields.numeroContrato || pair.contrato.name));
+                updateStatus(' Batch ' + (pi+1) + '/' + pairs.length + ': ' + (pair.contrato.fields.numeroContrato || pair.contrato.name));
                 SkDebug.log('Batch', 'EXEC', '=== Processando par ' + (pi+1) + '/' + pairs.length + ' ===');
 
                 // Navega pro agente CORRETO na sidebar (match por nome da empresa)
@@ -990,7 +990,7 @@ try {
                 if (agentName) {
                     var navigated = await navigateToAgent(agentName, pi === 0);
                     if (!navigated && pi > 0) {
-                        SkDebug.log('Batch', 'FAIL', '❌ Não encontrou agente "' + agentName.substring(0,30) + '" na sidebar');
+                        SkDebug.log('Batch', 'FAIL', ' Não encontrou agente "' + agentName.substring(0,30) + '" na sidebar');
                         results.push({ num: pair.contrato.fields.numeroContrato || pair.contrato.name, status: 'FAIL', reason: 'Agente não encontrado: ' + agentName.substring(0,30) });
                         continue;
                     }
@@ -1030,17 +1030,17 @@ try {
                     results.push({ num: pair.contrato.fields.numeroContrato || pair.contrato.name, status: okCount === runResults.length ? 'OK' : 'PARTIAL', ok: okCount, total: runResults.length });
 
                 } catch (err) {
-                    SkDebug.log('Batch', 'FAIL', '❌ Erro no par ' + (pi+1) + ': ' + err.message);
+                    SkDebug.log('Batch', 'FAIL', ' Erro no par ' + (pi+1) + ': ' + err.message);
                     results.push({ num: pair.contrato.fields.numeroContrato || pair.contrato.name, status: 'FAIL', reason: err.message });
                 }
             }
 
             // 4. Resumo final
             var okTotal = results.filter(function(r) { return r.status === 'OK'; }).length;
-            var summary = '📦 Batch: ' + okTotal + '/' + results.length + ' fechamentos OK';
+            var summary = ' Batch: ' + okTotal + '/' + results.length + ' fechamentos OK';
             SkDebug.log('Batch', okTotal === results.length ? 'OK' : 'FAIL', summary);
             results.forEach(function(r, i) {
-                var icon = r.status === 'OK' ? '✅' : r.status === 'PARTIAL' ? '⚠️' : '❌';
+                var icon = r.status === 'OK' ? '' : r.status === 'PARTIAL' ? '' : '';
                 SkDebug.log('Batch', 'INFO', icon + ' #' + (r.num || (i+1)) + ': ' + r.status + (r.ok ? ' (' + r.ok + '/' + r.total + ')' : '') + (r.reason ? ' — ' + r.reason : ''));
             });
 
@@ -1067,7 +1067,7 @@ try {
             return w.length > 2 && ['THE', 'AND', 'LTD', 'INC', 'LLC', 'CO.', 'ADDRESS', 'ROOM'].indexOf(w) < 0;
         });
 
-        SkDebug.log('Batch', 'INFO', '🔍 Buscando agente: ' + agentName.substring(0, 40) + ' (palavras: ' + agentWords.join(', ') + ')');
+        SkDebug.log('Batch', 'INFO', ' Buscando agente: ' + agentName.substring(0, 40) + ' (palavras: ' + agentWords.join(', ') + ')');
 
         var bestMatch = null;
         var bestScore = 0;
@@ -1090,19 +1090,19 @@ try {
         if (bestScore >= 2) {
             // Verifica se já está na row correta (highlighted)
             if (bestMatch.classList.contains('ui-state-highlight') || bestMatch.classList.contains('ui-state-active')) {
-                SkDebug.log('Batch', 'OK', '✅ Já está no agente correto (row ' + bestIdx + ', score ' + bestScore + ')');
+                SkDebug.log('Batch', 'OK', ' Já está no agente correto (row ' + bestIdx + ', score ' + bestScore + ')');
                 return true;
             }
-            SkDebug.log('Batch', 'INFO', '➡️ Clicando no agente (row ' + bestIdx + ', score ' + bestScore + '): ' + bestMatch.textContent.trim().substring(0, 50));
+            SkDebug.log('Batch', 'INFO', '➡ Clicando no agente (row ' + bestIdx + ', score ' + bestScore + '): ' + bestMatch.textContent.trim().substring(0, 50));
             bestMatch.click();
             await delay(3000); // Espera o formulário carregar
             return true;
         } else if (isFirst) {
             // No primeiro item, assume que já está na tela certa
-            SkDebug.log('Batch', 'INFO', '⚠️ Não encontrou match forte (score=' + bestScore + '), mas é o primeiro — assume tela atual');
+            SkDebug.log('Batch', 'INFO', ' Não encontrou match forte (score=' + bestScore + '), mas é o primeiro — assume tela atual');
             return true;
         } else {
-            SkDebug.log('Batch', 'FAIL', '❌ Nenhum match na sidebar (melhor score=' + bestScore + ')');
+            SkDebug.log('Batch', 'FAIL', ' Nenhum match na sidebar (melhor score=' + bestScore + ')');
             return false;
         }
     }
@@ -1290,7 +1290,7 @@ try {
         // Cria botão ao lado do accordion "Controle de créditos"
         var btn = document.createElement('button');
         btn.className = 'sk-serasa-btn';
-        btn.innerHTML = '📊 Analisar Serasa';
+        btn.innerHTML = ' Analisar Serasa';
         btn.style.cssText = 'margin:5px 0 5px 10px;padding:6px 14px;background:linear-gradient(135deg,#1565C0,#42A5F5);color:white;border:none;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;box-shadow:0 2px 6px rgba(0,0,0,0.2);';
         btn.title = 'Lê o PDF Serasa e preenche Score + Limite no Controle de Créditos';
         btn.addEventListener('click', function(e) {
@@ -1299,12 +1299,12 @@ try {
             startSerasaAnalysis();
         });
         creditoHeader.parentElement.insertBefore(btn, creditoHeader);
-        SkDebug.log('Serasa', 'OK', '📊 Botão injetado (perto de Controle de Créditos)');
+        SkDebug.log('Serasa', 'OK', ' Botão injetado (perto de Controle de Créditos)');
     }
 
     async function startSerasaAnalysis() {
-        SkDebug.log('Serasa', 'EXEC', '📊 Iniciando análise Serasa...');
-        showToast('📊 Analisando Serasa...', 'info', 5000);
+        SkDebug.log('Serasa', 'EXEC', ' Iniciando análise Serasa...');
+        showToast(' Analisando Serasa...', 'info', 5000);
 
         // 0. Abre accordion "Documentos" se fechado (Angular não renderiza conteúdo quando fechado)
         var docHeaderSpans = document.querySelectorAll('span.ui-accordion-header-text');
@@ -1314,7 +1314,7 @@ try {
             if (spanText === 'Documentos') {
                 // Clica no header (ou no <a> pai)
                 var clickable = docHeaderSpans[dh].closest('a, .ui-accordion-header') || docHeaderSpans[dh];
-                SkDebug.log('Serasa', 'INFO', '📂 Clicando em "Documentos" (' + clickable.tagName + ')...');
+                SkDebug.log('Serasa', 'INFO', ' Clicando em "Documentos" (' + clickable.tagName + ')...');
                 clickable.click();
                 docOpened = true;
                 await new Promise(function(resolve) { setTimeout(resolve, 2500); });
@@ -1322,7 +1322,7 @@ try {
             }
         }
         if (!docOpened) {
-            SkDebug.log('Serasa', 'FAIL', '❌ Accordion "Documentos" não encontrado. Spans: ' + 
+            SkDebug.log('Serasa', 'FAIL', ' Accordion "Documentos" não encontrado. Spans: ' + 
                 Array.from(docHeaderSpans).map(function(s) { return '"' + s.textContent.trim() + '"'; }).join(', '));
         }
 
@@ -1332,7 +1332,7 @@ try {
         for (var al = 0; al < allLinks.length; al++) {
             if (allLinks[al].href.toLowerCase().indexOf('serasa') >= 0) {
                 pdfUrl = allLinks[al].href;
-                SkDebug.log('Serasa', 'OK', '🔗 Link direto: ' + pdfUrl.substring(0, 80));
+                SkDebug.log('Serasa', 'OK', ' Link direto: ' + pdfUrl.substring(0, 80));
                 break;
             }
         }
@@ -1340,13 +1340,13 @@ try {
         // 2. Fallback: busca row na grid com "Serasa" e pega o download icon
         if (!pdfUrl) {
             var docRows = document.querySelectorAll('tr');
-            SkDebug.log('Serasa', 'DEBUG', '🔍 ' + docRows.length + ' <tr> na página');
+            SkDebug.log('Serasa', 'DEBUG', ' ' + docRows.length + ' <tr> na página');
             var serasaRow = null;
             for (var r = 0; r < docRows.length; r++) {
                 var rowText = docRows[r].textContent;
                 if (rowText.indexOf('Serasa') >= 0 || rowText.indexOf('serasa') >= 0 || rowText.indexOf('SERASA') >= 0) {
                     serasaRow = docRows[r];
-                    SkDebug.log('Serasa', 'OK', '📄 Row[' + r + ']: ' + rowText.trim().substring(0, 80));
+                    SkDebug.log('Serasa', 'OK', ' Row[' + r + ']: ' + rowText.trim().substring(0, 80));
                     break;
                 }
             }
@@ -1357,7 +1357,7 @@ try {
                 var dlLink = dlIcon ? dlIcon.closest('a') : null;
                 if (dlLink && dlLink.href) {
                     pdfUrl = dlLink.href;
-                    SkDebug.log('Serasa', 'OK', '🔗 Link do ícone: ' + pdfUrl.substring(0, 80));
+                    SkDebug.log('Serasa', 'OK', ' Link do ícone: ' + pdfUrl.substring(0, 80));
                 } else {
                     // Tenta qualquer <a> com href na row
                     var rowLinks = serasaRow.querySelectorAll('a[href]');
@@ -1372,13 +1372,13 @@ try {
                         pdfUrl = rowLinks[0].href;
                     }
                     if (pdfUrl) {
-                        SkDebug.log('Serasa', 'OK', '🔗 Link fallback: ' + pdfUrl.substring(0, 80));
+                        SkDebug.log('Serasa', 'OK', ' Link fallback: ' + pdfUrl.substring(0, 80));
                     }
                     // NÃO clica aqui! O clique acontece via background (captureNewTabUrl)
                 }
             } else {
-                SkDebug.log('Serasa', 'FAIL', '❌ Nenhuma row com "Serasa" encontrada');
-                showToast('❌ PDF Serasa não encontrado na grid de Documentos', 'warning', 5000);
+                SkDebug.log('Serasa', 'FAIL', ' Nenhuma row com "Serasa" encontrada');
+                showToast(' PDF Serasa não encontrado na grid de Documentos', 'warning', 5000);
                 return;
             }
         }
@@ -1399,7 +1399,7 @@ try {
                 var dlBtn2 = dlIcon2 ? (dlIcon2.closest('button, a') || dlIcon2) : null;
                 if (dlBtn2) {
                     window._serasaDlBtn = dlBtn2;
-                    SkDebug.log('Serasa', 'INFO', '🔗 Capturando URL via background...');
+                    SkDebug.log('Serasa', 'INFO', ' Capturando URL via background...');
 
                     // Background: registra listener → manda clicar → captura URL → fecha aba
                     var urlResponse = await new Promise(function(resolve) {
@@ -1411,27 +1411,27 @@ try {
 
                     if (urlResponse && urlResponse.success && urlResponse.url) {
                         pdfUrl = urlResponse.url;
-                        SkDebug.log('Serasa', 'OK', '🔗 URL capturada: ' + pdfUrl.substring(0, 80));
+                        SkDebug.log('Serasa', 'OK', ' URL capturada: ' + pdfUrl.substring(0, 80));
                     } else {
-                        SkDebug.log('Serasa', 'FAIL', '❌ ' + (urlResponse ? urlResponse.error : 'sem resposta'));
-                        showToast('❌ Não consegui capturar URL do PDF', 'warning', 5000);
+                        SkDebug.log('Serasa', 'FAIL', ' ' + (urlResponse ? urlResponse.error : 'sem resposta'));
+                        showToast(' Não consegui capturar URL do PDF', 'warning', 5000);
                         return;
                     }
                 }
             }
             if (!pdfUrl) {
-                SkDebug.log('Serasa', 'FAIL', '❌ Nenhuma forma de acessar o PDF');
-                showToast('❌ Não consegui acessar o PDF Serasa', 'warning', 5000);
+                SkDebug.log('Serasa', 'FAIL', ' Nenhuma forma de acessar o PDF');
+                showToast(' Não consegui acessar o PDF Serasa', 'warning', 5000);
                 return;
             }
         }
 
         // Fetch local (content script tem os cookies do Skychart!)
         try {
-            SkDebug.log('Serasa', 'INFO', '📥 Baixando PDF (com cookies)...');
+            SkDebug.log('Serasa', 'INFO', ' Baixando PDF (com cookies)...');
             var resp = await fetch(pdfUrl, { credentials: 'include' });
             var blob = await resp.blob();
-            SkDebug.log('Serasa', 'INFO', '📥 Blob: ' + blob.size + ' bytes, tipo: ' + blob.type);
+            SkDebug.log('Serasa', 'INFO', ' Blob: ' + blob.size + ' bytes, tipo: ' + blob.type);
 
             var base64 = await new Promise(function(resolve) {
                 var reader = new FileReader();
@@ -1439,8 +1439,8 @@ try {
                 reader.readAsDataURL(blob);
             });
 
-            SkDebug.log('Serasa', 'OK', '📥 PDF: ' + Math.round(base64.length / 1024) + 'KB');
-            showToast('📊 Extraindo Score e Limite via regex...', 'info', 5000);
+            SkDebug.log('Serasa', 'OK', ' PDF: ' + Math.round(base64.length / 1024) + 'KB');
+            showToast(' Extraindo Score e Limite via regex...', 'info', 5000);
 
             // Decodifica base64 → Uint8Array pro pdf.js
             var binaryString = atob(base64);
@@ -1459,7 +1459,7 @@ try {
                 fullText += pageText + '\n';
             }
 
-            SkDebug.log('Serasa', 'INFO', '📄 Texto extraído: ' + fullText.substring(0, 200));
+            SkDebug.log('Serasa', 'INFO', ' Texto extraído: ' + fullText.substring(0, 200));
 
             // Regex: Score (ex: "Score 952 /1000" ou "Score 952")
             var scoreMatch = fullText.match(/Score\s+(\d{1,4})/i);
@@ -1471,7 +1471,7 @@ try {
             var limiteMatch = limiteSection.match(/(?:Total de\s*)?R\$\s*([\d.,]+)/i);
             var limiteCredito = limiteMatch ? limiteMatch[1] : null;
 
-            SkDebug.log('Serasa', 'OK', '📊 Score: ' + score + ' | Limite: R$ ' + limiteCredito);
+            SkDebug.log('Serasa', 'OK', ' Score: ' + score + ' | Limite: R$ ' + limiteCredito);
 
             var serasaData = null;
 
@@ -1484,8 +1484,8 @@ try {
                 serasaData = { score: score || 'N/A', limiteCredito: limiteCreditoNumero };
             } else {
                 // PDF é imagem — fallback pro Gemini
-                SkDebug.log('Serasa', 'INFO', '🤖 Texto vazio, usando Gemini como fallback...');
-                showToast('🤖 PDF é imagem, enviando pro Gemini...', 'info', 10000);
+                SkDebug.log('Serasa', 'INFO', ' Texto vazio, usando Gemini como fallback...');
+                showToast(' PDF é imagem, enviando pro Gemini...', 'info', 10000);
 
                 var geminiResponse = await new Promise(function(resolve) {
                     chrome.runtime.sendMessage(
@@ -1495,27 +1495,27 @@ try {
                 });
 
                 if (!geminiResponse || !geminiResponse.success) {
-                    SkDebug.log('Serasa', 'FAIL', '❌ Gemini: ' + (geminiResponse ? geminiResponse.error : 'sem resposta'));
-                    showToast('❌ Gemini não conseguiu extrair dados', 'warning', 5000);
+                    SkDebug.log('Serasa', 'FAIL', ' Gemini: ' + (geminiResponse ? geminiResponse.error : 'sem resposta'));
+                    showToast(' Gemini não conseguiu extrair dados', 'warning', 5000);
                     return;
                 }
 
                 serasaData = geminiResponse.result;
-                SkDebug.log('Serasa', 'OK', '🤖 Gemini: Score ' + serasaData.score + ' | Limite: R$ ' + serasaData.limiteCredito);
+                SkDebug.log('Serasa', 'OK', ' Gemini: Score ' + serasaData.score + ' | Limite: R$ ' + serasaData.limiteCredito);
             }
 
             await fillSerasaFields(serasaData);
 
         } catch (err) {
-            SkDebug.log('Serasa', 'FAIL', '❌ Erro: ' + err.message);
-            showToast('❌ Erro: ' + err.message, 'warning', 5000);
+            SkDebug.log('Serasa', 'FAIL', ' Erro: ' + err.message);
+            showToast(' Erro: ' + err.message, 'warning', 5000);
         }
     }
 
     // Listener pro background pedir pra clicar no download
     chrome.runtime.onMessage.addListener(function(msg) {
         if (msg.action === 'clickSerasaDownload' && window._serasaDlBtn) {
-            SkDebug.log('Serasa', 'INFO', '🖱️ Background pediu: clicando download...');
+            SkDebug.log('Serasa', 'INFO', ' Background pediu: clicando download...');
             window._serasaDlBtn.click();
         }
     });
@@ -1544,9 +1544,9 @@ try {
             vlSerasa.dispatchEvent(new Event('input', { bubbles: true }));
             vlSerasa.dispatchEvent(new Event('change', { bubbles: true }));
             vlSerasa.dispatchEvent(new Event('blur', { bubbles: true }));
-            SkDebug.log('Serasa', 'OK', '💰 Valor Serasa: ' + limite);
+            SkDebug.log('Serasa', 'OK', ' Valor Serasa: ' + limite);
         } else {
-            SkDebug.log('Serasa', 'FAIL', '❌ #vlSerasa não encontrado');
+            SkDebug.log('Serasa', 'FAIL', ' #vlSerasa não encontrado');
         }
 
         // #dsObservacao (TEXTAREA — nativeSet usa HTMLInputElement, precisa de HTMLTextAreaElement)
@@ -1564,9 +1564,9 @@ try {
             dsObs.dispatchEvent(new Event('input', { bubbles: true }));
             dsObs.dispatchEvent(new Event('change', { bubbles: true }));
             dsObs.dispatchEvent(new Event('blur', { bubbles: true }));
-            SkDebug.log('Serasa', 'OK', '📝 Observação preenchida');
+            SkDebug.log('Serasa', 'OK', ' Observação preenchida');
         } else {
-            SkDebug.log('Serasa', 'FAIL', '❌ #dsObservacao não encontrado');
+            SkDebug.log('Serasa', 'FAIL', ' #dsObservacao não encontrado');
         }
 
         // Clica Atualizar
@@ -1578,13 +1578,13 @@ try {
                 atzBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
                 await new Promise(function(resolve) { setTimeout(resolve, 500); });
                 atzBtn.click();
-                SkDebug.log('Serasa', 'OK', '💾 Atualizar clicado');
+                SkDebug.log('Serasa', 'OK', ' Atualizar clicado');
                 break;
             }
         }
 
-        showToast('✅ Serasa: Score ' + serasaData.score + ' | Limite R$ ' + Number(serasaData.limiteCredito || 0).toLocaleString('pt-BR'), 'success', 8000);
-        SkDebug.log('Serasa', 'OK', '🏁 Concluído!');
+        showToast(' Serasa: Score ' + serasaData.score + ' | Limite R$ ' + Number(serasaData.limiteCredito || 0).toLocaleString('pt-BR'), 'success', 8000);
+        SkDebug.log('Serasa', 'OK', ' Concluído!');
 
         // Salva no chrome.storage pra badge instantâneo na próxima visita
         try {
@@ -1599,7 +1599,7 @@ try {
                     data: new Date().toISOString()
                 };
                 chrome.storage.local.set(saveData);
-                SkDebug.log('Serasa', 'OK', '💾 Score salvo: ' + storageKey);
+                SkDebug.log('Serasa', 'OK', ' Score salvo: ' + storageKey);
             }
         } catch(e) { /* ignora erro de storage */ }
 
@@ -1664,11 +1664,11 @@ try {
 
         var color, bg, emoji;
         if (score >= 700) {
-            color = '#10b981'; bg = 'rgba(16, 185, 129, 0.15)'; emoji = '🟢';
+            color = '#10b981'; bg = 'rgba(16, 185, 129, 0.15)'; emoji = '';
         } else if (score >= 400) {
-            color = '#f59e0b'; bg = 'rgba(245, 158, 11, 0.15)'; emoji = '🟡';
+            color = '#f59e0b'; bg = 'rgba(245, 158, 11, 0.15)'; emoji = '';
         } else {
-            color = '#ef4444'; bg = 'rgba(239, 68, 68, 0.15)'; emoji = '🔴';
+            color = '#ef4444'; bg = 'rgba(239, 68, 68, 0.15)'; emoji = '';
         }
 
         var badge = document.createElement('span');
@@ -1690,7 +1690,7 @@ try {
             tituloDiv.appendChild(badge);
         }
 
-        SkDebug.log('Serasa', 'OK', '🏷️ Badge Score ' + score + ' injetado');
+        SkDebug.log('Serasa', 'OK', ' Badge Score ' + score + ' injetado');
     }
 
     // ========================================================================
@@ -1738,27 +1738,27 @@ try {
         if (_freightAnalyzing) return;
         _freightAnalyzing = true;
 
-        SkDebug.log('Frete', 'INFO', '📊 Analisando ' + processoId + '...');
+        SkDebug.log('Frete', 'INFO', ' Analisando ' + processoId + '...');
 
         chrome.runtime.sendMessage(
             { action: 'analyzeFreight', processoId: processoId },
             function(response) {
                 _freightAnalyzing = false;
                 if (!response || !response.success) {
-                    SkDebug.log('Frete', 'FAIL', '❌ ' + (response ? response.error : 'sem resposta'));
+                    SkDebug.log('Frete', 'FAIL', ' ' + (response ? response.error : 'sem resposta'));
                     return;
                 }
                 var result = response.result;
                 if (!result.found) {
-                    SkDebug.log('Frete', 'INFO', '⚠️ Processo não encontrado na API');
+                    SkDebug.log('Frete', 'INFO', ' Processo não encontrado na API');
                     return;
                 }
                 if (!result.applicable) {
-                    SkDebug.log('Frete', 'INFO', '⚠️ ' + result.reason);
+                    SkDebug.log('Frete', 'INFO', ' ' + result.reason);
                     return;
                 }
                 if (result.noFreight) {
-                    SkDebug.log('Frete', 'INFO', '⚠️ Sem custo de frete marítimo');
+                    SkDebug.log('Frete', 'INFO', ' Sem custo de frete marítimo');
                     return;
                 }
                 injectFreightPanel(result);
@@ -1772,22 +1772,22 @@ try {
         var color, bg, border, icon, statusText;
         if (data.status === 'otimizado') {
             color = '#10b981'; bg = '#0f2a1f'; border = 'rgba(16,185,129,0.5)';
-            icon = '✅'; statusText = 'Frete Otimizado';
+            statusText = 'Frete Otimizado';
         } else if (data.status === 'acima') {
             color = '#ef4444'; bg = '#2a0f0f'; border = 'rgba(239,68,68,0.5)';
-            icon = '🔴'; statusText = 'Acima do Mercado';
+            statusText = 'Acima do Mercado';
         } else {
             color = '#f59e0b'; bg = '#2a1f0f'; border = 'rgba(245,158,11,0.5)';
-            icon = '⚠️'; statusText = 'Sem Tarifa de Referência';
+            statusText = 'Sem Tarifa de Referência';
         }
 
         var fretePago = data.fretePago ? 'US$ ' + data.fretePago.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : 'N/A';
         var melhorTarifa = data.melhorTarifa ? 'US$ ' + data.melhorTarifa.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : 'N/A';
         var diferenca = (typeof data.diferenca === 'number') ? 'US$ ' + Math.abs(data.diferenca).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
 
-        var html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
-        html += '<span style="font-size:18px;">' + icon + '</span>';
-        html += '<strong style="font-size:14px;color:' + color + ';">' + statusText + '</strong>';
+        var html = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">';
+        html += '<span style="width:10px;height:10px;border-radius:50%;background:' + color + ';flex-shrink:0;box-shadow:0 0 8px ' + color + ';"></span>';
+        html += '<strong style="font-size:14px;color:' + color + ';letter-spacing:-0.3px;">' + statusText + '</strong>';
         html += '</div>';
 
         html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px;color:#ccc;">';
@@ -1830,7 +1830,7 @@ try {
         // Botão "Alertar Pricing" (só aparece se acima do mercado)
         if (data.status === 'acima') {
             var alertBtn = document.createElement('button');
-            alertBtn.textContent = '📧 Alertar Pricing';
+            alertBtn.textContent = 'Alertar Pricing';
             alertBtn.style.cssText = 'display:block;width:100%;margin-top:10px;padding:8px 12px;' +
                 'background:#ef4444;color:#fff;border:none;border-radius:8px;cursor:pointer;' +
                 'font-size:12px;font-weight:600;transition:background 0.2s;';
@@ -1839,25 +1839,25 @@ try {
             alertBtn.onclick = function() {
                 chrome.storage.local.get('pricingEmail', function(stored) {
                     var pricingEmail = stored.pricingEmail || 'paulo.zanella@mondshipping.com.br';
-                    var subject = encodeURIComponent('⚠️ Alerta Frete: ' + data.processoId + ' - ' + data.origem + ' → ' + data.destino);
+                    var subject = encodeURIComponent('[Atom] Alerta Frete: ' + data.processoId + ' - ' + data.origem + ' > ' + data.destino);
                     var body = encodeURIComponent(
-                        'Olá,\n\n' +
-                        'O processo ' + data.processoId + ' está com frete acima do mercado.\n\n' +
-                        '📍 Rota: ' + data.origem + ' → ' + data.destino + '\n' +
-                        '📦 Container: ' + data.tipoContainer + ' (' + data.numContainers + 'x)\n' +
-                        '🚢 Armador atual: ' + data.armador + '\n' +
-                        '💰 Frete pago/cntr: ' + fretePago + '\n' +
-                        '✅ Melhor tarifa: ' + melhorTarifa + ' (' + (data.melhorArmador || 'N/A') + ' via ' + (data.melhorAgente || 'N/A') + ')\n' +
-                        '📊 Diferença: +' + diferenca + ' por container\n' +
-                        '📅 Validade: ' + (data.validade || 'N/A') + '\n\n' +
-                        'Enviado automaticamente pela extensão Skychart AI.'
+                        'Ol\u00e1,\n\n' +
+                        'O processo ' + data.processoId + ' est\u00e1 com frete acima do mercado.\n\n' +
+                        'Rota: ' + data.origem + ' > ' + data.destino + '\n' +
+                        'Container: ' + data.tipoContainer + ' (' + data.numContainers + 'x)\n' +
+                        'Armador atual: ' + data.armador + '\n' +
+                        'Frete pago/cntr: ' + fretePago + '\n' +
+                        'Melhor tarifa: ' + melhorTarifa + ' (' + (data.melhorArmador || 'N/A') + ' via ' + (data.melhorAgente || 'N/A') + ')\n' +
+                        'Diferenca: +' + diferenca + ' por container\n' +
+                        'Validade: ' + (data.validade || 'N/A') + '\n\n' +
+                        'Enviado automaticamente por Atom - Mond Shipping.'
                     );
                     window.open('mailto:' + pricingEmail + '?subject=' + subject + '&body=' + body);
                 });
-                alertBtn.textContent = '✅ E-mail aberto!';
+                alertBtn.textContent = 'E-mail aberto';
                 alertBtn.style.background = '#10b981';
                 setTimeout(function() {
-                    alertBtn.textContent = '📧 Alertar Pricing';
+                    alertBtn.textContent = 'Alertar Pricing';
                     alertBtn.style.background = '#ef4444';
                 }, 3000);
             };
@@ -1872,7 +1872,7 @@ try {
         panel.appendChild(closeBtn);
 
         document.body.appendChild(panel);
-        SkDebug.log('Frete', 'OK', '📊 Painel: ' + data.status + ' | Pago: ' + fretePago + ' | Melhor: ' + melhorTarifa);
+        SkDebug.log('Frete', 'OK', 'Painel: ' + data.status + ' | Pago: ' + fretePago + ' | Melhor: ' + melhorTarifa);
     }
 
     // ========================================================================

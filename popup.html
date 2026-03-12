@@ -36,12 +36,11 @@
     }
     .atom-icon {
       width: 32px; height: 32px;
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
       border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px;
+      overflow: hidden;
       box-shadow: 0 4px 12px rgba(99,102,241,0.3);
     }
+    .atom-icon img { width: 100%; height: 100%; object-fit: cover; }
     .brand-text h1 {
       font-size: 18px;
       font-weight: 700;
@@ -119,7 +118,9 @@
       width: 28px; height: 28px;
       border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.8);
       flex-shrink: 0;
     }
     .agent-icon.cambio { background: rgba(59,130,246,0.15); }
@@ -221,7 +222,7 @@
   <!-- Header -->
   <div class="header">
     <div class="brand">
-      <div class="atom-icon">⚛</div>
+      <div class="atom-icon"><img src="icon48.png" alt="Atom"></div>
       <div class="brand-text">
         <h1>Atom</h1>
         <div class="subtitle">Multiagentes &bull; Mond Shipping</div>
@@ -238,28 +239,28 @@
     <div class="section-label">Agentes</div>
     <div class="agents-grid">
       <div class="agent-card">
-        <div class="agent-icon cambio">📄</div>
+        <div class="agent-icon cambio">C</div>
         <div>
           <div class="agent-name">Câmbio</div>
           <div class="agent-desc">Extração de PDF</div>
         </div>
       </div>
       <div class="agent-card">
-        <div class="agent-icon serasa">🔍</div>
+        <div class="agent-icon serasa">S</div>
         <div>
           <div class="agent-name">Serasa</div>
           <div class="agent-desc">Score & crédito</div>
         </div>
       </div>
       <div class="agent-card">
-        <div class="agent-icon frete">🚢</div>
+        <div class="agent-icon frete">F</div>
         <div>
           <div class="agent-name">Frete</div>
           <div class="agent-desc">Análise de mercado</div>
         </div>
       </div>
       <div class="agent-card">
-        <div class="agent-icon tracking">📦</div>
+        <div class="agent-icon tracking">T</div>
         <div>
           <div class="agent-name">Tracking</div>
           <div class="agent-desc">Rastreio Maersk</div>
@@ -271,13 +272,13 @@
   <!-- Settings -->
   <div class="settings">
     <div class="settings-card">
-      <div class="section-label">⚙️ Configurações</div>
+      <div class="section-label">Configurações</div>
       <div class="input-group">
         <label>E-mail de alerta (Pricing)</label>
         <input type="email" id="pricing-email" placeholder="email@mondshipping.com.br">
       </div>
       <button class="btn-save" id="save-btn">Salvar</button>
-      <div class="saved-msg" id="saved-msg">✅ Configuração salva</div>
+      <div class="saved-msg" id="saved-msg">Configuração salva</div>
     </div>
   </div>
 
@@ -304,7 +305,7 @@
       }
       chrome.storage.local.set({ pricingEmail: email }, function() {
         savedMsg.style.display = 'block';
-        saveBtn.textContent = '✅ Salvo!';
+        saveBtn.textContent = 'Salvo!';
         saveBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
         setTimeout(function() {
           savedMsg.style.display = 'none';
