@@ -74,7 +74,6 @@
             // Qualquer click real habilita o botao
             // Usamos chrome.debugger via background pra click com isTrusted=true
             setTimeout(function() {
-                // Pega coordenadas do checkbox "Lembrar meu login" pra clicar
                 var checkbox = document.getElementById('mat-mdc-checkbox-1-input');
                 if (!checkbox) checkbox = document.querySelector('input[type="checkbox"]');
                 
@@ -90,7 +89,6 @@
                         action: 'serasaRealClick',
                         x: x, y: y
                     }, function() {
-                        // Agora clica no Acessar
                         setTimeout(function() {
                             var acessarBtn = document.getElementById('btn-acessar');
                             if (acessarBtn) {
@@ -104,6 +102,26 @@
                                     x: bx, y: by
                                 });
                             }
+                            
+                            // Serasa é SPA — apos login, navega via Angular (sem recarregar)
+                            // Content script NAO re-injeta. Monitora URL pra rodar consulta.
+                            console.log('[Atom Serasa] Monitorando URL pra detectar navegacao SPA...');
+                            var urlChecks = 0;
+                            var urlWatcher = setInterval(function() {
+                                urlChecks++;
+                                var currentUrl = location.href;
+                                if (currentUrl.indexOf('/login') < 0) {
+                                    clearInterval(urlWatcher);
+                                    console.log('[Atom Serasa] SPA navegou pra:', currentUrl);
+                                    setTimeout(function() {
+                                        handleConsultaPage();
+                                    }, 2000);
+                                }
+                                if (urlChecks > 60) { // 30 segundos
+                                    clearInterval(urlWatcher);
+                                    console.log('[Atom Serasa] Timeout esperando navegacao SPA');
+                                }
+                            }, 500);
                         }, 1000);
                     });
                 } else {
