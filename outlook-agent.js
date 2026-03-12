@@ -185,7 +185,8 @@
             ['Mercadoria', data.mercadoria, false],
             ['NCM', data.ncm, false],
             ['Peso Bruto (KG)', data.peso_bruto, false],
-            ['Valor Mercadoria', data.valor_mercadoria, false]
+            ['Valor Mercadoria', data.valor_mercadoria, false],
+            ['Tipo Operacao', data.modal_tipo, true]
         ];
 
         fields.forEach(function(f) {

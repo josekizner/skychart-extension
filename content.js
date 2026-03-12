@@ -99,12 +99,12 @@ try {
                 clienteInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'ArrowDown' }));
 
                 // Espera o dropdown aparecer (polling igual smart-agent.js)
-                waitAndSelectClient(0, clienteInput);
+                waitAndSelectClient(0, clienteInput, quote);
             }
         }, 60);
     }
 
-    function waitAndSelectClient(attempt, input) {
+    function waitAndSelectClient(attempt, input, quote) {
         if (attempt >= 25) {
             console.log('[Atom Oferta] Autocomplete nao abriu apos', attempt, 'tentativas');
             showToast('Dropdown de clientes nao apareceu. Selecione manualmente.', 'warning', 5000);
@@ -119,18 +119,16 @@ try {
                     if (items.length > 0) {
                         items[0].click();
                         console.log('[Atom Oferta] Cliente selecionado:', items[0].textContent.trim());
-                        // Clica em Nova oferta
-                        setTimeout(clickNovaOferta, 1000);
+                        setTimeout(function() { clickNovaOferta(quote); }, 1000);
                         return;
                     }
                 }
             }
-            waitAndSelectClient(attempt + 1, input);
+            waitAndSelectClient(attempt + 1, input, quote);
         }, 600);
     }
 
-    function clickNovaOferta() {
-        // Procura botao "Nova oferta" 
+    function clickNovaOferta(quote) {
         var buttons = document.querySelectorAll('button, .ui-button');
         var novaOfertaBtn = null;
 
@@ -145,11 +143,51 @@ try {
         if (novaOfertaBtn) {
             console.log('[Atom Oferta] Clicando em Nova oferta...');
             novaOfertaBtn.click();
-            showToast('Oferta criada! Preencha os detalhes.', 'success', 5000);
+            
+            // Espera modal de selecao de produto aparecer
+            if (quote && quote.modal_tipo) {
+                console.log('[Atom Oferta] Esperando modal pra selecionar:', quote.modal_tipo);
+                setTimeout(function() { selectModalTipo(quote.modal_tipo, 0); }, 1000);
+            }
         } else {
             console.log('[Atom Oferta] Botao Nova oferta nao encontrado');
             showToast('Botao "Nova oferta" nao encontrado.', 'warning', 5000);
         }
+    }
+
+    function selectModalTipo(modalTipo, attempt) {
+        if (attempt >= 15) {
+            console.log('[Atom Oferta] Modal de produto nao apareceu');
+            showToast('Selecione o tipo de produto manualmente.', 'warning', 5000);
+            return;
+        }
+
+        // Normaliza pra comparacao (remove acentos)
+        function normalize(str) {
+            return (str || '').toLowerCase()
+                .replace(/ã/g, 'a').replace(/á/g, 'a').replace(/â/g, 'a')
+                .replace(/é/g, 'e').replace(/ê/g, 'e')
+                .replace(/í/g, 'i').replace(/ó/g, 'o').replace(/ô/g, 'o')
+                .replace(/ú/g, 'u').replace(/ç/g, 'c')
+                .trim();
+        }
+
+        var targetNorm = normalize(modalTipo);
+        
+        // Procura botoes no modal (spans com classe ui-button-text)
+        var allButtons = document.querySelectorAll('.ui-button-text, button, .ui-button');
+        for (var i = 0; i < allButtons.length; i++) {
+            var btnText = normalize(allButtons[i].textContent);
+            if (btnText === targetNorm || btnText.indexOf(targetNorm) >= 0) {
+                console.log('[Atom Oferta] Modal tipo encontrado:', allButtons[i].textContent.trim());
+                allButtons[i].click();
+                showToast('Oferta criada! Tipo: ' + modalTipo, 'success', 5000);
+                return;
+            }
+        }
+
+        // Nao achou ainda, tenta de novo
+        setTimeout(function() { selectModalTipo(modalTipo, attempt + 1); }, 500);
     }
 
     // ========================================================================

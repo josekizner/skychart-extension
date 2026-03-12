@@ -378,6 +378,7 @@ Analise o email abaixo e extraia os dados da cotacao. Retorne APENAS JSON puro (
   "ncm": "codigos NCM mencionados",
   "peso_bruto": "peso bruto total em KG",
   "valor_mercadoria": "valor da mercadoria (incluir moeda)",
+  "modal_tipo": "tipo de operacao para o Skychart",
   "observacoes": "notas adicionais relevantes"
 }
 
@@ -386,6 +387,18 @@ REGRAS:
 - Se nao tem CLIENTE no assunto, use o nome da empresa da assinatura ou dominio do email.
 - Para origem e destino, SEMPRE use o nome do PORTO (ex: NINGBO, NAVEGANTES, SHANGHAI).
 - Se equipamento diz "ou NOR", inclua ambas opcoes.
+
+REGRAS PARA modal_tipo (MUITO IMPORTANTE - deduzir pelo contexto):
+- Se menciona CONTAINER, TEU, FCL, LCL, POL, POD, frete maritimo = transporte MARITIMO
+- Se menciona AWB, aereo, aerea, kg bruto sem container = transporte AEREO
+- Se menciona rodoviario, caminhao, carreta = transporte RODOVIARIO
+- Se a ORIGEM e no exterior e DESTINO no Brasil = IMPORTACAO
+- Se a ORIGEM e no Brasil e DESTINO no exterior = EXPORTACAO
+- Se ambos no Brasil = use "Cabotagem" (maritimo) ou "Rodoviario Nacional" (rodoviario)
+- Portos brasileiros: Santos, Paranagua, Itajai, Itapoa, Navegantes, Rio Grande, Suape, Salvador, etc.
+- Valores validos para modal_tipo: "Importacao Maritima", "Importacao Aerea", "Importacao Rodoviaria", "Exportacao Maritima", "Exportacao Aerea", "Exportacao Rodoviaria", "Cabotagem", "Rodoviario Nacional", "Armazenagem"
+- Use EXATAMENTE um desses valores, com acento.
+
 - Retorne APENAS o JSON, nada mais.
 `;
 
