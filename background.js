@@ -29,7 +29,7 @@ chrome.runtime.onInstalled.addListener(loadProfileFromConfig);
 chrome.runtime.onStartup.addListener(loadProfileFromConfig);
 
 // ===== AUTO-UPDATE COM AUTO-RELOAD =====
-const CURRENT_VERSION = "1.9.2";
+const CURRENT_VERSION = "2.2.0";
 const UPDATE_CHECK_URL = "https://raw.githubusercontent.com/josekizner/skychart-extension/main/version.json";
 const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
@@ -496,6 +496,90 @@ Os valores estão corretos? Responda APENAS com JSON:
         console.log("[Email Agent] Abrindo nova tab Skychart");
       }
       sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  // ====================================================
+  // CHECK AGENT — PDF Text Extraction via Gemini
+  // ====================================================
+
+  if (request.action === "check_extract_pdf") {
+    // Encontra a aba do PDF (a mais recente que não é a do Skychart)
+    chrome.tabs.query({ active: false, currentWindow: true }, function(tabs) {
+      // Procura tab com URL de PDF ou a última aberta
+      var pdfTab = null;
+      for (var i = tabs.length - 1; i >= 0; i--) {
+        var url = tabs[i].url || '';
+        if (url.indexOf('.pdf') >= 0 || url.indexOf('blob:') >= 0 || url.indexOf('/api/') >= 0) {
+          pdfTab = tabs[i];
+          break;
+        }
+      }
+
+      if (!pdfTab) {
+        // Tenta a última aba aberta (que não é skychart)
+        for (var j = tabs.length - 1; j >= 0; j--) {
+          if ((tabs[j].url || '').indexOf('skychart') < 0) {
+            pdfTab = tabs[j];
+            break;
+          }
+        }
+      }
+
+      if (!pdfTab) {
+        sendResponse({ success: false, error: 'PDF tab not found' });
+        return;
+      }
+
+      console.log('[Check] PDF tab encontrado:', pdfTab.id, pdfTab.url);
+
+      // Ativa a tab do PDF, tira screenshot, e envia pro Gemini extrair texto
+      chrome.tabs.update(pdfTab.id, { active: true }, function() {
+        setTimeout(function() {
+          chrome.tabs.captureVisibleTab(null, { format: 'png' }, function(dataUrl) {
+            if (chrome.runtime.lastError || !dataUrl) {
+              console.log('[Check] Screenshot falhou:', chrome.runtime.lastError);
+              sendResponse({ success: false, error: 'screenshot failed' });
+              return;
+            }
+
+            var base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+
+            // Manda pro Gemini extrair TEXTO do PDF
+            fetch(GEMINI_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [
+                    { inlineData: { mimeType: 'image/png', data: base64Data } },
+                    { text: 'Extraia TODAS as linhas de custos/taxas deste PDF de cotação de frete.\n\nPara cada taxa, retorne: nome da taxa, moeda (USD/BRL/%), e valor total.\n\nFormato de resposta (APENAS o texto puro, uma linha por taxa):\nTAXA|MOEDA|VALOR\n\nExemplo:\nFrete Maritimo|USD|995,00\nTHC no Destino (Capatazia)|BRL|1.160,00\n\nSe houver seções como "CUSTOS DE FRETE", "CUSTOS NO DESTINO", "CUSTOS NA ORIGEM", mantenha todas as taxas.\nNÃO inclua headers, comentários ou explicações — apenas as linhas TAXA|MOEDA|VALOR.' }
+                  ]
+                }]
+              })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              var text = '';
+              try {
+                text = data.candidates[0].content.parts[0].text;
+              } catch(e) { text = ''; }
+
+              console.log('[Check] Gemini extraiu:', text.substring(0, 300));
+
+              // Fecha a aba do PDF e volta pro Skychart
+              chrome.tabs.remove(pdfTab.id);
+
+              sendResponse({ success: true, text: text });
+            })
+            .catch(function(err) {
+              console.error('[Check] Gemini erro:', err);
+              sendResponse({ success: false, error: err.message });
+            });
+          });
+        }, 2000); // Espera 2s pro PDF renderizar
+      });
     });
     return true;
   }
