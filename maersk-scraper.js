@@ -7,9 +7,12 @@
 
 (function() {
     'use strict';
+
+    // Permission check
+    var _agentAllowed = true;
     chrome.storage.local.get('enabledAgents', function(d) {
-        var e = d.enabledAgents || [];
-        if (e.indexOf('tracking') < 0) { console.log('[Maersk] Desabilitado'); return; }
+        if (d.enabledAgents && d.enabledAgents.indexOf('tracking') < 0) { _agentAllowed = false; console.log('[Maersk] Desabilitado'); }
+    });
 
     console.log('[Maersk Scraper] Carregado em:', window.location.href);
 
@@ -230,4 +233,4 @@
             transshipments: result.transshipments.length
         });
     }
-}); })();
+})();

@@ -3,9 +3,17 @@
 
 (function() {
     'use strict';
+
+    // Permission check (flag-based, nao modifica estrutura)
+    var _agentAllowed = true;
     chrome.storage.local.get('enabledAgents', function(d) {
-        var e = d.enabledAgents || [];
-        if (e.indexOf('cotacao') < 0) { console.log('[Outlook] Desabilitado'); return; }
+        if (d.enabledAgents && d.enabledAgents.indexOf('cotacao') < 0) {
+            _agentAllowed = false;
+            var panel = document.getElementById('atom-outlook-panel');
+            if (panel) panel.remove();
+            console.log('[Outlook] Agente desabilitado pelo perfil');
+        }
+    });
 
     console.log('[Atom Email] Content script carregado em:', location.href);
 
@@ -539,6 +547,7 @@
     // ==========================================
 
     function init() {
+        if (!_agentAllowed) { console.log('[Outlook] Bloqueado pelo perfil'); return; }
         createPanel();
         setupKeyboardShortcuts();
         setStatus('Pronto', false);
@@ -553,4 +562,4 @@
         setTimeout(init, 2000);
     }
 
-}); })();
+})();

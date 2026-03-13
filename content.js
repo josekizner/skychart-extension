@@ -6,6 +6,15 @@
  * Configuração de campos está em modules/cambio.json
  */
 
+var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
 try {
     // GUARD: Não roda NADA em páginas de PDF/arquivo (evita câmbio ativar na aba do PDF Serasa)
     if (location.href.indexOf('/arquivos/') >= 0 || location.href.match(/\.pdf$/i)) {
@@ -14,16 +23,6 @@ try {
     }
 
     console.log("Skychart AI: Script carregado com sucesso.");
-
-    // Permission check — carrega agentes habilitados
-    var _atomEnabledAgents = []; // default: todos
-    chrome.storage.local.get('enabledAgents', function(d) {
-        if (d.enabledAgents) _atomEnabledAgents = d.enabledAgents;
-        console.log('[Atom] Agentes habilitados:', _atomEnabledAgents.join(', '));
-    });
-    function isAgentEnabled(agentId) {
-        return _atomEnabledAgents.indexOf(agentId) >= 0;
-    }
 
     // Listener para notificações de atualização, tracking data e navegacao
     chrome.runtime.onMessage.addListener(function(msg) {
@@ -369,7 +368,16 @@ try {
             }
 
             for (var fi = 0; fi < iframes.length; fi++) {
-                try {
+                var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try {
                     var iframeDoc = iframes[fi].contentDocument || iframes[fi].contentWindow.document;
                     if (iframeDoc && iframeDoc.body) {
                         var iframeText = iframeDoc.body.textContent || iframeDoc.body.innerText || '';
@@ -1381,7 +1389,16 @@ try {
 
                         // Testa se o selector realmente acha o elemento
                         var testEl = null;
-                        try { testEl = document.querySelector(selector); } catch(e) {}
+                        var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try { testEl = document.querySelector(selector); } catch(e) {}
                         if (testEl !== target) {
                             SkDebug.log(fieldName, 'INFO', ' CSS path não é único, salvando por ÍNDICE');
                             // Fallback: salva o ÍNDICE entre todos os autocompletes
@@ -1489,7 +1506,16 @@ try {
 
             // TENTATIVA 2: Memória (com suporte a AC_INDEX e validação Embarque)
             if (!navioInput) {
-                try {
+                var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try {
                     var navioMem = SkMemory.getFieldMemory('tracking:Navio');
                     if (navioMem && navioMem.seletoresQueFunc && navioMem.seletoresQueFunc.length > 0) {
                         var navioSel = navioMem.seletoresQueFunc[navioMem.seletoresQueFunc.length - 1];
@@ -1503,7 +1529,16 @@ try {
                                 memEl = allAcMem[savedIdx];
                             }
                         } else if (navioSel) {
-                            try { memEl = document.querySelector(navioSel); } catch(e) {}
+                            var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try { memEl = document.querySelector(navioSel); } catch(e) {}
                         }
 
                         // SÓ USA se tá dentro da seção Embarque
@@ -1778,7 +1813,16 @@ try {
                 } else if (files[f].name.toLowerCase().endsWith('.zip') || files[f].type === 'application/zip' || files[f].type === 'application/x-zip-compressed') {
                     // Extrai PDFs do ZIP
                     updateStatus(' Extraindo ZIP...');
-                    try {
+                    var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try {
                         var extracted = await extractPdfsFromZip(files[f]);
                         pdfs = pdfs.concat(extracted);
                     } catch (err) {
@@ -1821,7 +1865,16 @@ try {
                 if (files[f].type === 'application/pdf') {
                     pdfs.push(files[f]);
                 } else if (files[f].name.toLowerCase().endsWith('.zip')) {
-                    try {
+                    var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try {
                         var extracted = await extractPdfsFromZip(files[f]);
                         pdfs = pdfs.concat(extracted);
                     } catch (err) { console.error('ZIP error:', err); }
@@ -1882,7 +1935,16 @@ try {
         SkDebug.show();
         SkDebug.log('Sistema', 'EXEC', 'Processando PDF: ' + file.name);
 
-        try {
+        var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try {
             // 1. Upload do PDF no Skychart (input file nativo)
             triggerSkychartUpload(file);
 
@@ -1962,7 +2024,16 @@ try {
         SkDebug.show();
         SkDebug.log('Batch', 'EXEC', ' Modo batch: ' + pdfFiles.length + ' PDFs recebidos');
 
-        try {
+        var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try {
             // 1. Lê e classifica todos os PDFs
             var contratos = [];
             var swifts = [];
@@ -2116,7 +2187,16 @@ try {
                 }
 
                 // Upload: Swift PRIMEIRO (fica na linha 1), Contrato SEGUNDO (fica na linha 2)
-                try {
+                var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try {
                     if (pair.swift) {
                         triggerSkychartUpload(pair.swift.file);
                         await delay(2000);
@@ -2302,7 +2382,16 @@ try {
     // ========================================================================
 
     async function loadModuleConfig() {
-        try {
+        var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try {
             var url = chrome.runtime.getURL('modules/cambio.json');
             var response = await fetch(url);
             if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -2620,7 +2709,16 @@ try {
         }
 
         // Fetch local (content script tem os cookies do Skychart!)
-        try {
+        var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try {
             SkDebug.log('Serasa', 'INFO', ' Baixando PDF (com cookies)...');
             var resp = await fetch(pdfUrl, { credentials: 'include' });
             var blob = await resp.blob();
@@ -2780,7 +2878,16 @@ try {
         SkDebug.log('Serasa', 'OK', ' Concluído!');
 
         // Salva no chrome.storage pra badge instantâneo na próxima visita
-        try {
+        var _atomEnabledAgents = null;
+chrome.storage.local.get('enabledAgents', function(d) {
+    _atomEnabledAgents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+});
+function isAgentEnabled(name) {
+    if (!_atomEnabledAgents) return true;
+    return _atomEnabledAgents.indexOf(name) >= 0;
+}
+
+try {
             var tituloSpan = document.querySelector('div.titulo-accordion span');
             var clientName = tituloSpan ? tituloSpan.textContent.trim() : '';
             if (clientName && clientName.length >= 3) {
