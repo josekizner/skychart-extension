@@ -198,14 +198,28 @@
         var matchIdx = fieldType === 'from' ? fromMatchIndex : toMatchIndex;
         if (matches.length > 0) {
             var selectedMatch = matches[Math.min(matchIdx, matches.length - 1)];
-            items[selectedMatch.index].click();
+            var targetLi = items[selectedMatch.index];
+            clickAutocompleteItem(targetLi);
             console.log(TAG, 'Item selecionado [' + matchIdx + ']:', selectedMatch.text);
-            setTimeout(function() { callback(input.value); }, 500);
+            setTimeout(function() { callback(input.value); }, 800);
         } else {
             console.log(TAG, 'NENHUM MATCH! Selecionando primeiro item');
-            if (items[0]) items[0].click();
-            setTimeout(function() { callback(input.value); }, 500);
+            if (items[0]) clickAutocompleteItem(items[0]);
+            setTimeout(function() { callback(input.value); }, 800);
         }
+    }
+
+    // Simula click real no jQuery autocomplete (mouseenter → mousedown → mouseup → click)
+    function clickAutocompleteItem(li) {
+        li.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
+        li.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
+        // jQuery autocomplete seleciona no mouseenter, depois confirma no click
+        setTimeout(function() {
+            li.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+            li.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+            li.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            li.click();
+        }, 100);
     }
 
     function verifyAndRetrieve(expectedFrom, expectedTo) {
