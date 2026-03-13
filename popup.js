@@ -59,7 +59,7 @@ function applyPermissions(agents, profile) {
   document.getElementById('status-text').textContent = n === 5 ? 'Todos os agentes ativos' : n + ' agentes ativos';
   document.getElementById('profile-name').textContent = LABELS[profile] || profile;
   var gearBtn = document.getElementById('gear-btn');
-  var configSection = document.querySelector('.config-section');
+  var configSection = document.querySelector('.settings-card');
   if (profile !== 'master') {
     if (gearBtn) gearBtn.style.display = 'none';
     if (configSection) configSection.style.display = 'none';
