@@ -57,6 +57,7 @@ async function checkForUpdates() {
 
 // ===== BOOKING TRACKING =====
 var pendingTrackingTabs = {}; // { maerskTabId: skychartTabId }
+var pendingHmmTabs = {};      // { hmmTabId: skychartTabId }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log("Skychart AI Background: Mensagem recebida:", request.action);
@@ -96,6 +97,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("[HMM] Abrindo schedule:", from, "→", to);
 
     chrome.tabs.create({ url: hmmUrl, active: false }, (tab) => {
+      // Guarda mapeamento HMM tab → Skychart tab
+      pendingHmmTabs[tab.id] = skychartTabId;
+      console.log("[HMM] Tab criada:", tab.id, "→ Skychart:", skychartTabId);
+
       // Espera a página carregar e envia os parâmetros
       setTimeout(() => {
         chrome.tabs.sendMessage(tab.id, {
@@ -106,24 +111,39 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           console.log('[HMM] Scraper respondeu:', response);
         });
       }, 3000);
-
-      // Ouve resultados do scraper
-      var hmmListener = function(msg, msgSender) {
-        if (msg.action === 'hmm_schedule_results' && msgSender.tab && msgSender.tab.id === tab.id) {
-          console.log('[HMM] Resultados recebidos, encaminhando pro Skychart');
-          chrome.tabs.sendMessage(skychartTabId, {
-            action: 'hmm_schedule_results',
-            results: msg.results
-          });
-          // NÃO fecha a aba pra debug
-          // setTimeout(() => { chrome.tabs.remove(tab.id); }, 2000);
-          chrome.runtime.onMessage.removeListener(hmmListener);
-        }
-      };
-      chrome.runtime.onMessage.addListener(hmmListener);
     });
 
     sendResponse({ success: true, message: 'HMM schedule aberto' });
+    return true;
+  }
+
+  // HMM: Resultados do scraper — relay pro Skychart
+  if (request.action === "hmm_schedule_results") {
+    const hmmTabId = sender.tab ? sender.tab.id : null;
+    const skychartTabId = hmmTabId ? pendingHmmTabs[hmmTabId] : null;
+
+    console.log("[HMM] Resultados recebidos:", request.results ? request.results.length : 0, "sailings. HMM tab:", hmmTabId, "→ Skychart:", skychartTabId);
+
+    if (skychartTabId) {
+      chrome.tabs.sendMessage(skychartTabId, {
+        action: 'hmm_schedule_results',
+        results: request.results
+      }, (response) => {
+        console.log("[HMM] Relay pro Skychart OK");
+      });
+      delete pendingHmmTabs[hmmTabId];
+    } else {
+      // Fallback: envia pra todas as tabs do Skychart
+      console.log("[HMM] Sem mapeamento, enviando pra todas tabs Skychart");
+      chrome.tabs.query({ url: 'https://app2.skychart.com.br/*' }, (tabs) => {
+        tabs.forEach(tab => {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'hmm_schedule_results',
+            results: request.results
+          });
+        });
+      });
+    }
     return true;
   }
 
