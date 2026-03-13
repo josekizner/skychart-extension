@@ -23,9 +23,19 @@
         console.log(TAG, 'Porto aprendido:', key, '→', value);
     }
 
+    // Guarda todos os matches do autocomplete pra poder tentar o próximo
+    var fromMatches = []; // [{text, element}]
+    var fromMatchIndex = 0;
+    var toMatches = [];
+    var toMatchIndex = 0;
+
     chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         if (msg.action === 'hmm_search_schedule') {
             console.log(TAG, 'Buscando:', msg.from, '→', msg.to);
+            fromMatches = [];
+            fromMatchIndex = 0;
+            toMatches = [];
+            toMatchIndex = 0;
             runWithVerification(msg.from, msg.to, 0);
             sendResponse({ status: 'started' });
         }
@@ -35,7 +45,6 @@
     });
 
     var currentState = { from: '', to: '', attempt: 0, phase: '' };
-    var visionCallback = null;
 
     function runWithVerification(from, to, attempt) {
         currentState = { from: from, to: to, attempt: attempt, phase: 'filling' };
@@ -46,25 +55,20 @@
                 action: 'hmm_needs_manual',
                 from: from,
                 to: to,
-                message: 'O agente não conseguiu preencher corretamente após ' + MAX_RETRIES + ' tentativas. Por favor verifique os campos From/To e clique Retrieve manualmente.'
+                message: 'Não encontrou sailings após ' + MAX_RETRIES + ' tentativas. Verifique From/To e clique Retrieve manualmente.'
             });
             return;
         }
 
         console.log(TAG, 'Tentativa', attempt + 1, '/', MAX_RETRIES);
 
-        // Limpa campos primeiro
         var fromInput = document.querySelector('#srchPointFrom');
         var toInput = document.querySelector('#srchPointTo');
-        if (!fromInput || !toInput) {
+        if (!fromInput || toInput) {
             console.log(TAG, 'Inputs não encontrados, esperando...');
             setTimeout(function() { runWithVerification(from, to, attempt); }, 1000);
             return;
         }
-
-        // Passo 1: Limpar tudo
-        clearField(fromInput);
-        clearField(toInput);
 
         // Checa se temos uma memória pra esse porto
         var fromLearned = portMemory[from.toUpperCase()];
@@ -76,19 +80,20 @@
         console.log(TAG, 'Buscando From:', fromSearch, fromLearned ? '(aprendido)' : '(original)');
         console.log(TAG, 'Buscando To:', toSearch, toLearned ? '(aprendido)' : '(original)');
 
-        // Passo 2: Preencher From
+        // Limpa e preenche
+        clearField(fromInput);
+        clearField(toInput);
+
         setTimeout(function() {
-            fillAutocomplete(fromInput, fromSearch, from, function(selectedFrom) {
+            fillAutocomplete(fromInput, fromSearch, from, 'from', function(selectedFrom) {
                 console.log(TAG, 'From preenchido:', selectedFrom);
 
-                // Passo 3: Preencher To
                 setTimeout(function() {
-                    fillAutocomplete(toInput, toSearch, to, function(selectedTo) {
+                    fillAutocomplete(toInput, toSearch, to, 'to', function(selectedTo) {
                         console.log(TAG, 'To preenchido:', selectedTo);
 
-                        // Passo 4: VERIFICAR com screenshot antes de clicar Retrieve
                         setTimeout(function() {
-                            verifyBeforeRetrieve(from, to);
+                            verifyAndRetrieve(from, to);
                         }, 1000);
                     });
                 }, 1000);
@@ -100,22 +105,23 @@
         input.value = '';
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
+        // Clica Clear se existir
+        var clearBtn = document.querySelector('#btnClear, .btn_clear');
+        if (clearBtn) clearBtn.click();
     }
 
-    function fillAutocomplete(input, searchText, originalKey, callback) {
+    function fillAutocomplete(input, searchText, originalKey, fieldType, callback) {
         input.focus();
         input.value = '';
 
-        // Digita caractere por caractere
         var i = 0;
         var interval = setInterval(function() {
             if (i >= searchText.length) {
                 clearInterval(interval);
                 input.dispatchEvent(new Event('input', { bubbles: true }));
 
-                // Espera dropdown aparecer
                 setTimeout(function() {
-                    selectBestMatch(input, originalKey, searchText, callback);
+                    selectFromDropdown(input, originalKey, fieldType, callback);
                 }, 1500);
                 return;
             }
@@ -127,8 +133,7 @@
         }, 80);
     }
 
-    function selectBestMatch(input, originalKey, searchText, callback) {
-        // Procura dropdown do jQuery autocomplete
+    function selectFromDropdown(input, originalKey, fieldType, callback) {
         var dropdown = document.querySelector('.ac_results');
         if (!dropdown || dropdown.style.display === 'none') {
             console.log(TAG, 'Dropdown não apareceu, tentando Enter');
@@ -140,61 +145,60 @@
         var items = dropdown.querySelectorAll('li');
         console.log(TAG, 'Dropdown tem', items.length, 'items');
 
-        // Loga todos os items pra diagnóstico
-        for (var d = 0; d < items.length; d++) {
-            console.log(TAG, '  [' + d + ']', items[d].textContent.trim().substring(0, 60));
-        }
-
-        // Procura melhor match: texto que CONTÉM o nome original
-        var bestItem = null;
+        // Coleta TODOS os matches
+        var matches = [];
         var searchUp = originalKey.toUpperCase();
 
         for (var j = 0; j < items.length; j++) {
-            var itemText = items[j].textContent.trim().toUpperCase();
-            if (itemText.indexOf(searchUp) >= 0) {
-                bestItem = items[j];
-                console.log(TAG, 'Match encontrado:', items[j].textContent.trim());
-                break;
+            var itemText = items[j].textContent.trim();
+            console.log(TAG, '  [' + j + ']', itemText.substring(0, 60));
+            if (itemText.toUpperCase().indexOf(searchUp) >= 0) {
+                matches.push({ text: itemText, index: j });
             }
         }
 
-        // Se não achou match exato, procura parcial (primeiras 4 letras)
-        if (!bestItem && searchUp.length >= 4) {
+        // Se não achou match exato, tenta parcial
+        if (matches.length === 0 && searchUp.length >= 4) {
             var partial = searchUp.substring(0, 4);
             for (var k = 0; k < items.length; k++) {
                 if (items[k].textContent.trim().toUpperCase().indexOf(partial) >= 0) {
-                    bestItem = items[k];
-                    console.log(TAG, 'Match parcial:', items[k].textContent.trim());
-                    break;
+                    matches.push({ text: items[k].textContent.trim(), index: k });
                 }
             }
         }
 
-        if (bestItem) {
-            bestItem.click();
-            console.log(TAG, 'Item selecionado:', bestItem.textContent.trim());
+        // Salva matches pro fieldType
+        if (fieldType === 'from') {
+            fromMatches = matches;
+            console.log(TAG, 'From matches:', matches.length, matches.map(function(m) { return m.text.substring(0, 30); }));
+        } else {
+            toMatches = matches;
+            console.log(TAG, 'To matches:', matches.length, matches.map(function(m) { return m.text.substring(0, 30); }));
+        }
+
+        // Seleciona o item correto (baseado no index atual)
+        var matchIdx = fieldType === 'from' ? fromMatchIndex : toMatchIndex;
+        if (matches.length > 0) {
+            var selectedMatch = matches[Math.min(matchIdx, matches.length - 1)];
+            items[selectedMatch.index].click();
+            console.log(TAG, 'Item selecionado [' + matchIdx + ']:', selectedMatch.text);
             setTimeout(function() { callback(input.value); }, 500);
         } else {
-            // Nenhum match — seleciona primeiro por fallback
-            console.log(TAG, 'NENHUM MATCH! Selecionando primeiro item como fallback');
+            console.log(TAG, 'NENHUM MATCH! Selecionando primeiro item');
             if (items[0]) items[0].click();
             setTimeout(function() { callback(input.value); }, 500);
         }
     }
 
-    function verifyBeforeRetrieve(expectedFrom, expectedTo) {
-        console.log(TAG, 'Verificando preenchimento via screenshot...');
-
-        // Lê os valores atuais dos campos
+    function verifyAndRetrieve(expectedFrom, expectedTo) {
         var fromInput = document.querySelector('#srchPointFrom');
         var toInput = document.querySelector('#srchPointTo');
         var currentFrom = fromInput ? fromInput.value : '';
         var currentTo = toInput ? toInput.value : '';
 
         console.log(TAG, 'Campos atuais: From="' + currentFrom + '" To="' + currentTo + '"');
-        console.log(TAG, 'Esperado: From="' + expectedFrom + '" To="' + expectedTo + '"');
+        console.log(TAG, 'Esperado: From~"' + expectedFrom + '" To~"' + expectedTo + '"');
 
-        // Verificação simples por texto (sem precisar de Gemini)
         var fromOk = currentFrom.toUpperCase().indexOf(expectedFrom.toUpperCase()) >= 0;
         var toOk = currentTo.toUpperCase().indexOf(expectedTo.toUpperCase()) >= 0;
 
@@ -203,8 +207,6 @@
             clickRetrieve();
         } else {
             console.log(TAG, 'Verificação textual FALHOU. Pedindo visão ao Gemini...');
-            
-            // Pede screenshot ao background
             chrome.runtime.sendMessage({
                 action: 'hmm_verify_screenshot',
                 expectedFrom: expectedFrom,
@@ -221,46 +223,114 @@
             console.log(TAG, 'Gemini confirmou: tudo certo!');
             clickRetrieve();
         } else {
-            console.log(TAG, 'Gemini diz que está errado:', msg.suggestion);
-
-            // Aprende a sugestão do Gemini pra próxima vez
-            if (msg.correctedFrom) {
-                savePortMemory(currentState.from.toUpperCase(), msg.correctedFrom);
-            }
-            if (msg.correctedTo) {
-                savePortMemory(currentState.to.toUpperCase(), msg.correctedTo);
-            }
-
-            // Tenta de novo
+            console.log(TAG, 'Gemini diz errado:', msg.suggestion);
+            if (msg.correctedFrom) savePortMemory(currentState.from.toUpperCase(), msg.correctedFrom);
+            if (msg.correctedTo) savePortMemory(currentState.to.toUpperCase(), msg.correctedTo);
             runWithVerification(currentState.from, currentState.to, currentState.attempt + 1);
         }
     }
 
     function clickRetrieve() {
         var btn = document.querySelector('#btnRetrieve');
-        if (btn) {
-            console.log(TAG, 'Clicando Retrieve...');
-            btn.click();
+        if (!btn) {
+            console.log(TAG, 'Botão Retrieve não encontrado!');
+            return;
+        }
 
-            // Espera resultados
-            setTimeout(function() {
-                var results = scrapeResults();
-                console.log(TAG, 'Resultados:', results.length);
+        console.log(TAG, 'Clicando Retrieve...');
+        btn.click();
+
+        // Espera resultados carregarem
+        setTimeout(function() {
+            var results = scrapeResults();
+            console.log(TAG, 'Resultados:', results.length);
+
+            if (results.length === 0) {
+                // ZERO RESULTADOS — tenta próxima opção do autocomplete From
+                console.log(TAG, '=== 0 resultados! Tentando próxima opção do From ===');
+                console.log(TAG, 'fromMatches disponíveis:', fromMatches.length, '| fromMatchIndex atual:', fromMatchIndex);
+
+                if (fromMatchIndex + 1 < fromMatches.length) {
+                    fromMatchIndex++;
+                    console.log(TAG, 'Tentando From match #' + fromMatchIndex + ':', fromMatches[fromMatchIndex].text);
+
+                    // Aprende que esta opção não funcionou
+                    // Tenta de novo com o próximo match
+                    setTimeout(function() {
+                        var fromInput = document.querySelector('#srchPointFrom');
+                        var toInput = document.querySelector('#srchPointTo');
+                        if (fromInput && toInput) {
+                            clearField(fromInput);
+                            clearField(toInput);
+                            setTimeout(function() {
+                                fillAutocomplete(fromInput, currentState.from, currentState.from, 'from', function() {
+                                    setTimeout(function() {
+                                        fillAutocomplete(toInput, currentState.to, currentState.to, 'to', function() {
+                                            setTimeout(function() {
+                                                clickRetrieve();
+                                            }, 1000);
+                                        });
+                                    }, 1000);
+                                });
+                            }, 500);
+                        }
+                    }, 1000);
+                    return;
+                }
+
+                // Também tenta próxima opção do To
+                if (toMatchIndex + 1 < toMatches.length) {
+                    toMatchIndex++;
+                    fromMatchIndex = 0; // Reset from
+                    console.log(TAG, 'Tentando To match #' + toMatchIndex + ':', toMatches[toMatchIndex].text);
+
+                    setTimeout(function() {
+                        var fromInput = document.querySelector('#srchPointFrom');
+                        var toInput = document.querySelector('#srchPointTo');
+                        if (fromInput && toInput) {
+                            clearField(fromInput);
+                            clearField(toInput);
+                            setTimeout(function() {
+                                fillAutocomplete(fromInput, currentState.from, currentState.from, 'from', function() {
+                                    setTimeout(function() {
+                                        fillAutocomplete(toInput, currentState.to, currentState.to, 'to', function() {
+                                            setTimeout(function() {
+                                                clickRetrieve();
+                                            }, 1000);
+                                        });
+                                    }, 1000);
+                                });
+                            }, 500);
+                        }
+                    }, 1000);
+                    return;
+                }
+
+                // Todas as combinações esgotadas
+                console.log(TAG, 'Todas as combinações esgotadas, 0 resultados');
+                chrome.runtime.sendMessage({
+                    action: 'hmm_schedule_results',
+                    results: []
+                });
+            } else {
+                // TEM RESULTADOS! Aprende qual opção funcionou
+                var successFrom = fromMatches[fromMatchIndex];
+                if (successFrom) {
+                    savePortMemory(currentState.from.toUpperCase(), successFrom.text.split('[')[0].trim());
+                    console.log(TAG, 'Aprendeu From:', currentState.from, '→', successFrom.text);
+                }
+
                 chrome.runtime.sendMessage({
                     action: 'hmm_schedule_results',
                     results: results
                 });
-            }, 5000);
-        } else {
-            console.log(TAG, 'Botão Retrieve não encontrado!');
-        }
+            }
+        }, 5000);
     }
 
     function scrapeResults() {
         var results = [];
 
-        // Procura a tabela de resultados baseado na screenshot real:
-        // Colunas: Sel, Origin Point, Loading Port, Loading Terminal, Operator, Route, Vessel, Next Port, Discharging Port, Discharging Terminal, Destination Point, Total Transit Time, Click Here
         var allTables = document.querySelectorAll('table');
         var resultTable = null;
 
@@ -283,7 +353,6 @@
         var rows = resultTable.querySelectorAll('tbody tr');
         console.log(TAG, 'Linhas encontradas:', rows.length);
 
-        // Primeiro, encontra índices das colunas
         var headers = resultTable.querySelectorAll('th');
         var vesselCol = -1, transitCol = -1;
         for (var hi = 0; hi < headers.length; hi++) {
@@ -296,11 +365,9 @@
             var cells = rows[r].querySelectorAll('td');
             if (cells.length < 5) continue;
 
-            // Extrai dados baseado na estrutura real
             var vessel = vesselCol >= 0 && cells[vesselCol] ? cells[vesselCol].textContent.trim() : '';
             var transitTime = transitCol >= 0 && cells[transitCol] ? cells[transitCol].textContent.trim() : '';
 
-            // ETD: procura no Origin Point (coluna 1) ou Loading Port
             var etd = '';
             var eta = '';
             for (var c = 0; c < cells.length; c++) {
@@ -308,7 +375,7 @@
                 var etdMatch = cellText.match(/ETD\s*[:\s]?\s*(\d{4}-\d{2}-\d{2})/);
                 var etaMatch = cellText.match(/ET[AB]\s*[:\s]?\s*(\d{4}-\d{2}-\d{2})/);
                 if (etdMatch && !etd) etd = etdMatch[1];
-                if (etaMatch && !etd) eta = etaMatch[1]; // ETA might also be ETB
+                if (etaMatch && !eta) eta = etaMatch[1];
             }
 
             if (vessel || etd) {
