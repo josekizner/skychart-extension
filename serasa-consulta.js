@@ -4,7 +4,7 @@
     'use strict';
     // Permission check
     chrome.storage.local.get('enabledAgents', function(d) {
-        var e = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+        var e = d.enabledAgents || [];
         if (e.indexOf('serasa') < 0) { console.log('[Serasa] Desabilitado'); return; }
         _initSerasa();
     });

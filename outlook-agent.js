@@ -4,7 +4,7 @@
 (function() {
     'use strict';
     chrome.storage.local.get('enabledAgents', function(d) {
-        var e = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+        var e = d.enabledAgents || [];
         if (e.indexOf('cotacao') < 0) { console.log('[Outlook] Desabilitado'); return; }
         _initOutlook();
     });

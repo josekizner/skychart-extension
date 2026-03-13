@@ -8,7 +8,7 @@
 (function() {
     'use strict';
     chrome.storage.local.get('enabledAgents', function(d) {
-        var e = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+        var e = d.enabledAgents || [];
         if (e.indexOf('tracking') < 0) { console.log('[Maersk] Desabilitado'); return; }
         _initMaersk();
     });

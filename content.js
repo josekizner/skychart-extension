@@ -16,7 +16,7 @@ try {
     console.log("Skychart AI: Script carregado com sucesso.");
 
     // Permission check — carrega agentes habilitados
-    var _atomEnabledAgents = ['cambio','serasa','frete','tracking','cotacao']; // default: todos
+    var _atomEnabledAgents = []; // default: todos
     chrome.storage.local.get('enabledAgents', function(d) {
         if (d.enabledAgents) _atomEnabledAgents = d.enabledAgents;
         console.log('[Atom] Agentes habilitados:', _atomEnabledAgents.join(', '));
