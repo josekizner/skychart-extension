@@ -329,27 +329,48 @@
             var panel = document.getElementById('atom-outlook-panel');
             if (!panel) return;
 
-            var rulesHtml = ['<div id="atom-client-rules" style="padding:6px 10px;background:rgba(255,152,0,0.15);border-top:1px solid rgba(255,152,0,0.3);font-size:11px;">'];
-            rulesHtml.push('<div style="color:#ff9800;font-weight:bold;margin-bottom:4px;">⚠ Regras do Cliente</div>');
+            // Remove anterior se existir
+            var old = panel.querySelector('#atom-client-rules');
+            if (old) old.remove();
+
+            var rulesHtml = ['<div id="atom-client-rules" style="padding:8px 10px;background:rgba(255,152,0,0.15);border-top:1px solid rgba(255,152,0,0.3);font-size:11px;">'];
+            rulesHtml.push('<div style="color:#ff9800;font-weight:bold;margin-bottom:4px;">⚠ Acordo Comercial — ' + (rules.cliente || clienteName) + '</div>');
+
+            var hasContent = false;
 
             if (rules.incluirIOF) {
-                rulesHtml.push('<div style="color:#ffcc02;">• IOF: INCLUIR na cotação</div>');
+                rulesHtml.push('<div style="color:#ffcc02;">✦ IOF: INCLUIR na cotação</div>');
+                hasContent = true;
             }
 
             if (rules.armadoresBloqueados && rules.armadoresBloqueados.length > 0) {
-                rulesHtml.push('<div style="color:#ff5252;">• NÃO oferecer: ' + rules.armadoresBloqueados.join(', ') + '</div>');
+                rulesHtml.push('<div style="color:#ff5252;">✦ NÃO oferecer: ' + rules.armadoresBloqueados.join(', ') + '</div>');
+                hasContent = true;
             }
 
+            // Mostra observações do acordo (texto real)
             if (rules.observacoes && rules.observacoes.length > 0) {
                 var maxShow = Math.min(rules.observacoes.length, 3);
                 for (var oi = 0; oi < maxShow; oi++) {
                     rulesHtml.push('<div style="color:#ccc;font-size:10px;">• ' + rules.observacoes[oi] + '</div>');
                 }
                 if (rules.observacoes.length > 3) {
-                    rulesHtml.push('<div style="color:#888;font-size:10px;">+ ' + (rules.observacoes.length - 3) + ' regras mais...</div>');
+                    rulesHtml.push('<div style="color:#888;font-size:10px;">+ ' + (rules.observacoes.length - 3) + ' mais...</div>');
                 }
+                hasContent = true;
             }
 
+            // Se nao tem observacoes mas tem texto completo, mostra resumo
+            if (!hasContent && rules.textoCompleto && rules.textoCompleto.trim().length > 0) {
+                rulesHtml.push('<div style="color:#ccc;font-size:10px;">' + rules.textoCompleto.substring(0, 150) + '...</div>');
+                hasContent = true;
+            }
+
+            if (!hasContent) {
+                rulesHtml.push('<div style="color:#888;font-size:10px;">Sem restrições específicas registradas</div>');
+            }
+
+            rulesHtml.push('<div style="color:#555;font-size:9px;margin-top:3px;">Atualizado: ' + (rules.lastUpdated || '').substring(0, 10) + '</div>');
             rulesHtml.push('</div>');
 
             // Insere antes dos botões de ação

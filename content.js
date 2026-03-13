@@ -573,13 +573,47 @@ try {
             var clientRules = data[clienteKey] || { armadoresBloqueados: [], incluirIOF: false };
             console.log('[Atom Oferta] Regras carregadas:', clientRules);
 
-            // Pega a tabela de tarifários
-            var table = document.querySelector('.ui-table-scrollable-body table, p-table table, .ui-table table');
+            // Pega a tabela de tarifários — PrimeNG usa estruturas variadas
+            var table = null;
+            var tableSelectors = [
+                '.ui-table-scrollable-body table',
+                'p-table .ui-table-scrollable-body-table',
+                '.ui-table-wrapper table',
+                'p-table table',
+                '.ui-table table',
+                '.ui-table-unfrozen-body table',
+                'table.ui-table-scrollable-body-table',
+                'table'
+            ];
+
+            for (var ts = 0; ts < tableSelectors.length; ts++) {
+                var candidate = document.querySelectorAll(tableSelectors[ts]);
+                for (var tc = 0; tc < candidate.length; tc++) {
+                    var tRows = candidate[tc].querySelectorAll('tbody tr');
+                    if (tRows.length > 0) {
+                        // Pega a tabela com mais colunas (a scrollable principal)
+                        var thCount = candidate[tc].querySelectorAll('thead th').length;
+                        if (!table || thCount > (table.querySelectorAll('thead th').length || 0)) {
+                            table = candidate[tc];
+                        }
+                    }
+                }
+                if (table) break;
+            }
+
             if (!table) {
-                console.log('[Atom Oferta] Tabela de tarifários nao encontrada');
+                console.log('[Atom Oferta] Tabela de tarifários nao encontrada. Selectors tentados:', tableSelectors.join(', '));
+                // Lista todas as tables na pagina pra debug
+                var allTables = document.querySelectorAll('table');
+                console.log('[Atom Oferta] Tables na pagina:', allTables.length);
+                for (var at = 0; at < allTables.length; at++) {
+                    console.log('[Atom Oferta] Table', at, ':', allTables[at].querySelectorAll('tbody tr').length, 'rows,', allTables[at].className.substring(0, 50));
+                }
                 showToast('Tabela de tarifários não encontrada', 'error', 4000);
                 return;
             }
+
+            console.log('[Atom Oferta] Tabela encontrada:', table.className.substring(0, 60), '| Headers:', table.querySelectorAll('thead th').length);
 
             var rows = table.querySelectorAll('tbody tr');
             console.log('[Atom Oferta] Linhas na tabela:', rows.length);
@@ -589,18 +623,27 @@ try {
                 return;
             }
 
+            // PrimeNG split tables: frozen table (buttons/descrição) + scrollable table (dados)
+            // Precisamos mesclar dados de ambas pra cada row index
+            var allTables = document.querySelectorAll('table');
+            var dataTables = [];
+            for (var dt = 0; dt < allTables.length; dt++) {
+                var dtRows = allTables[dt].querySelectorAll('tbody tr');
+                if (dtRows.length > 0 && dtRows.length === rows.length) {
+                    dataTables.push(allTables[dt]);
+                }
+            }
+            console.log('[Atom Oferta] Tables com mesmo nro de rows:', dataTables.length);
+
             // Analisa cada linha
             var tarifarios = [];
             var yellowRows = [];
 
             for (var r = 0; r < rows.length; r++) {
-                var row = rows[r];
-                var cells = row.querySelectorAll('td');
-                if (cells.length < 8) continue;
-
                 var tarInfo = {
                     rowIndex: r,
-                    rowElement: row,
+                    rowElement: rows[r],
+                    frozenRow: null,
                     cod: '',
                     descricao: '',
                     isYellow: false,
@@ -615,37 +658,61 @@ try {
                     rejectReason: ''
                 };
 
-                // Extrai dados das colunas
-                for (var c = 0; c < cells.length; c++) {
-                    var headerText = '';
-                    // Tenta mapear pela posição das colunas
-                    var th = table.querySelectorAll('thead th');
-                    if (th[c]) headerText = th[c].textContent.trim().toLowerCase();
+                // Coleta TODAS as cells de TODAS as tables pra essa row
+                var allCells = [];
+                var allHeaders = [];
+                for (var tbl = 0; tbl < dataTables.length; tbl++) {
+                    var tblRow = dataTables[tbl].querySelectorAll('tbody tr')[r];
+                    if (!tblRow) continue;
+                    // Salva referencia da frozen row (pro botao ...)
+                    if (tbl === 0 && dataTables.length > 1) tarInfo.frozenRow = tblRow;
+                    var tblCells = tblRow.querySelectorAll('td');
+                    var tblHeaders = dataTables[tbl].querySelectorAll('thead th');
+                    for (var cc = 0; cc < tblCells.length; cc++) {
+                        allCells.push(tblCells[cc]);
+                        allHeaders.push(tblHeaders[cc] ? tblHeaders[cc].textContent.trim().toLowerCase() : '');
+                    }
+                }
 
-                    var cellText = cells[c].textContent.trim();
+                if (allCells.length < 2) continue;
 
-                    if (headerText.indexOf('cod') >= 0) tarInfo.cod = cellText;
-                    if (headerText.indexOf('descri') >= 0 || c === 1) {
+                // Extrai dados de todas as cells
+                for (var c = 0; c < allCells.length; c++) {
+                    var hdr = allHeaders[c] || '';
+                    var cellText = allCells[c].textContent.trim();
+
+                    if (hdr.indexOf('cod') >= 0 && cellText.match(/^\d+$/)) tarInfo.cod = cellText;
+                    
+                    if (hdr.indexOf('descri') >= 0) {
                         tarInfo.descricao = cellText;
-                        // Checa se é amarelo
-                        var cellBg = window.getComputedStyle(cells[c]).backgroundColor;
-                        var cellStyle = cells[c].getAttribute('style') || '';
-                        var innerSpan = cells[c].querySelector('span, div');
-                        var innerBg = innerSpan ? window.getComputedStyle(innerSpan).backgroundColor : '';
+                        // Checa amarelo — vários métodos
+                        var cellBg = window.getComputedStyle(allCells[c]).backgroundColor;
+                        var cellStyle = allCells[c].getAttribute('style') || '';
+                        var inner = allCells[c].querySelector('span, div, td');
+                        var innerBg = inner ? window.getComputedStyle(inner).backgroundColor : '';
+                        var innerStyle = inner ? (inner.getAttribute('style') || '') : '';
+                        
                         if (cellBg.indexOf('255, 255, 0') >= 0 || cellBg.indexOf('255, 193') >= 0 ||
-                            cellBg.indexOf('rgb(255, 2') >= 0 || cellStyle.indexOf('yellow') >= 0 ||
-                            cellStyle.indexOf('#ff') >= 0 || innerBg.indexOf('255, 255, 0') >= 0 ||
-                            innerBg.indexOf('255, 193') >= 0 || cells[c].classList.contains('amarelo') ||
-                            (innerSpan && innerSpan.style && innerSpan.style.backgroundColor)) {
+                            cellBg.indexOf('255, 200') >= 0 || cellBg.indexOf('255, 165') >= 0 ||
+                            cellStyle.indexOf('yellow') >= 0 || cellStyle.indexOf('rgb(255') >= 0 ||
+                            innerBg.indexOf('255, 255, 0') >= 0 || innerBg.indexOf('255, 193') >= 0 ||
+                            innerBg.indexOf('255, 200') >= 0 || innerStyle.indexOf('yellow') >= 0 ||
+                            allCells[c].classList.contains('amarelo') || allCells[c].classList.contains('warning') ||
+                            (inner && inner.style && inner.style.backgroundColor && 
+                             inner.style.backgroundColor !== 'transparent' && inner.style.backgroundColor !== '')) {
                             tarInfo.isYellow = true;
+                            console.log('[Atom Oferta] 🟡 Linha', tarInfo.cod || r, '- AMARELA (bg:', cellBg, ')');
                         }
                     }
-                    if (headerText.indexOf('origem') >= 0) tarInfo.origem = cellText;
-                    if (headerText.indexOf('destino') >= 0) tarInfo.destino = cellText;
-                    if (headerText.indexOf('armador') >= 0) tarInfo.armador = cellText;
-                    if (headerText.indexOf('agente') >= 0) tarInfo.agente = cellText;
-                    if (headerText.indexOf('cont') >= 0 && headerText.indexOf('conta') < 0) tarInfo.container = cellText;
+                    
+                    if (hdr.indexOf('origem') >= 0) tarInfo.origem = cellText;
+                    if (hdr.indexOf('destino') >= 0) tarInfo.destino = cellText;
+                    if (hdr.indexOf('armador') >= 0) tarInfo.armador = cellText;
+                    if (hdr.indexOf('agente') >= 0) tarInfo.agente = cellText;
+                    if ((hdr.indexOf('cont') >= 0 && hdr.indexOf('conta') < 0) || hdr.indexOf('equip') >= 0) tarInfo.container = cellText;
                 }
+
+                console.log('[Atom Oferta] Tarif.', tarInfo.cod, '|', tarInfo.armador, '| Yellow:', tarInfo.isYellow);
 
                 // Checa armador bloqueado
                 if (clientRules.armadoresBloqueados && clientRules.armadoresBloqueados.length > 0) {
@@ -688,19 +755,22 @@ try {
         var tar = yellowRows[index];
         console.log('[Atom Oferta] Lendo observação do tarifário:', tar.cod, '(', index + 1, '/', yellowRows.length, ')');
 
-        // Clica no botão "..." da linha
-        var row = tar.rowElement;
-        var dotsBtn = row.querySelector('.ui-button-text, button');
-        // Procura botão com "..." dentro da linha
-        var allBtns = row.querySelectorAll('button, .ui-button, span.ui-clickable');
-        for (var b = 0; b < allBtns.length; b++) {
-            if (allBtns[b].textContent.trim() === '...') {
-                dotsBtn = allBtns[b];
-                break;
+        // Clica no botão "..." da linha — pode estar na frozen ou scrollable row
+        var searchRows = [tar.rowElement];
+        if (tar.frozenRow) searchRows.unshift(tar.frozenRow);
+
+        var dotsBtn = null;
+        for (var sr = 0; sr < searchRows.length && !dotsBtn; sr++) {
+            var allBtns = searchRows[sr].querySelectorAll('button, .ui-button, span.ui-clickable, .ui-button-text');
+            for (var b = 0; b < allBtns.length; b++) {
+                if (allBtns[b].textContent.trim() === '...') {
+                    dotsBtn = allBtns[b];
+                    break;
+                }
             }
         }
 
-        if (!dotsBtn || dotsBtn.textContent.trim() !== '...') {
+        if (!dotsBtn) {
             console.log('[Atom Oferta] Botao ... nao encontrado na linha', tar.cod);
             readYellowObservations(yellowRows, index + 1, callback);
             return;
