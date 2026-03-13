@@ -81,8 +81,7 @@
         console.log(TAG, 'Buscando To:', toSearch, toLearned ? '(aprendido)' : '(original)');
 
         // Limpa e preenche
-        clearField(fromInput);
-        clearField(toInput);
+        clearAllFields();
 
         setTimeout(function() {
             fillAutocomplete(fromInput, fromSearch, from, 'from', function(selectedFrom) {
@@ -101,13 +100,21 @@
         }, 500);
     }
 
-    function clearField(input) {
-        input.value = '';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        // Clica Clear se existir
-        var clearBtn = document.querySelector('#btnClear, .btn_clear');
-        if (clearBtn) clearBtn.click();
+    function clearAllFields() {
+        // Clica botão Clear do HMM pra resetar tudo
+        var clearBtn = document.querySelector('button.btn');
+        var allBtns = document.querySelectorAll('button, .btn');
+        for (var b = 0; b < allBtns.length; b++) {
+            if ((allBtns[b].textContent || '').trim() === 'Clear') {
+                allBtns[b].click();
+                console.log(TAG, 'Botão Clear clicado');
+                break;
+            }
+        }
+        var fromInput = document.querySelector('#srchPointFrom');
+        var toInput = document.querySelector('#srchPointTo');
+        if (fromInput) { fromInput.value = ''; fromInput.dispatchEvent(new Event('input', { bubbles: true })); }
+        if (toInput) { toInput.value = ''; toInput.dispatchEvent(new Event('input', { bubbles: true })); }
     }
 
     function fillAutocomplete(input, searchText, originalKey, fieldType, callback) {
@@ -135,10 +142,21 @@
 
     function selectFromDropdown(input, originalKey, fieldType, callback) {
         var dropdown = document.querySelector('.ac_results');
-        if (!dropdown || dropdown.style.display === 'none') {
-            console.log(TAG, 'Dropdown não apareceu, tentando Enter');
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-            setTimeout(function() { callback(input.value); }, 500);
+        var hasVisible = dropdown && dropdown.style.display !== 'none' && dropdown.querySelectorAll('li').length > 0;
+        if (!hasVisible) {
+            console.log(TAG, 'Dropdown não apareceu, tentando ArrowDown+Enter');
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+            setTimeout(function() {
+                // Checa de novo se dropdown apareceu
+                var dd2 = document.querySelector('.ac_results');
+                if (dd2 && dd2.style.display !== 'none' && dd2.querySelectorAll('li').length > 0) {
+                    // Tem dropdown agora!
+                    selectFromDropdown(input, originalKey, fieldType, callback);
+                    return;
+                }
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+                setTimeout(function() { callback(input.value); }, 500);
+            }, 800);
             return;
         }
 
@@ -240,7 +258,7 @@
         console.log(TAG, 'Clicando Retrieve...');
         btn.click();
 
-        // Espera resultados carregarem
+        // Espera resultados carregarem (8s pra HMM que é lento)
         setTimeout(function() {
             var results = scrapeResults();
             console.log(TAG, 'Resultados:', results.length);
@@ -260,8 +278,7 @@
                         var fromInput = document.querySelector('#srchPointFrom');
                         var toInput = document.querySelector('#srchPointTo');
                         if (fromInput && toInput) {
-                            clearField(fromInput);
-                            clearField(toInput);
+                            clearAllFields();
                             setTimeout(function() {
                                 fillAutocomplete(fromInput, currentState.from, currentState.from, 'from', function() {
                                     setTimeout(function() {
@@ -288,8 +305,7 @@
                         var fromInput = document.querySelector('#srchPointFrom');
                         var toInput = document.querySelector('#srchPointTo');
                         if (fromInput && toInput) {
-                            clearField(fromInput);
-                            clearField(toInput);
+                            clearAllFields();
                             setTimeout(function() {
                                 fillAutocomplete(fromInput, currentState.from, currentState.from, 'from', function() {
                                     setTimeout(function() {
@@ -325,7 +341,7 @@
                     results: results
                 });
             }
-        }, 5000);
+        }, 8000);
     }
 
     function scrapeResults() {
