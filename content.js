@@ -2609,7 +2609,7 @@ try {
                 { id: "fornecedor_contrato", label: "Fornecedor Contrato", selector: "#formularioEmbarque-cdFornecedorContratCambio", pdfField: "cnpjFornecedor", order: 4, delayAfter: 800 },
                 { id: "moeda_contrato", label: "Moeda Contrato", selector: "#formularioEmbarque-cdMoedaContrato", fixedValue: "BRL", order: 5, delayAfter: 800 },
                 { id: "valor_conversao", label: "Valor Conversão", findByLabel: "Valor de convers", fixedValue: "1", order: 6, delayAfter: 300 },
-                { id: "valor_contrato", label: "Valor Contrato", findByLabel: "Valor do contrato de c", pdfField: "despesaBancaria", order: 7, delayAfter: 300 },
+                { id: "valor_contrato", label: "Valor Contrato", findByLabel: "Valor do contrato de c", pdfField: "despesaBancaria", formatBR: true, order: 7, delayAfter: 300 },
                 { id: "taxa_vet", label: "Taxa VET", findByLabel: "Taxa VET", pdfField: "valorVET", formatBR: true, order: 8, delayAfter: 300 },
                 { id: "atualizar_pre_taxa", label: "Atualizar (salvar campos)", actionType: "clickButton", actionLabel: "Atualizar", order: 9, delayAfter: 3000 },
                 { id: "taxa_cambial", label: "Taxa Cambial", selector: "input[title='Taxa']", pdfField: "taxaCambial", formatBR: true, order: 10, delayAfter: 800 }
@@ -2622,7 +2622,10 @@ try {
                 { action: "selectDropdown", label: "Tipo do arquivo", value: "Contrato de Câmbio", delay: 1500, retryDelay: 2000 },
                 { action: "clickRowSave", label: "Salvar tipo arquivo", delay: 1500, retryDelay: 2000 },
                 { action: "selectDropdown", label: "Tipo do arquivo (Swift)", value: "Swift", delay: 1500, retryDelay: 2000 },
-                { action: "clickRowSave", label: "Salvar tipo arquivo (Swift)", delay: 1500, retryDelay: 2000 }
+                { action: "clickRowSave", label: "Salvar tipo arquivo (Swift)", delay: 1500, retryDelay: 2000 },
+                { action: "selectBankAccount", label: "Selecionar Banco/Conta", matchText: "98424", delay: 2000, retryDelay: 2000 },
+                { action: "clickButton", label: "Atualizar", delay: 2000, retryDelay: 1500 },
+                { action: "visionVerify", label: "Verificação visual final", delay: 3000 }
             ]
         };
     }

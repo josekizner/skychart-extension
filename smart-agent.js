@@ -950,10 +950,165 @@ var SkAgent = (function () {
                 return await waitForToast(action.label, action.successText, action.timeout || 15000);
             case 'waitField':
                 return await waitForFieldNotEmpty(action.label, action.selector, action.timeout || 10000);
+            case 'selectBankAccount':
+                return await selectBankAccount(action.matchText || '98424', action.label);
+            case 'visionVerify':
+                return await visionVerifyPage(action.label);
             default:
                 console.warn('Skychart AI: Ação desconhecida:', action.action);
                 return false;
         }
+    }
+
+    // ===== SELECT BANK ACCOUNT: Seleciona conta bancária pelo texto parcial =====
+    async function selectBankAccount(matchText, label) {
+        SkDebug.log(label, 'INFO', 'Buscando dropdown banco/conta com: ' + matchText);
+
+        // Procura o dropdown que contém o texto "Conta" ou "Banco" no label
+        var allLabels = document.querySelectorAll('.ui-dropdown-label, label');
+        var targetDropdown = null;
+
+        for (var i = 0; i < allLabels.length; i++) {
+            var text = (allLabels[i].textContent || '').trim();
+            if (text.indexOf('Conta') >= 0 || text.indexOf('Banco') >= 0) {
+                // Encontra o p-dropdown pai
+                targetDropdown = allLabels[i].closest('p-dropdown, .ui-dropdown');
+                if (targetDropdown) {
+                    SkDebug.log(label, 'INFO', 'Dropdown encontrado: ' + text.substring(0, 40));
+                    break;
+                }
+            }
+        }
+
+        if (!targetDropdown) {
+            SkDebug.log(label, 'FAIL', 'Dropdown banco/conta não encontrado');
+            return false;
+        }
+
+        // Abre o dropdown
+        targetDropdown.click();
+        await delay(800);
+
+        // Procura o item com o texto que bate (98424)
+        var panels = document.querySelectorAll('.ui-dropdown-panel, .ui-dropdown-items-wrapper');
+        var found = false;
+
+        for (var p = 0; p < panels.length; p++) {
+            if (panels[p].style.display === 'none' || panels[p].offsetHeight === 0) continue;
+
+            var items = panels[p].querySelectorAll('li, .ui-dropdown-item');
+            for (var j = 0; j < items.length; j++) {
+                var itemText = (items[j].textContent || '').trim();
+                if (itemText.indexOf(matchText) >= 0) {
+                    SkDebug.log(label, 'INFO', 'Selecionando: ' + itemText.substring(0, 50));
+                    items[j].click();
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+
+        if (!found) {
+            // Tenta com overlay aberto em outro container
+            var allItems = document.querySelectorAll('.ui-dropdown-item, li.ui-dropdown-item');
+            for (var k = 0; k < allItems.length; k++) {
+                var txt = (allItems[k].textContent || '').trim();
+                if (txt.indexOf(matchText) >= 0) {
+                    SkDebug.log(label, 'INFO', 'Selecionando (fallback): ' + txt.substring(0, 50));
+                    allItems[k].click();
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (found) {
+            SkDebug.log(label, 'OK', 'Conta selecionada com: ' + matchText);
+            await delay(500);
+        } else {
+            SkDebug.log(label, 'FAIL', 'Item com "' + matchText + '" não encontrado no dropdown');
+        }
+
+        return found;
+    }
+
+    // ===== VISION VERIFY: Screenshot + Gemini analisa se tudo tá correto =====
+    async function visionVerifyPage(label) {
+        SkDebug.log(label, 'INFO', 'Tirando screenshot pra Gemini revisar...');
+
+        return new Promise(function(resolve) {
+            // Pede screenshot ao background
+            chrome.runtime.sendMessage({ action: 'visionScreenshot' }, function(screenshotResponse) {
+                if (!screenshotResponse || !screenshotResponse.success || !screenshotResponse.image) {
+                    SkDebug.log(label, 'INFO', 'Screenshot falhou, pulando verificação');
+                    resolve(true);
+                    return;
+                }
+
+                SkDebug.log(label, 'INFO', 'Screenshot capturado, enviando ao Gemini...');
+
+                var prompt = 'Analise esta tela do sistema Skychart de câmbio.\n\n' +
+                    'Verifique se TUDO está preenchido corretamente:\n' +
+                    '1. "Total IOF" deve ter um valor NÃO ZERO\n' +
+                    '2. "Total contrato de Câmbio" ou "Total Contrato" deve ter um valor NÃO ZERO\n' +
+                    '3. Os campos de contrato, data, fornecedor, valor devem estar preenchidos\n' +
+                    '4. Verifique se há algo visivelmente errado ou faltando\n\n' +
+                    'Responda APENAS com JSON:\n' +
+                    '{\n' +
+                    '  "allOk": true/false,\n' +
+                    '  "issues": ["descricao do problema 1", "descricao do problema 2"],\n' +
+                    '  "totalIOF": "valor encontrado ou ZERO",\n' +
+                    '  "totalContrato": "valor encontrado ou ZERO",\n' +
+                    '  "actions": ["gerarIOF", "gerarContrato"] // ações necessárias se algo estiver errado\n' +
+                    '}';
+
+                chrome.runtime.sendMessage({
+                    action: 'visionAnalyze',
+                    screenshot: screenshotResponse.image,
+                    instruction: prompt,
+                    viewport: { width: window.innerWidth, height: window.innerHeight }
+                }, async function(analysisResponse) {
+                    if (!analysisResponse || !analysisResponse.success || !analysisResponse.data) {
+                        SkDebug.log(label, 'INFO', 'Gemini não respondeu, pulando');
+                        resolve(true);
+                        return;
+                    }
+
+                    var result = analysisResponse.data;
+                    SkDebug.log(label, 'INFO', 'Gemini analisou: ' + JSON.stringify(result).substring(0, 200));
+
+                    if (result.allOk) {
+                        SkDebug.log(label, 'OK', '✅ Gemini confirmou: tudo OK!');
+                        resolve(true);
+                        return;
+                    }
+
+                    // Tem problemas — tenta corrigir
+                    SkDebug.log(label, 'INFO', '⚠️ Problemas encontrados: ' + (result.issues || []).join(', '));
+
+                    var actions = result.actions || [];
+                    for (var a = 0; a < actions.length; a++) {
+                        if (actions[a] === 'gerarIOF' || actions[a].indexOf('IOF') >= 0) {
+                            SkDebug.log(label, 'EXEC', 'Re-clicando Gerar IOF...');
+                            clickButtonByLabel('Gerar IOF');
+                            await delay(3000);
+                            // Espera toast
+                            await waitForToast('IOF retry', 'sucesso', 10000);
+                            await delay(1000);
+                        }
+                        if (actions[a] === 'gerarContrato' || actions[a].indexOf('contrato') >= 0 || actions[a].indexOf('Contrato') >= 0) {
+                            SkDebug.log(label, 'EXEC', 'Re-clicando Gerar contrato de cambio...');
+                            clickButtonByLabel('Gerar contrato de cambio');
+                            await delay(3000);
+                        }
+                    }
+
+                    SkDebug.log(label, 'OK', 'Correções aplicadas baseado na visão');
+                    resolve(true);
+                });
+            });
+        });
     }
     // ===== INTERVENÇÃO HUMANA: Agente pausa, usuário faz, agente aprende =====
     async function humanTakeover(stepLabel, actionType, expectedValue) {
