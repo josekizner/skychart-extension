@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "date": "2026-03-13",
-  "changelog": "Auto-reload, tarifario inteligente, layout cotacao"
+  "changelog": "Fix tarifario: frozen+scrollable view split, Armador e VL.Frete corretos"
 }

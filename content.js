@@ -563,8 +563,28 @@ try {
 
     // =============================================
     // ANÁLISE INTELIGENTE DE TARIFÁRIOS
-    // Lê Armador + VL.Frete do DOM, clica "..." da Descrição pra ler observações
+    // PrimeNG split table: frozen view (Descrição) + scrollable view (Armador, VL.Frete)
     // =============================================
+
+    // Helper: encontra índice da coluna pelo nome do header DENTRO de um view específico
+    function findColInView(viewEl, searchText) {
+        if (!viewEl) return -1;
+        var headers = viewEl.querySelectorAll('thead th');
+        for (var i = 0; i < headers.length; i++) {
+            var t = (headers[i].textContent || '').trim().toLowerCase();
+            if (t.indexOf(searchText) >= 0) return i;
+        }
+        return -1;
+    }
+
+    // Helper: parse número brasileiro "1.925,00" → 1925.00
+    function parseBR(str) {
+        if (!str) return 0;
+        var clean = str.replace(/[^\d.,-]/g, '');
+        clean = clean.replace(/\./g, '').replace(',', '.');
+        return parseFloat(clean) || 0;
+    }
+
     function analyzeTarifarios(quote) {
         console.log('[Atom Oferta] === ANÁLISE INTELIGENTE DE TARIFÁRIOS ===');
 
@@ -573,87 +593,80 @@ try {
             var clientRules = data[clienteKey] || { armadoresBloqueados: [], incluirIOF: false };
             console.log('[Atom Oferta] Regras:', JSON.stringify(clientRules).substring(0, 200));
 
-            // 1. Encontra headers da tabela de tarifários pra saber o indice de cada coluna
-            var headers = document.querySelectorAll('.ui-table-scrollable-header th, .ui-table-frozen-column th, p-table th, table th');
-            var colMap = {};
-            for (var h = 0; h < headers.length; h++) {
-                var hText = (headers[h].textContent || '').trim().toLowerCase();
-                if (hText.indexOf('armador') >= 0) colMap.armador = h;
-                if (hText.indexOf('descri') >= 0) colMap.descricao = h;
-                if (hText.indexOf('vl') >= 0 && hText.indexOf('frete') >= 0) colMap.vlFrete = h;
-                if (hText.indexOf('vl. frete') >= 0 || hText.indexOf('vl frete') >= 0) colMap.vlFrete = h;
-            }
-            console.log('[Atom Oferta] Mapa de colunas:', JSON.stringify(colMap));
+            // === PASSO 1: Encontra as duas views da tabela PrimeNG ===
+            var frozenView = document.querySelector('.ui-table-frozen-view');
+            var scrollView = document.querySelector('.ui-table-scrollable-view');
 
-            // 2. Encontra todas as linhas da tabela de tarifários
-            var rows = document.querySelectorAll('.ui-table-scrollable-body tr, .ui-table-frozen-view tr, p-table tbody tr, table tbody tr');
+            if (!frozenView && !scrollView) {
+                scrollView = document.querySelector('p-table, .ui-table');
+                frozenView = null;
+            }
+
+            console.log('[Atom Oferta] Frozen view:', !!frozenView, '| Scroll view:', !!scrollView);
+
+            // === PASSO 2: Mapeia colunas em cada view ===
+            var frozenDescCol = frozenView ? findColInView(frozenView, 'descri') : -1;
+            var scrollArmadorCol = scrollView ? findColInView(scrollView, 'armador') : -1;
+            var scrollFreteCol = -1;
+            if (scrollView) {
+                var scrollHeaders = scrollView.querySelectorAll('thead th');
+                for (var sh = 0; sh < scrollHeaders.length; sh++) {
+                    var ht = (scrollHeaders[sh].textContent || '').trim().toLowerCase();
+                    if ((ht === 'vl. frete' || ht === 'vl frete' || ht === 'vl.frete') ||
+                        (ht.indexOf('vl') >= 0 && ht.indexOf('frete') >= 0 && ht.indexOf('taxa') < 0 && ht.indexOf('total') < 0)) {
+                        scrollFreteCol = sh;
+                        break;
+                    }
+                }
+            }
+
+            console.log('[Atom Oferta] Colunas — Desc(frozen):', frozenDescCol,
+                '| Armador(scroll):', scrollArmadorCol,
+                '| VL.Frete(scroll):', scrollFreteCol);
+
+            // === PASSO 3: Pega linhas de cada view ===
+            var frozenRows = frozenView ? frozenView.querySelectorAll('.ui-table-scrollable-body tbody tr, tbody tr') : [];
+            var scrollRows = scrollView ? scrollView.querySelectorAll('.ui-table-scrollable-body tbody tr, tbody tr') : [];
+
+            console.log('[Atom Oferta] Rows — Frozen:', frozenRows.length, '| Scroll:', scrollRows.length);
+
+            var numRows = Math.max(frozenRows.length, scrollRows.length);
             var tarifarios = [];
             var seen = {};
 
-            for (var r = 0; r < rows.length; r++) {
-                var tr = rows[r];
-                var cells = tr.querySelectorAll('td');
-                if (cells.length < 3) continue;
+            for (var r = 0; r < numRows; r++) {
+                var fRow = frozenRows[r] || null;
+                var sRow = scrollRows[r] || null;
+                var fCells = fRow ? fRow.querySelectorAll('td') : [];
+                var sCells = sRow ? sRow.querySelectorAll('td') : [];
 
-                // Pega código do tarifário (primeiro número com 5+ dígitos na linha)
-                var codMatch = tr.textContent.match(/\b(\d{5,})\b/);
+                var fullText = (fRow ? fRow.textContent : '') + (sRow ? sRow.textContent : '');
+                var codMatch = fullText.match(/\b(\d{5,})\b/);
                 var cod = codMatch ? codMatch[1] : null;
                 if (!cod || seen[cod]) continue;
                 seen[cod] = true;
 
-                // Lê Armador da célula
+                // Armador do SCROLLABLE view
                 var armador = '';
-                if (typeof colMap.armador !== 'undefined' && cells[colMap.armador]) {
-                    armador = cells[colMap.armador].textContent.trim();
-                } else {
-                    // Fallback: procura na primeira célula com texto de armador
-                    for (var c = 0; c < Math.min(cells.length, 6); c++) {
-                        var cellText = cells[c].textContent.trim();
-                        if (cellText.match(/maersk|msc|cma|hapag|cosco|one|evergreen|zim|hmm|yang|pil|hyundai/i)) {
-                            armador = cellText;
-                            break;
-                        }
-                    }
+                if (scrollArmadorCol >= 0 && sCells[scrollArmadorCol]) {
+                    armador = sCells[scrollArmadorCol].textContent.trim();
                 }
 
-                // Lê VL. Frete da célula
+                // VL. Frete do SCROLLABLE view
                 var vlFrete = 0;
-                if (typeof colMap.vlFrete !== 'undefined' && cells[colMap.vlFrete]) {
-                    var freteText = cells[colMap.vlFrete].textContent.trim();
-                    vlFrete = parseFloat(freteText.replace(/[^\d.,]/g, '').replace('.', '').replace(',', '.')) || 0;
-                } else {
-                    // Fallback: procura célula com valor numérico que parece frete
-                    for (var fc = 0; fc < cells.length; fc++) {
-                        var fText = cells[fc].textContent.trim();
-                        var fMatch = fText.match(/^[\d.,]+$/);
-                        if (fMatch && parseFloat(fText.replace('.', '').replace(',', '.')) > 100) {
-                            vlFrete = parseFloat(fText.replace('.', '').replace(',', '.'));
-                            break;
-                        }
-                    }
+                if (scrollFreteCol >= 0 && sCells[scrollFreteCol]) {
+                    vlFrete = parseBR(sCells[scrollFreteCol].textContent.trim());
                 }
 
-                // Encontra botão "..." na coluna Descrição
+                // Botão "..." do FROZEN view (coluna Descrição)
                 var dotsBtn = null;
-                if (typeof colMap.descricao !== 'undefined' && cells[colMap.descricao]) {
-                    dotsBtn = cells[colMap.descricao].querySelector('span.ui-button-text, span.ui-clickable, button');
-                }
-                // Fallback: procura "..." em cada célula
-                if (!dotsBtn) {
-                    for (var dc = 0; dc < cells.length; dc++) {
-                        var spans = cells[dc].querySelectorAll('span.ui-button-text, span.ui-clickable');
-                        for (var sp = 0; sp < spans.length; sp++) {
-                            if (spans[sp].textContent.trim() === '...') {
-                                // Verifica se é na coluna certa (descricao, nao outra)
-                                var headerForCell = headers[dc];
-                                var headerText = headerForCell ? (headerForCell.textContent || '').trim().toLowerCase() : '';
-                                if (headerText.indexOf('descri') >= 0) {
-                                    dotsBtn = spans[sp];
-                                    break;
-                                }
-                            }
+                if (frozenDescCol >= 0 && fCells[frozenDescCol]) {
+                    var spans = fCells[frozenDescCol].querySelectorAll('span.ui-button-text, span.ui-clickable');
+                    for (var sp = 0; sp < spans.length; sp++) {
+                        if (spans[sp].textContent.trim() === '...') {
+                            dotsBtn = spans[sp];
+                            break;
                         }
-                        if (dotsBtn) break;
                     }
                 }
 
@@ -661,8 +674,9 @@ try {
 
                 tarifarios.push({
                     rowIndex: r,
-                    rowElement: tr,
-                    frozenRow: tr,
+                    rowElement: sRow || fRow,
+                    frozenRow: fRow,
+                    scrollRow: sRow,
                     dotsButton: dotsBtn,
                     cod: cod,
                     armador: armador,
@@ -682,7 +696,7 @@ try {
                 return;
             }
 
-            // Filtra armadores bloqueados ANTES de ler observações
+            // Filtra armadores bloqueados
             if (clientRules.armadoresBloqueados && clientRules.armadoresBloqueados.length > 0) {
                 for (var b = 0; b < tarifarios.length; b++) {
                     var armUp = tarifarios[b].armador.toUpperCase();
@@ -696,11 +710,10 @@ try {
                 }
             }
 
-            // Clica "..." da Descrição de cada um pra ler observações
+            // Clica "..." da Descrição (frozen view) de cada elegível
             var withDots = tarifarios.filter(function(t) { return t.dotsButton && t.eligible; });
             showToast('Lendo descrições de ' + withDots.length + ' tarifários...', 'info', 3000);
             readAllObservations(withDots, 0, function() {
-                // Propaga as observações de volta pros tarifarios por cod
                 var obsByCod = {};
                 for (var w = 0; w < withDots.length; w++) {
                     obsByCod[withDots[w].cod] = withDots[w];
@@ -719,6 +732,7 @@ try {
             });
         });
     }
+
 
     // Clica "..." de cada tarifário sequencialmente, lê textarea
     function readAllObservations(tarifarios, index, callback) {
