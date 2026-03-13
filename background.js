@@ -20,12 +20,8 @@ function loadProfileFromConfig() {
       console.log('[Atom] Perfil configurado:', cfg.profile, agents);
     })
     .catch(() => {
-      chrome.storage.local.get('enabledAgents', d => {
-        if (!d.enabledAgents) {
-          chrome.storage.local.set({ enabledAgents: PROFILES.master, userProfile: 'master', configLoaded: true });
-          console.log('[Atom] Sem config, default master');
-        }
-      });
+      // Sem local-config.json — popup vai mostrar seletor de departamento
+      console.log('[Atom] Sem local-config.json, popup vai pedir departamento');
     });
 }
 
