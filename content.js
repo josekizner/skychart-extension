@@ -750,7 +750,7 @@ try {
     }
 
 
-    // Clica "..." de cada tarifário sequencialmente, lê textarea
+    // Clica "..." de cada tarifário sequencialmente, lê conteúdo do dialog
     function readAllObservations(tarifarios, index, callback) {
         if (index >= tarifarios.length) {
             callback();
@@ -776,26 +776,78 @@ try {
         clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
         clickTarget.click();
 
-        // Espera dialog abrir, lê textarea
+        // Espera dialog abrir, lê conteúdo
         setTimeout(function() {
-            var dialog = document.querySelector('.ui-dialog, p-dialog, [role="dialog"]');
+            // Procura QUALQUER dialog na página
+            var dialog = document.querySelector('.ui-dialog, p-dialog, [role="dialog"], .ui-overlaypanel');
+            
+            if (!dialog) {
+                // Tenta overlay panels do PrimeNG
+                var overlays = document.querySelectorAll('.ui-overlaypanel, .cdk-overlay-pane, .ui-tooltip, [class*="overlay"], [class*="popup"]');
+                for (var ov = 0; ov < overlays.length; ov++) {
+                    if (overlays[ov].offsetHeight > 0 && overlays[ov].textContent.trim().length > 0) {
+                        dialog = overlays[ov];
+                        break;
+                    }
+                }
+            }
+
             if (dialog) {
+                // DIAGNÓSTICO: mostra o HTML do dialog pra não adivinhar
+                console.log('[Atom Diag] Dialog encontrado. Tag:', dialog.tagName, 'Class:', dialog.className.substring(0, 60));
+                console.log('[Atom Diag] Dialog HTML (500 chars):', dialog.innerHTML.substring(0, 500));
+
+                // Tenta ler de VÁRIOS tipos de elementos
+                var obsText = '';
+                
+                // 1. textarea
                 var textarea = dialog.querySelector('textarea');
-                var obsText = textarea ? (textarea.value || textarea.textContent || '').trim() : '';
+                if (textarea) {
+                    obsText = (textarea.value || textarea.textContent || '').trim();
+                    console.log('[Atom Diag] Leu via textarea:', obsText.substring(0, 80));
+                }
+                
+                // 2. CKEditor iframe
+                if (!obsText) {
+                    var iframe = dialog.querySelector('iframe');
+                    if (iframe) {
+                        try {
+                            var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                            obsText = (iframeDoc.body.textContent || '').trim();
+                            console.log('[Atom Diag] Leu via CKEditor iframe:', obsText.substring(0, 80));
+                        } catch(e) {
+                            console.log('[Atom Diag] Erro ao ler iframe:', e.message);
+                        }
+                    }
+                }
+                
+                // 3. div/p com conteúdo (.ui-dialog-content, qualquer div com texto)
+                if (!obsText) {
+                    var contentDiv = dialog.querySelector('.ui-dialog-content, .ui-overlaypanel-content, [class*="content"]');
+                    if (contentDiv) {
+                        obsText = contentDiv.textContent.trim();
+                        console.log('[Atom Diag] Leu via content div:', obsText.substring(0, 80));
+                    }
+                }
+                
+                // 4. Fallback: todo o texto do dialog
+                if (!obsText) {
+                    obsText = dialog.textContent.trim();
+                    // Remove texto de botões (Fechar, Atualizar, etc.)
+                    obsText = obsText.replace(/Fechar|Atualizar|Close|Cancel/gi, '').trim();
+                    console.log('[Atom Diag] Leu via fallback textContent:', obsText.substring(0, 80));
+                }
 
                 if (obsText.length > 0) {
                     tar.observacao = obsText;
                     tar.isYellow = true;
-                    console.log('[Atom Oferta] 🟡', tar.cod, ':', obsText.substring(0, 80));
+                    console.log('[Atom Oferta]', tar.cod, ':', obsText.substring(0, 80));
 
                     // NAC check
                     var obsUp = obsText.toUpperCase();
                     if (obsUp.indexOf('NAC') >= 0 && (obsUp.indexOf('QUIMIC') >= 0 || obsUp.indexOf('IMO') >= 0)) {
-                        var merc = (tar._quote_merc || '').toUpperCase();
-                        if (merc.indexOf('QUIMIC') < 0 && merc.indexOf('IMO') < 0 && merc.indexOf('CHEMICAL') < 0) {
-                            tar.eligible = false;
-                            tar.rejectReason = 'NAC: carga quimica/IMO apenas';
-                        }
+                        tar.eligible = false;
+                        tar.rejectReason = 'NAC: carga quimica/IMO apenas';
                     }
                     if (obsUp.indexOf('SOBREPESO') >= 0 || obsUp.indexOf('OWS') >= 0) {
                         tar.observacao += ' [SOBREPESO]';
@@ -805,13 +857,14 @@ try {
                 }
 
                 // Fecha dialog
-                var closeBtn = dialog.querySelector('.ui-dialog-titlebar-close, .ui-dialog-titlebar-icon, button[aria-label="Close"]');
+                var closeBtn = dialog.querySelector('.ui-dialog-titlebar-close, .ui-dialog-titlebar-icon, button[aria-label="Close"], .ui-overlaypanel-close');
                 if (closeBtn) {
                     closeBtn.click();
                 } else {
                     var btns = dialog.querySelectorAll('button, .ui-button-text');
                     for (var bi = 0; bi < btns.length; bi++) {
-                        if (btns[bi].textContent.trim() === 'Atualizar' || btns[bi].textContent.trim() === 'Fechar') {
+                        var btnText = btns[bi].textContent.trim();
+                        if (btnText === 'Atualizar' || btnText === 'Fechar' || btnText === 'OK' || btnText === 'Close') {
                             btns[bi].click();
                             break;
                         }
@@ -819,6 +872,12 @@ try {
                 }
             } else {
                 console.log('[Atom Oferta]', tar.cod, '- Dialog nao abriu');
+                // DIAGNÓSTICO: mostra todos os elementos visíveis que podem ser o dialog
+                var allVisible = document.querySelectorAll('[style*="display: block"], [style*="visibility: visible"], .ui-dialog, .ui-overlaypanel');
+                console.log('[Atom Diag] Elementos visíveis candidatos:', allVisible.length);
+                for (var av = 0; av < Math.min(allVisible.length, 5); av++) {
+                    console.log('[Atom Diag]  ', allVisible[av].tagName, allVisible[av].className.substring(0, 40), 'text:', allVisible[av].textContent.substring(0, 50));
+                }
             }
 
             setTimeout(function() {
