@@ -233,10 +233,27 @@
     function init() {
         var url = location.href;
 
-        if (url.indexOf('/login') >= 0) {
+        // Detecta login tanto por URL quanto pelo formulario visivel
+        var isLoginPage = url.indexOf('/login') >= 0 || document.getElementById('btn-acessar') || document.getElementById('username');
+
+        if (isLoginPage) {
             handleLoginPage();
         } else if (url.indexOf('/consulta-serasa') >= 0 || url.indexOf('/consulta') >= 0) {
             handleConsultaPage();
+            // Serasa SPA pode redirecionar pro login DEPOIS do script carregar
+            // Monitora se aparece formulário de login
+            var loginChecks = 0;
+            var loginWatcher = setInterval(function() {
+                loginChecks++;
+                var nowUrl = location.href;
+                var hasLoginForm = document.getElementById('btn-acessar') || document.getElementById('username');
+                if (nowUrl.indexOf('/login') >= 0 || hasLoginForm) {
+                    clearInterval(loginWatcher);
+                    console.log('[Atom Serasa] Redirecionado pra login, iniciando login flow...');
+                    handleLoginPage();
+                }
+                if (loginChecks > 30) clearInterval(loginWatcher); // 15 seg max
+            }, 500);
         } else {
             // Pode ser outra pagina do Serasa — verifica CNPJ pendente mesmo assim
             chrome.storage.local.get('serasaCNPJ', function(data) {
