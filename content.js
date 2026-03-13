@@ -563,19 +563,8 @@ try {
 
     // =============================================
     // ANÁLISE INTELIGENTE DE TARIFÁRIOS
-    // PrimeNG split table: frozen view (Descrição) + scrollable view (Armador, VL.Frete)
+    // Descobre estrutura do DOM automaticamente
     // =============================================
-
-    // Helper: encontra índice da coluna pelo nome do header DENTRO de um view específico
-    function findColInView(viewEl, searchText) {
-        if (!viewEl) return -1;
-        var headers = viewEl.querySelectorAll('thead th');
-        for (var i = 0; i < headers.length; i++) {
-            var t = (headers[i].textContent || '').trim().toLowerCase();
-            if (t.indexOf(searchText) >= 0) return i;
-        }
-        return -1;
-    }
 
     // Helper: parse número brasileiro "1.925,00" → 1925.00
     function parseBR(str) {
@@ -588,80 +577,129 @@ try {
     function analyzeTarifarios(quote) {
         console.log('[Atom Oferta] === ANÁLISE INTELIGENTE DE TARIFÁRIOS ===');
 
+        // === DIAGNÓSTICO: DESCOBRE A ESTRUTURA DO DOM ===
+        console.log('[Atom Diag] ========== DUMP DOM COMPLETO ==========');
+        
+        // 1. Encontra TODAS as <table> da página
+        var allTables = document.querySelectorAll('table');
+        console.log('[Atom Diag] Total de <table> na página:', allTables.length);
+        
+        // Pra cada table, mostra classe, quantidade de th e td
+        var tableMap = []; // { table, headers[], bodyRows[], tableIndex }
+        for (var ti = 0; ti < allTables.length; ti++) {
+            var tbl = allTables[ti];
+            var ths = tbl.querySelectorAll('thead th');
+            var trs = tbl.querySelectorAll('tbody tr');
+            var headerNames = [];
+            for (var hi = 0; hi < ths.length; hi++) {
+                headerNames.push(hi + ':' + (ths[hi].textContent || '').trim().substring(0, 20));
+            }
+            var parentClass = tbl.parentElement ? tbl.parentElement.className.substring(0, 60) : 'none';
+            console.log('[Atom Diag] TABLE[' + ti + '] class="' + tbl.className.substring(0, 40) + '" parent="' + parentClass + '" | ' + ths.length + ' headers | ' + trs.length + ' rows');
+            if (headerNames.length > 0) {
+                console.log('[Atom Diag]   Headers: ' + headerNames.join(' | '));
+            }
+            // Mostra primeira linha
+            if (trs.length > 0) {
+                var firstRowCells = trs[0].querySelectorAll('td');
+                var cellVals = [];
+                for (var ci = 0; ci < firstRowCells.length; ci++) {
+                    cellVals.push(ci + ':' + (firstRowCells[ci].textContent || '').trim().substring(0, 25));
+                }
+                console.log('[Atom Diag]   Row[0]: ' + cellVals.join(' | '));
+            }
+            
+            if (ths.length > 0 && trs.length > 0) {
+                tableMap.push({ table: tbl, headers: ths, bodyRows: trs, tableIndex: ti });
+            }
+        }
+        
+        console.log('[Atom Diag] Tabelas com dados (headers+rows):', tableMap.length);
+        console.log('[Atom Diag] ========== FIM DUMP DOM ==========');
+
+        // === AGORA ENCONTRA AS COLUNAS CERTAS ===
+        var armadorTable = null, armadorCol = -1;
+        var freteTable = null, freteCol = -1;
+        var descTable = null, descCol = -1;
+
+        for (var m = 0; m < tableMap.length; m++) {
+            var hdrs = tableMap[m].headers;
+            for (var h = 0; h < hdrs.length; h++) {
+                var txt = (hdrs[h].textContent || '').trim().toLowerCase();
+                if (txt.indexOf('armador') >= 0 && armadorCol < 0) {
+                    armadorTable = tableMap[m];
+                    armadorCol = h;
+                    console.log('[Atom Diag] ARMADOR encontrado: TABLE[' + tableMap[m].tableIndex + '] col ' + h);
+                }
+                if (txt.indexOf('descri') >= 0 && descCol < 0) {
+                    descTable = tableMap[m];
+                    descCol = h;
+                    console.log('[Atom Diag] DESCRIÇÃO encontrado: TABLE[' + tableMap[m].tableIndex + '] col ' + h);
+                }
+                // VL. Frete (mas NÃO "VL Taxas Frete" nem "VL. Total Frete")
+                if (txt.indexOf('frete') >= 0 && txt.indexOf('taxa') < 0 && txt.indexOf('total') < 0 && freteCol < 0) {
+                    freteTable = tableMap[m];
+                    freteCol = h;
+                    console.log('[Atom Diag] VL.FRETE encontrado: TABLE[' + tableMap[m].tableIndex + '] col ' + h + ' header="' + txt + '"');
+                }
+            }
+        }
+
+        if (!armadorTable) {
+            console.log('[Atom Diag] ERRO: Não encontrou coluna Armador em nenhuma tabela!');
+            showToast('Erro: coluna Armador não encontrada', 'error', 5000);
+            return;
+        }
+
         var clienteKey = 'acordo_' + (quote.cliente || 'unknown').toLowerCase().replace(/\s+/g, '_');
         chrome.storage.local.get(clienteKey, function(data) {
             var clientRules = data[clienteKey] || { armadoresBloqueados: [], incluirIOF: false };
-            console.log('[Atom Oferta] Regras:', JSON.stringify(clientRules).substring(0, 200));
-
-            // === PASSO 1: Encontra as duas views da tabela PrimeNG ===
-            var frozenView = document.querySelector('.ui-table-frozen-view');
-            var scrollView = document.querySelector('.ui-table-scrollable-view');
-
-            if (!frozenView && !scrollView) {
-                scrollView = document.querySelector('p-table, .ui-table');
-                frozenView = null;
-            }
-
-            console.log('[Atom Oferta] Frozen view:', !!frozenView, '| Scroll view:', !!scrollView);
-
-            // === PASSO 2: Mapeia colunas em cada view ===
-            var frozenDescCol = frozenView ? findColInView(frozenView, 'descri') : -1;
-            var scrollArmadorCol = scrollView ? findColInView(scrollView, 'armador') : -1;
-            var scrollFreteCol = -1;
-            if (scrollView) {
-                var scrollHeaders = scrollView.querySelectorAll('thead th');
-                for (var sh = 0; sh < scrollHeaders.length; sh++) {
-                    var ht = (scrollHeaders[sh].textContent || '').trim().toLowerCase();
-                    if ((ht === 'vl. frete' || ht === 'vl frete' || ht === 'vl.frete') ||
-                        (ht.indexOf('vl') >= 0 && ht.indexOf('frete') >= 0 && ht.indexOf('taxa') < 0 && ht.indexOf('total') < 0)) {
-                        scrollFreteCol = sh;
-                        break;
-                    }
-                }
-            }
-
-            console.log('[Atom Oferta] Colunas — Desc(frozen):', frozenDescCol,
-                '| Armador(scroll):', scrollArmadorCol,
-                '| VL.Frete(scroll):', scrollFreteCol);
-
-            // === PASSO 3: Pega linhas de cada view ===
-            var frozenRows = frozenView ? frozenView.querySelectorAll('.ui-table-scrollable-body tbody tr, tbody tr') : [];
-            var scrollRows = scrollView ? scrollView.querySelectorAll('.ui-table-scrollable-body tbody tr, tbody tr') : [];
-
-            console.log('[Atom Oferta] Rows — Frozen:', frozenRows.length, '| Scroll:', scrollRows.length);
-
-            var numRows = Math.max(frozenRows.length, scrollRows.length);
+            
+            // Usa a tabela do Armador como referência de rows
+            var mainRows = armadorTable.bodyRows;
             var tarifarios = [];
             var seen = {};
 
-            for (var r = 0; r < numRows; r++) {
-                var fRow = frozenRows[r] || null;
-                var sRow = scrollRows[r] || null;
-                var fCells = fRow ? fRow.querySelectorAll('td') : [];
-                var sCells = sRow ? sRow.querySelectorAll('td') : [];
+            for (var r = 0; r < mainRows.length; r++) {
+                var sRow = mainRows[r];
+                var sCells = sRow.querySelectorAll('td');
 
-                var fullText = (fRow ? fRow.textContent : '') + (sRow ? sRow.textContent : '');
+                // Cod do tarifário
+                var fullText = sRow.textContent;
+                // Se tem tabela de descrição separada, pega texto de lá também
+                var fRow = null;
+                if (descTable && descTable !== armadorTable && descTable.bodyRows[r]) {
+                    fRow = descTable.bodyRows[r];
+                    fullText += fRow.textContent;
+                }
                 var codMatch = fullText.match(/\b(\d{5,})\b/);
                 var cod = codMatch ? codMatch[1] : null;
                 if (!cod || seen[cod]) continue;
                 seen[cod] = true;
 
-                // Armador do SCROLLABLE view
+                // Armador
                 var armador = '';
-                if (scrollArmadorCol >= 0 && sCells[scrollArmadorCol]) {
-                    armador = sCells[scrollArmadorCol].textContent.trim();
+                if (sCells[armadorCol]) {
+                    armador = sCells[armadorCol].textContent.trim();
                 }
 
-                // VL. Frete do SCROLLABLE view
+                // VL. Frete
                 var vlFrete = 0;
-                if (scrollFreteCol >= 0 && sCells[scrollFreteCol]) {
-                    vlFrete = parseBR(sCells[scrollFreteCol].textContent.trim());
+                if (freteTable === armadorTable && freteCol >= 0 && sCells[freteCol]) {
+                    vlFrete = parseBR(sCells[freteCol].textContent.trim());
+                } else if (freteTable && freteTable !== armadorTable && freteTable.bodyRows[r]) {
+                    var freteCells = freteTable.bodyRows[r].querySelectorAll('td');
+                    if (freteCells[freteCol]) {
+                        vlFrete = parseBR(freteCells[freteCol].textContent.trim());
+                    }
                 }
 
-                // Botão "..." do FROZEN view (coluna Descrição)
+                // Botão "..." da Descrição
                 var dotsBtn = null;
-                if (frozenDescCol >= 0 && fCells[frozenDescCol]) {
-                    var spans = fCells[frozenDescCol].querySelectorAll('span.ui-button-text, span.ui-clickable');
+                var descRow = (descTable && descTable !== armadorTable && fRow) ? fRow : sRow;
+                var descCells = descRow.querySelectorAll('td');
+                if (descCol >= 0 && descCells[descCol]) {
+                    var spans = descCells[descCol].querySelectorAll('span.ui-button-text, span.ui-clickable, span');
                     for (var sp = 0; sp < spans.length; sp++) {
                         if (spans[sp].textContent.trim() === '...') {
                             dotsBtn = spans[sp];
@@ -674,8 +712,8 @@ try {
 
                 tarifarios.push({
                     rowIndex: r,
-                    rowElement: sRow || fRow,
-                    frozenRow: fRow,
+                    rowElement: sRow,
+                    frozenRow: fRow || sRow,
                     scrollRow: sRow,
                     dotsButton: dotsBtn,
                     cod: cod,
@@ -684,15 +722,14 @@ try {
                     isYellow: false,
                     observacao: '',
                     eligible: true,
-                    rejectReason: '',
-                    _quote_merc: quote.mercadoria || ''
+                    rejectReason: ''
                 });
             }
 
             console.log('[Atom Oferta] Tarifários encontrados:', tarifarios.length);
 
             if (tarifarios.length === 0) {
-                showToast('Nenhum tarifário encontrado na tabela', 'warning', 4000);
+                showToast('Nenhum tarifário encontrado', 'warning', 4000);
                 return;
             }
 
@@ -710,7 +747,7 @@ try {
                 }
             }
 
-            // Clica "..." da Descrição (frozen view) de cada elegível
+            // Lê descrições dos elegíveis
             var withDots = tarifarios.filter(function(t) { return t.dotsButton && t.eligible; });
             showToast('Lendo descrições de ' + withDots.length + ' tarifários...', 'info', 3000);
             readAllObservations(withDots, 0, function() {

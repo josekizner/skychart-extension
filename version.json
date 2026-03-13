@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "date": "2026-03-13",
-  "changelog": "Fix tarifario: frozen+scrollable view split, Armador e VL.Frete corretos"
+  "changelog": "Tarifario DOM-agnostico: descobre tabelas automaticamente, sem depender de CSS classes"
 }

@@ -29,7 +29,7 @@ chrome.runtime.onInstalled.addListener(loadProfileFromConfig);
 chrome.runtime.onStartup.addListener(loadProfileFromConfig);
 
 // ===== AUTO-UPDATE COM AUTO-RELOAD =====
-const CURRENT_VERSION = "1.4.0";
+const CURRENT_VERSION = "1.5.0";
 const UPDATE_CHECK_URL = "https://raw.githubusercontent.com/josekizner/skychart-extension/main/version.json";
 const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
