@@ -1,5 +1,5 @@
 {
-  "version": "1.5.0",
+  "version": "1.6.0",
   "date": "2026-03-13",
-  "changelog": "Tarifario DOM-agnostico: descobre tabelas automaticamente, sem depender de CSS classes"
+  "changelog": "Tarifario fix: header/body em tabelas separadas, leitura correta por indice"
 }

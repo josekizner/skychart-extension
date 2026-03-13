@@ -577,129 +577,108 @@ try {
     function analyzeTarifarios(quote) {
         console.log('[Atom Oferta] === ANÁLISE INTELIGENTE DE TARIFÁRIOS ===');
 
-        // === DIAGNÓSTICO: DESCOBRE A ESTRUTURA DO DOM ===
-        console.log('[Atom Diag] ========== DUMP DOM COMPLETO ==========');
-        
-        // 1. Encontra TODAS as <table> da página
+        // === DIAGNÓSTICO RÁPIDO ===
         var allTables = document.querySelectorAll('table');
-        console.log('[Atom Diag] Total de <table> na página:', allTables.length);
-        
-        // Pra cada table, mostra classe, quantidade de th e td
-        var tableMap = []; // { table, headers[], bodyRows[], tableIndex }
+        console.log('[Atom Diag] Total tables:', allTables.length);
+
+        // Encontra a tabela de HEADERS (tem th com "Armador")
+        var headerTable = null;
+        var headerTableIdx = -1;
         for (var ti = 0; ti < allTables.length; ti++) {
-            var tbl = allTables[ti];
-            var ths = tbl.querySelectorAll('thead th');
-            var trs = tbl.querySelectorAll('tbody tr');
-            var headerNames = [];
+            var ths = allTables[ti].querySelectorAll('thead th');
             for (var hi = 0; hi < ths.length; hi++) {
-                headerNames.push(hi + ':' + (ths[hi].textContent || '').trim().substring(0, 20));
-            }
-            var parentClass = tbl.parentElement ? tbl.parentElement.className.substring(0, 60) : 'none';
-            console.log('[Atom Diag] TABLE[' + ti + '] class="' + tbl.className.substring(0, 40) + '" parent="' + parentClass + '" | ' + ths.length + ' headers | ' + trs.length + ' rows');
-            if (headerNames.length > 0) {
-                console.log('[Atom Diag]   Headers: ' + headerNames.join(' | '));
-            }
-            // Mostra primeira linha
-            if (trs.length > 0) {
-                var firstRowCells = trs[0].querySelectorAll('td');
-                var cellVals = [];
-                for (var ci = 0; ci < firstRowCells.length; ci++) {
-                    cellVals.push(ci + ':' + (firstRowCells[ci].textContent || '').trim().substring(0, 25));
-                }
-                console.log('[Atom Diag]   Row[0]: ' + cellVals.join(' | '));
-            }
-            
-            if (ths.length > 0 && trs.length > 0) {
-                tableMap.push({ table: tbl, headers: ths, bodyRows: trs, tableIndex: ti });
-            }
-        }
-        
-        console.log('[Atom Diag] Tabelas com dados (headers+rows):', tableMap.length);
-        console.log('[Atom Diag] ========== FIM DUMP DOM ==========');
-
-        // === AGORA ENCONTRA AS COLUNAS CERTAS ===
-        var armadorTable = null, armadorCol = -1;
-        var freteTable = null, freteCol = -1;
-        var descTable = null, descCol = -1;
-
-        for (var m = 0; m < tableMap.length; m++) {
-            var hdrs = tableMap[m].headers;
-            for (var h = 0; h < hdrs.length; h++) {
-                var txt = (hdrs[h].textContent || '').trim().toLowerCase();
-                if (txt.indexOf('armador') >= 0 && armadorCol < 0) {
-                    armadorTable = tableMap[m];
-                    armadorCol = h;
-                    console.log('[Atom Diag] ARMADOR encontrado: TABLE[' + tableMap[m].tableIndex + '] col ' + h);
-                }
-                if (txt.indexOf('descri') >= 0 && descCol < 0) {
-                    descTable = tableMap[m];
-                    descCol = h;
-                    console.log('[Atom Diag] DESCRIÇÃO encontrado: TABLE[' + tableMap[m].tableIndex + '] col ' + h);
-                }
-                // VL. Frete (mas NÃO "VL Taxas Frete" nem "VL. Total Frete")
-                if (txt.indexOf('frete') >= 0 && txt.indexOf('taxa') < 0 && txt.indexOf('total') < 0 && freteCol < 0) {
-                    freteTable = tableMap[m];
-                    freteCol = h;
-                    console.log('[Atom Diag] VL.FRETE encontrado: TABLE[' + tableMap[m].tableIndex + '] col ' + h + ' header="' + txt + '"');
+                if ((ths[hi].textContent || '').trim().toLowerCase().indexOf('armador') >= 0) {
+                    headerTable = allTables[ti];
+                    headerTableIdx = ti;
+                    break;
                 }
             }
+            if (headerTable) break;
         }
 
-        if (!armadorTable) {
-            console.log('[Atom Diag] ERRO: Não encontrou coluna Armador em nenhuma tabela!');
-            showToast('Erro: coluna Armador não encontrada', 'error', 5000);
+        if (!headerTable) {
+            console.log('[Atom Diag] ERRO: Não encontrou tabela com header Armador');
+            showToast('Erro: tabela de tarifários não encontrada', 'error', 5000);
             return;
         }
+
+        // Body table = próxima tabela no DOM (tem rows sem headers)
+        var bodyTable = allTables[headerTableIdx + 1] || null;
+        if (!bodyTable || bodyTable.querySelectorAll('tbody tr').length === 0) {
+            // Fallback: procura próxima tabela com rows
+            for (var bi = headerTableIdx + 1; bi < allTables.length; bi++) {
+                if (allTables[bi].querySelectorAll('tbody tr').length > 0) {
+                    bodyTable = allTables[bi];
+                    break;
+                }
+            }
+        }
+
+        if (!bodyTable) {
+            console.log('[Atom Diag] ERRO: Não encontrou tabela de body após headers');
+            showToast('Erro: dados de tarifários não encontrados', 'error', 5000);
+            return;
+        }
+
+        // Mapeia colunas pelos headers
+        var ths = headerTable.querySelectorAll('thead th');
+        var armadorCol = -1, freteCol = -1, descCol = -1, codCol = -1;
+        for (var h = 0; h < ths.length; h++) {
+            var txt = (ths[h].textContent || '').trim().toLowerCase();
+            if (txt.indexOf('armador') >= 0) armadorCol = h;
+            if (txt.indexOf('descri') >= 0) descCol = h;
+            if (txt === 'cod') codCol = h;
+            // "Vl. Frete" mas NÃO "Vl. Taxa Frete" nem "Vl. Total Frete"
+            if (txt.indexOf('frete') >= 0 && txt.indexOf('taxa') < 0 && txt.indexOf('total') < 0 && freteCol < 0) {
+                freteCol = h;
+            }
+        }
+
+        console.log('[Atom Diag] Header TABLE[' + headerTableIdx + '] → Body TABLE[' + (headerTableIdx + 1) + ']');
+        console.log('[Atom Diag] Colunas: Desc=' + descCol + ' Cod=' + codCol + ' Armador=' + armadorCol + ' Frete=' + freteCol);
 
         var clienteKey = 'acordo_' + (quote.cliente || 'unknown').toLowerCase().replace(/\s+/g, '_');
         chrome.storage.local.get(clienteKey, function(data) {
             var clientRules = data[clienteKey] || { armadoresBloqueados: [], incluirIOF: false };
             
-            // Usa a tabela do Armador como referência de rows
-            var mainRows = armadorTable.bodyRows;
+            // Usa bodyTable pra ler as rows (todas as colunas estão na mesma tabela)
+            var mainRows = bodyTable.querySelectorAll('tbody tr');
             var tarifarios = [];
             var seen = {};
 
             for (var r = 0; r < mainRows.length; r++) {
-                var sRow = mainRows[r];
-                var sCells = sRow.querySelectorAll('td');
+                var row = mainRows[r];
+                var cells = row.querySelectorAll('td');
+                if (cells.length < 3) continue;
 
                 // Cod do tarifário
-                var fullText = sRow.textContent;
-                // Se tem tabela de descrição separada, pega texto de lá também
-                var fRow = null;
-                if (descTable && descTable !== armadorTable && descTable.bodyRows[r]) {
-                    fRow = descTable.bodyRows[r];
-                    fullText += fRow.textContent;
+                var cod = '';
+                if (codCol >= 0 && cells[codCol]) {
+                    cod = cells[codCol].textContent.trim();
                 }
-                var codMatch = fullText.match(/\b(\d{5,})\b/);
-                var cod = codMatch ? codMatch[1] : null;
+                if (!cod) {
+                    var codMatch = row.textContent.match(/\b(\d{5,})\b/);
+                    cod = codMatch ? codMatch[1] : '';
+                }
                 if (!cod || seen[cod]) continue;
                 seen[cod] = true;
 
-                // Armador
+                // Armador (col 9)
                 var armador = '';
-                if (sCells[armadorCol]) {
-                    armador = sCells[armadorCol].textContent.trim();
+                if (armadorCol >= 0 && cells[armadorCol]) {
+                    armador = cells[armadorCol].textContent.trim();
                 }
 
-                // VL. Frete
+                // VL. Frete (col 15)
                 var vlFrete = 0;
-                if (freteTable === armadorTable && freteCol >= 0 && sCells[freteCol]) {
-                    vlFrete = parseBR(sCells[freteCol].textContent.trim());
-                } else if (freteTable && freteTable !== armadorTable && freteTable.bodyRows[r]) {
-                    var freteCells = freteTable.bodyRows[r].querySelectorAll('td');
-                    if (freteCells[freteCol]) {
-                        vlFrete = parseBR(freteCells[freteCol].textContent.trim());
-                    }
+                if (freteCol >= 0 && cells[freteCol]) {
+                    vlFrete = parseBR(cells[freteCol].textContent.trim());
                 }
 
-                // Botão "..." da Descrição
+                // Botão "..." da Descrição (col 1)
                 var dotsBtn = null;
-                var descRow = (descTable && descTable !== armadorTable && fRow) ? fRow : sRow;
-                var descCells = descRow.querySelectorAll('td');
-                if (descCol >= 0 && descCells[descCol]) {
-                    var spans = descCells[descCol].querySelectorAll('span.ui-button-text, span.ui-clickable, span');
+                if (descCol >= 0 && cells[descCol]) {
+                    var spans = cells[descCol].querySelectorAll('span');
                     for (var sp = 0; sp < spans.length; sp++) {
                         if (spans[sp].textContent.trim() === '...') {
                             dotsBtn = spans[sp];
@@ -712,9 +691,9 @@ try {
 
                 tarifarios.push({
                     rowIndex: r,
-                    rowElement: sRow,
-                    frozenRow: fRow || sRow,
-                    scrollRow: sRow,
+                    rowElement: row,
+                    frozenRow: row,
+                    scrollRow: row,
                     dotsButton: dotsBtn,
                     cod: cod,
                     armador: armador,
