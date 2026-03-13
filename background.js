@@ -3,6 +3,35 @@ const _k = [65,73,122,97,83,121,67,71,53,81,78,50,48,65,82,79,109,79,117,45,53,5
 const GEMINI_API_KEY = _k.map(c => String.fromCharCode(c)).join('');
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
+// ===== PERFIL / PERMISSOES =====
+const PROFILES = {
+  master: ['cambio','serasa','frete','tracking','cotacao'],
+  financeiro: ['cambio','serasa'],
+  operacional: ['tracking','frete'],
+  comercial: ['cotacao','frete']
+};
+
+function loadProfileFromConfig() {
+  fetch(chrome.runtime.getURL('local-config.json'))
+    .then(r => r.json())
+    .then(cfg => {
+      var agents = PROFILES[cfg.profile] || PROFILES.master;
+      chrome.storage.local.set({ userProfile: cfg.profile, enabledAgents: agents, configLoaded: true });
+      console.log('[Atom] Perfil configurado:', cfg.profile, agents);
+    })
+    .catch(() => {
+      chrome.storage.local.get('enabledAgents', d => {
+        if (!d.enabledAgents) {
+          chrome.storage.local.set({ enabledAgents: PROFILES.master, userProfile: 'master', configLoaded: true });
+          console.log('[Atom] Sem config, default master');
+        }
+      });
+    });
+}
+
+chrome.runtime.onInstalled.addListener(loadProfileFromConfig);
+chrome.runtime.onStartup.addListener(loadProfileFromConfig);
+
 // ===== AUTO-UPDATE =====
 const CURRENT_VERSION = "1.0.0";
 // IMPORTANTE: Mude esta URL após criar o repo no GitHub

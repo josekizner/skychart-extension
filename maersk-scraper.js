@@ -13,6 +13,18 @@
     // Só executa se foi aberto pela extensão (via flag na URL)
     if (!window.location.href.includes('/tracking/')) return;
 
+    // Permission check
+    chrome.storage.local.get('enabledAgents', function(d) {
+        var agents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+        if (agents.indexOf('tracking') < 0) {
+            console.log('[Maersk Scraper] Agente desabilitado pelo perfil');
+            return;
+        }
+        startScraping();
+    });
+
+    function startScraping() {
+
     // Espera a timeline renderizar (React/NextJS leva um tempo)
     var maxWait = 30000; // 30 segundos max
     var checkInterval = 1500;
@@ -227,4 +239,5 @@
             transshipments: result.transshipments.length
         });
     }
+    } // end startScraping
 })();

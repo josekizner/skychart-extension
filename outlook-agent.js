@@ -542,12 +542,23 @@
         console.log('[Atom Email] Agente inicializado');
     }
 
+    function safeInit() {
+        chrome.storage.local.get('enabledAgents', function(d) {
+            var agents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+            if (agents.indexOf('cotacao') < 0) {
+                console.log('[Atom Email] Agente desabilitado pelo perfil');
+                return;
+            }
+            init();
+        });
+    }
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(init, 2000);
+            setTimeout(safeInit, 2000);
         });
     } else {
-        setTimeout(init, 2000);
+        setTimeout(safeInit, 2000);
     }
 
 })();

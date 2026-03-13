@@ -265,13 +265,24 @@
         }
     }
 
+    function safeInit() {
+        chrome.storage.local.get('enabledAgents', function(d) {
+            var agents = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+            if (agents.indexOf('serasa') < 0) {
+                console.log('[Atom Serasa] Agente desabilitado pelo perfil');
+                return;
+            }
+            init();
+        });
+    }
+
     // Espera a pagina carregar
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(init, 1000);
+            setTimeout(safeInit, 1000);
         });
     } else {
-        setTimeout(init, 1000);
+        setTimeout(safeInit, 1000);
     }
 
     console.log('[Atom Serasa] Content script carregado em:', location.href);
