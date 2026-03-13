@@ -563,7 +563,7 @@ try {
 
     // =============================================
     // ANÁLISE INTELIGENTE DE TARIFÁRIOS
-    // Clica TODOS os "...", lê textarea → se tem conteúdo = restrição
+    // Lê Armador + VL.Frete do DOM, clica "..." da Descrição pra ler observações
     // =============================================
     function analyzeTarifarios(quote) {
         console.log('[Atom Oferta] === ANÁLISE INTELIGENTE DE TARIFÁRIOS ===');
@@ -573,60 +573,147 @@ try {
             var clientRules = data[clienteKey] || { armadoresBloqueados: [], incluirIOF: false };
             console.log('[Atom Oferta] Regras:', JSON.stringify(clientRules).substring(0, 200));
 
-            // Encontra TODOS os botões "..." na página
-            var allSpans = document.querySelectorAll('span.ui-button-text, span.ui-clickable');
-            var dotButtons = [];
-            for (var s = 0; s < allSpans.length; s++) {
-                if (allSpans[s].textContent.trim() === '...') {
-                    dotButtons.push(allSpans[s]);
-                }
+            // 1. Encontra headers da tabela de tarifários pra saber o indice de cada coluna
+            var headers = document.querySelectorAll('.ui-table-scrollable-header th, .ui-table-frozen-column th, p-table th, table th');
+            var colMap = {};
+            for (var h = 0; h < headers.length; h++) {
+                var hText = (headers[h].textContent || '').trim().toLowerCase();
+                if (hText.indexOf('armador') >= 0) colMap.armador = h;
+                if (hText.indexOf('descri') >= 0) colMap.descricao = h;
+                if (hText.indexOf('vl') >= 0 && hText.indexOf('frete') >= 0) colMap.vlFrete = h;
+                if (hText.indexOf('vl. frete') >= 0 || hText.indexOf('vl frete') >= 0) colMap.vlFrete = h;
             }
-            console.log('[Atom Oferta] Botões "..." encontrados:', dotButtons.length);
+            console.log('[Atom Oferta] Mapa de colunas:', JSON.stringify(colMap));
 
-            if (dotButtons.length === 0) {
-                showToast('Nenhum botão de observação encontrado', 'warning', 4000);
-                crossCheckAndSelect([], quote, clientRules);
-                return;
-            }
-
-            // Deduplica: PrimeNG duplica botões em frozen+scrollable
-            var seen = {};
-            var uniqueButtons = [];
-            for (var d = 0; d < dotButtons.length; d++) {
-                var tr = dotButtons[d].closest('tr');
-                if (!tr) continue;
-                var codMatch = tr.textContent.match(/\b(\d{5,})\b/);
-                var cod = codMatch ? codMatch[1] : 'btn_' + d;
-                if (!seen[cod]) {
-                    seen[cod] = true;
-                    uniqueButtons.push({ btn: dotButtons[d], cod: cod, row: tr });
-                }
-            }
-            console.log('[Atom Oferta] Botões únicos (dedup):', uniqueButtons.length);
-
+            // 2. Encontra todas as linhas da tabela de tarifários
+            var rows = document.querySelectorAll('.ui-table-scrollable-body tr, .ui-table-frozen-view tr, p-table tbody tr, table tbody tr');
             var tarifarios = [];
-            for (var u = 0; u < uniqueButtons.length; u++) {
+            var seen = {};
+
+            for (var r = 0; r < rows.length; r++) {
+                var tr = rows[r];
+                var cells = tr.querySelectorAll('td');
+                if (cells.length < 3) continue;
+
+                // Pega código do tarifário (primeiro número com 5+ dígitos na linha)
+                var codMatch = tr.textContent.match(/\b(\d{5,})\b/);
+                var cod = codMatch ? codMatch[1] : null;
+                if (!cod || seen[cod]) continue;
+                seen[cod] = true;
+
+                // Lê Armador da célula
+                var armador = '';
+                if (typeof colMap.armador !== 'undefined' && cells[colMap.armador]) {
+                    armador = cells[colMap.armador].textContent.trim();
+                } else {
+                    // Fallback: procura na primeira célula com texto de armador
+                    for (var c = 0; c < Math.min(cells.length, 6); c++) {
+                        var cellText = cells[c].textContent.trim();
+                        if (cellText.match(/maersk|msc|cma|hapag|cosco|one|evergreen|zim|hmm|yang|pil|hyundai/i)) {
+                            armador = cellText;
+                            break;
+                        }
+                    }
+                }
+
+                // Lê VL. Frete da célula
+                var vlFrete = 0;
+                if (typeof colMap.vlFrete !== 'undefined' && cells[colMap.vlFrete]) {
+                    var freteText = cells[colMap.vlFrete].textContent.trim();
+                    vlFrete = parseFloat(freteText.replace(/[^\d.,]/g, '').replace('.', '').replace(',', '.')) || 0;
+                } else {
+                    // Fallback: procura célula com valor numérico que parece frete
+                    for (var fc = 0; fc < cells.length; fc++) {
+                        var fText = cells[fc].textContent.trim();
+                        var fMatch = fText.match(/^[\d.,]+$/);
+                        if (fMatch && parseFloat(fText.replace('.', '').replace(',', '.')) > 100) {
+                            vlFrete = parseFloat(fText.replace('.', '').replace(',', '.'));
+                            break;
+                        }
+                    }
+                }
+
+                // Encontra botão "..." na coluna Descrição
+                var dotsBtn = null;
+                if (typeof colMap.descricao !== 'undefined' && cells[colMap.descricao]) {
+                    dotsBtn = cells[colMap.descricao].querySelector('span.ui-button-text, span.ui-clickable, button');
+                }
+                // Fallback: procura "..." em cada célula
+                if (!dotsBtn) {
+                    for (var dc = 0; dc < cells.length; dc++) {
+                        var spans = cells[dc].querySelectorAll('span.ui-button-text, span.ui-clickable');
+                        for (var sp = 0; sp < spans.length; sp++) {
+                            if (spans[sp].textContent.trim() === '...') {
+                                // Verifica se é na coluna certa (descricao, nao outra)
+                                var headerForCell = headers[dc];
+                                var headerText = headerForCell ? (headerForCell.textContent || '').trim().toLowerCase() : '';
+                                if (headerText.indexOf('descri') >= 0) {
+                                    dotsBtn = spans[sp];
+                                    break;
+                                }
+                            }
+                        }
+                        if (dotsBtn) break;
+                    }
+                }
+
+                console.log('[Atom Oferta] Linha', cod, '| Armador:', armador, '| VL.Frete:', vlFrete, '| Desc btn:', !!dotsBtn);
+
                 tarifarios.push({
-                    rowIndex: u,
-                    rowElement: uniqueButtons[u].row,
-                    frozenRow: uniqueButtons[u].row,
-                    dotsButton: uniqueButtons[u].btn,
-                    cod: uniqueButtons[u].cod,
-                    armador: '',
+                    rowIndex: r,
+                    rowElement: tr,
+                    frozenRow: tr,
+                    dotsButton: dotsBtn,
+                    cod: cod,
+                    armador: armador,
+                    vlFrete: vlFrete,
                     isYellow: false,
                     observacao: '',
                     eligible: true,
-                    rejectReason: ''
+                    rejectReason: '',
+                    _quote_merc: quote.mercadoria || ''
                 });
             }
 
-            // Clica TODOS sequencialmente, lê textarea de cada dialog
-            showToast('Lendo observações de ' + tarifarios.length + ' tarifários...', 'info', 3000);
-            readAllObservations(tarifarios, 0, function() {
-                var yellowCount = 0;
-                for (var t = 0; t < tarifarios.length; t++) {
-                    if (tarifarios[t].isYellow) yellowCount++;
+            console.log('[Atom Oferta] Tarifários encontrados:', tarifarios.length);
+
+            if (tarifarios.length === 0) {
+                showToast('Nenhum tarifário encontrado na tabela', 'warning', 4000);
+                return;
+            }
+
+            // Filtra armadores bloqueados ANTES de ler observações
+            if (clientRules.armadoresBloqueados && clientRules.armadoresBloqueados.length > 0) {
+                for (var b = 0; b < tarifarios.length; b++) {
+                    var armUp = tarifarios[b].armador.toUpperCase();
+                    for (var bl = 0; bl < clientRules.armadoresBloqueados.length; bl++) {
+                        if (armUp.indexOf(clientRules.armadoresBloqueados[bl].toUpperCase()) >= 0) {
+                            tarifarios[b].eligible = false;
+                            tarifarios[b].rejectReason = 'Armador bloqueado: ' + clientRules.armadoresBloqueados[bl];
+                            break;
+                        }
+                    }
                 }
+            }
+
+            // Clica "..." da Descrição de cada um pra ler observações
+            var withDots = tarifarios.filter(function(t) { return t.dotsButton && t.eligible; });
+            showToast('Lendo descrições de ' + withDots.length + ' tarifários...', 'info', 3000);
+            readAllObservations(withDots, 0, function() {
+                // Propaga as observações de volta pros tarifarios por cod
+                var obsByCod = {};
+                for (var w = 0; w < withDots.length; w++) {
+                    obsByCod[withDots[w].cod] = withDots[w];
+                }
+                for (var t = 0; t < tarifarios.length; t++) {
+                    if (obsByCod[tarifarios[t].cod]) {
+                        tarifarios[t].observacao = obsByCod[tarifarios[t].cod].observacao;
+                        tarifarios[t].isYellow = obsByCod[tarifarios[t].cod].isYellow;
+                        tarifarios[t].eligible = obsByCod[tarifarios[t].cod].eligible;
+                        tarifarios[t].rejectReason = obsByCod[tarifarios[t].cod].rejectReason || tarifarios[t].rejectReason;
+                    }
+                }
+                var yellowCount = tarifarios.filter(function(t) { return t.isYellow; }).length;
                 console.log('[Atom Oferta] === Total:', tarifarios.length, '| Com restrição:', yellowCount, '===');
                 crossCheckAndSelect(tarifarios, quote, clientRules);
             });
@@ -711,13 +798,9 @@ try {
     }
 
 
-    // Cross-check final e seleção da melhor rota
+    // Cross-check final e seleção da rota mais barata elegível
     function crossCheckAndSelect(tarifarios, quote, clientRules) {
         console.log('[Atom Oferta] === CROSS-CHECK E SELEÇÃO ===');
-
-        // Pega o frete de cada linha na tabela de Taxas (quando a linha é selecionada)
-        // Por agora, vamos usar a tabela de tarifários diretamente
-        // O frete fica visível na seção Taxas quando uma linha é clicada
 
         var eligible = tarifarios.filter(function(t) { return t.eligible; });
         var ineligible = tarifarios.filter(function(t) { return !t.eligible; });
@@ -725,7 +808,7 @@ try {
         console.log('[Atom Oferta] Elegíveis:', eligible.length, '| Inelegíveis:', ineligible.length);
 
         if (ineligible.length > 0) {
-            var reasons = ineligible.map(function(t) { return t.cod + ': ' + t.rejectReason; });
+            var reasons = ineligible.map(function(t) { return t.cod + ' (' + t.armador + '): ' + t.rejectReason; });
             console.log('[Atom Oferta] Rotas descartadas:', reasons.join(' | '));
         }
 
@@ -734,42 +817,58 @@ try {
             return;
         }
 
-        // Mostra resumo do que foi descartado e pede seleção
+        // Ordena elegíveis por VL. Frete (menor primeiro)
+        eligible.sort(function(a, b) {
+            // Se vlFrete = 0 (nao leu), coloca no final
+            if (a.vlFrete === 0 && b.vlFrete === 0) return 0;
+            if (a.vlFrete === 0) return 1;
+            if (b.vlFrete === 0) return -1;
+            return a.vlFrete - b.vlFrete;
+        });
+
+        console.log('[Atom Oferta] Ranking por frete:');
+        for (var i = 0; i < eligible.length; i++) {
+            console.log('  #' + (i + 1) + ' ' + eligible[i].cod + ' | ' + eligible[i].armador + ' | R$ ' + eligible[i].vlFrete);
+        }
+
+        // Mostra resumo
         var summary = '✓ ' + eligible.length + ' rotas elegíveis';
         if (ineligible.length > 0) {
             summary += ' | ✗ ' + ineligible.length + ' descartadas';
         }
         showToast(summary, 'info', 5000);
 
-        // Seleciona a primeira linha elegível (clica nela)
-        // O operador vai revisar e decidir o frete, mas já destacamos as elegíveis
-        var bestRow = eligible[0].rowElement;
-        if (bestRow) {
-            // Marca visualmente as inelegíveis
-            for (var ie = 0; ie < ineligible.length; ie++) {
-                if (ineligible[ie].rowElement) {
-                    ineligible[ie].rowElement.style.opacity = '0.35';
-                    ineligible[ie].rowElement.style.textDecoration = 'line-through';
-                    ineligible[ie].rowElement.title = '✗ ' + ineligible[ie].rejectReason;
+        var best = eligible[0];
+
+        // Marca visualmente as inelegíveis
+        for (var ie = 0; ie < ineligible.length; ie++) {
+            if (ineligible[ie].rowElement) {
+                ineligible[ie].rowElement.style.opacity = '0.35';
+                ineligible[ie].rowElement.style.textDecoration = 'line-through';
+                ineligible[ie].rowElement.title = '✗ ' + ineligible[ie].rejectReason;
+            }
+        }
+
+        // Marca as elegíveis com borda verde, a melhor com borda mais grossa
+        for (var el = 0; el < eligible.length; el++) {
+            if (eligible[el].rowElement) {
+                if (el === 0) {
+                    eligible[el].rowElement.style.borderLeft = '4px solid #4caf50';
+                    eligible[el].rowElement.style.background = 'rgba(76, 175, 80, 0.08)';
+                } else {
+                    eligible[el].rowElement.style.borderLeft = '2px solid rgba(76, 175, 80, 0.4)';
                 }
             }
+        }
 
-            // Marca as elegíveis com borda verde
-            for (var el = 0; el < eligible.length; el++) {
-                if (eligible[el].rowElement) {
-                    eligible[el].rowElement.style.borderLeft = '3px solid #4caf50';
-                }
-            }
+        // Clica na mais barata
+        if (best.rowElement) {
+            best.rowElement.click();
+            console.log('[Atom Oferta] Melhor rota selecionada:', best.cod, '| Armador:', best.armador, '| Frete:', best.vlFrete);
 
-            // Clica na primeira elegível
-            bestRow.click();
-            console.log('[Atom Oferta] Linha selecionada:', eligible[0].cod, '- Armador:', eligible[0].armador);
-
-            // Depois de selecionar, espera Taxas carregar, e clica em Vincular
             setTimeout(function() {
-                showToast('Rota ' + eligible[0].cod + ' selecionada (' + eligible[0].armador + '). Revise e clique Vincular.', 'success', 8000);
-                // Auto-vincular: clickButtonByText('Vincular');
-                // Por segurança, deixa o operador revisar antes
+                var freteStr = best.vlFrete ? ('R$ ' + best.vlFrete.toLocaleString('pt-BR')) : 'N/A';
+                showToast('Melhor rota: ' + best.cod + ' (' + best.armador + ') — Frete: ' + freteStr + '. Revise e clique Vincular.', 'success', 8000);
             }, 2000);
         }
     }
