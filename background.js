@@ -22,7 +22,7 @@ chrome.runtime.onInstalled.addListener(function() {
       // Sem config = nao libera nada ate configurar pelo popup
       chrome.storage.local.get('enabledAgents', function(d) {
         if (!d.enabledAgents) {
-          chrome.storage.local.set({ enabledAgents: [], userProfile: 'none' });
+          chrome.storage.local.set({ enabledAgents: ['cambio','serasa','frete','tracking','cotacao'], userProfile: 'master' });
           console.log('[Atom] Sem local-config.json, agentes bloqueados');
         }
       });
