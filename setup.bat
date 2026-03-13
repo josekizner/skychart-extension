@@ -50,7 +50,7 @@ if exist "%INSTALL_DIR%\.git" (
 echo.
 echo [3/4] Selecione o departamento:
 echo.
-echo   1 = Financeiro   - Cambio, Serasa, Frete
+echo   1 = Financeiro   - Cambio, Serasa
 echo   2 = Operacional  - Tracking, Frete
 echo   3 = Comercial    - Cotacao, Frete
 echo   4 = Master       - Todos

@@ -10,7 +10,7 @@ chrome.runtime.onInstalled.addListener(function() {
     .then(function(cfg) {
       var PROFILES = {
         master: ['cambio','serasa','frete','tracking','cotacao'],
-        financeiro: ['cambio','serasa','frete'],
+        financeiro: ['cambio','serasa'],
         operacional: ['tracking','frete'],
         comercial: ['cotacao','frete']
       };
@@ -36,7 +36,7 @@ chrome.runtime.onStartup.addListener(function() {
     .then(function(cfg) {
       var PROFILES = {
         master: ['cambio','serasa','frete','tracking','cotacao'],
-        financeiro: ['cambio','serasa','frete'],
+        financeiro: ['cambio','serasa'],
         operacional: ['tracking','frete'],
         comercial: ['cotacao','frete']
       };
