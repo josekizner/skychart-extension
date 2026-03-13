@@ -28,18 +28,16 @@ function loadProfileFromConfig() {
 chrome.runtime.onInstalled.addListener(loadProfileFromConfig);
 chrome.runtime.onStartup.addListener(loadProfileFromConfig);
 
-// ===== AUTO-UPDATE =====
-const CURRENT_VERSION = "1.0.0";
-// IMPORTANTE: Mude esta URL após criar o repo no GitHub
-// Formato: https://raw.githubusercontent.com/SEU-USER/skychart-extension/main/version.json
+// ===== AUTO-UPDATE COM AUTO-RELOAD =====
+const CURRENT_VERSION = "1.3.0";
 const UPDATE_CHECK_URL = "https://raw.githubusercontent.com/josekizner/skychart-extension/main/version.json";
-const UPDATE_CHECK_INTERVAL = 2 * 60 * 60 * 1000; // 2 horas
+const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
 // Checa updates periodicamente
 if (UPDATE_CHECK_URL) {
   setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
-  // Check inicial após 30 segundos
-  setTimeout(checkForUpdates, 30000);
+  // Check inicial após 60 segundos
+  setTimeout(checkForUpdates, 60000);
 }
 
 async function checkForUpdates() {
@@ -48,17 +46,9 @@ async function checkForUpdates() {
     const response = await fetch(UPDATE_CHECK_URL + '?t=' + Date.now());
     const remote = await response.json();
     if (remote.version && remote.version !== CURRENT_VERSION) {
-      console.log("[AutoUpdate] Nova versão:", remote.version, "(atual:", CURRENT_VERSION + ")");
-      // Notifica todas as abas do Skychart
-      const tabs = await chrome.tabs.query({ url: "*://app2.skychart.com.br/*" });
-      for (const tab of tabs) {
-        chrome.tabs.sendMessage(tab.id, {
-          action: "updateAvailable",
-          newVersion: remote.version,
-          currentVersion: CURRENT_VERSION,
-          changelog: remote.changelog || ""
-        }).catch(() => { });
-      }
+      console.log("[AutoUpdate] Nova versão detectada:", remote.version, "(atual:", CURRENT_VERSION + ") — RECARREGANDO...");
+      // Recarrega a extensão inteira (content scripts, popup, tudo)
+      chrome.runtime.reload();
     }
   } catch (e) {
     console.log("[AutoUpdate] Check falhou:", e.message);
