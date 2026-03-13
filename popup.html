@@ -301,8 +301,11 @@
     var ADMIN_PWD = 'realsteel';
 
     // Load config - usa ATOM_PROFILE do profile-config.js (carregado via script tag)
-    var currentProfile = (typeof ATOM_PROFILE !== 'undefined') ? ATOM_PROFILE : 'master';
+    var currentProfile = (typeof ATOM_PROFILE !== 'undefined') ? ATOM_PROFILE.trim() : 'master';
     var currentAgents = PROFILES[currentProfile] || PROFILES.master;
+    console.log('[Atom Popup] ATOM_PROFILE raw:', typeof ATOM_PROFILE !== 'undefined' ? ATOM_PROFILE : 'UNDEFINED');
+    console.log('[Atom Popup] currentProfile:', currentProfile, 'agents:', currentAgents);
+    document.title = 'Atom [' + currentProfile + ']';
     chrome.storage.local.set({ userProfile: currentProfile, enabledAgents: currentAgents, configLoaded: true });
 
     chrome.storage.local.get(['pricingEmail'], function(d) {

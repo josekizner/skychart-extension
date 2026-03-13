@@ -69,8 +69,8 @@ if not defined PROFILE (
 )
 
 echo   Perfil: %PROFILE%
-echo {"profile":"%PROFILE%"} > "%INSTALL_DIR%\local-config.json"
-echo var ATOM_PROFILE = "%PROFILE%"; > "%INSTALL_DIR%\profile-config.js"
+>"%INSTALL_DIR%\local-config.json" echo {"profile":"%PROFILE%"}
+>"%INSTALL_DIR%\profile-config.js" echo var ATOM_PROFILE = "%PROFILE%";
 
 :: 4. Auto-update a cada 30 min
 echo [4/4] Configurando auto-update...
