@@ -573,63 +573,89 @@ try {
             var clientRules = data[clienteKey] || { armadoresBloqueados: [], incluirIOF: false };
             console.log('[Atom Oferta] Regras:', JSON.stringify(clientRules).substring(0, 200));
 
-            // Encontra TODAS as tables da pagina e agrupa por nro de rows
-            var allPageTables = document.querySelectorAll('table');
-            var byRowCount = {};
-            console.log('[Atom Oferta] Total tables na página:', allPageTables.length);
+            // PrimeNG scrollable tables: header e body são tables SEPARADOS!
+            // Header: .ui-table-scrollable-header table (tem thead, sem tbody)
+            // Body: .ui-table-scrollable-body table (tem tbody, sem thead)
+            // Podem ter frozen e unfrozen views (2 pares)
 
-            for (var ti = 0; ti < allPageTables.length; ti++) {
-                var trs = allPageTables[ti].querySelectorAll('tbody tr');
-                var ths = allPageTables[ti].querySelectorAll('thead th');
-                if (trs.length > 0) {
-                    var rc = trs.length;
-                    if (!byRowCount[rc]) byRowCount[rc] = [];
-                    byRowCount[rc].push(allPageTables[ti]);
-                    console.log('[Atom Oferta] Table[' + ti + ']:', rc, 'rows,', ths.length, 'cols,', allPageTables[ti].className.substring(0, 50));
-                }
-            }
+            // 1. Encontra TODOS os body tables com rows
+            var bodyTables = [];
+            var bodyTableEls = document.querySelectorAll('.ui-table-scrollable-body table');
+            console.log('[Atom Oferta] Body tables (.ui-table-scrollable-body table):', bodyTableEls.length);
 
-            // PrimeNG split: frozen + scrollable = 2 tables com MESMO nro de rows
-            // Escolhe o grupo com MAIS tables (geralmente 2) e rows >= 2
-            var bestGroup = null;
-            for (var rc in byRowCount) {
-                var numR = parseInt(rc);
-                if (numR >= 1) {
-                    if (!bestGroup || byRowCount[rc].length > bestGroup.length ||
-                        (byRowCount[rc].length === bestGroup.length && numR > bestGroup[0].querySelectorAll('tbody tr').length)) {
-                        bestGroup = byRowCount[rc];
+            // Fallback: se não achou com selector específico, tenta tables com tbody tr
+            if (bodyTableEls.length === 0) {
+                var allT = document.querySelectorAll('table');
+                for (var ft = 0; ft < allT.length; ft++) {
+                    if (allT[ft].querySelectorAll('tbody tr').length > 0) {
+                        bodyTableEls = [allT[ft]];
+                        break;
                     }
                 }
             }
 
-            if (!bestGroup) {
+            for (var bt = 0; bt < bodyTableEls.length; bt++) {
+                var rows = bodyTableEls[bt].querySelectorAll('tbody tr');
+                if (rows.length > 0) {
+                    // Encontra o header table irmão (no mesmo container pai)
+                    var parent = bodyTableEls[bt].closest('.ui-table-scrollable-body');
+                    var headerTable = null;
+                    if (parent && parent.parentElement) {
+                        var headerDiv = parent.parentElement.querySelector('.ui-table-scrollable-header');
+                        if (headerDiv) {
+                            headerTable = headerDiv.querySelector('table');
+                        }
+                    }
+
+                    // Extrai headers desse par
+                    var headers = [];
+                    if (headerTable) {
+                        var ths = headerTable.querySelectorAll('th');
+                        for (var hi = 0; hi < ths.length; hi++) {
+                            var colTitle = ths[hi].querySelector('.ui-column-title, [class*="column-title"]');
+                            var hText = colTitle ? colTitle.textContent.trim().toLowerCase() :
+                                ths[hi].textContent.trim().toLowerCase().replace(/[↕↑↓▲▼♦]/g, '').trim();
+                            if (hText.length > 30) hText = hText.split(/\s/)[0];
+                            headers.push(hText);
+                        }
+                    }
+
+                    bodyTables.push({
+                        bodyEl: bodyTableEls[bt],
+                        headerEl: headerTable,
+                        rows: rows,
+                        headers: headers,
+                        numRows: rows.length
+                    });
+
+                    console.log('[Atom Oferta] BodyTable[' + bt + ']:', rows.length, 'rows,', headers.length, 'headers:', headers.join(', '));
+                }
+            }
+
+            if (bodyTables.length === 0) {
                 showToast('Tabela de tarifários não encontrada', 'error', 4000);
                 return;
             }
 
-            var numRows = bestGroup[0].querySelectorAll('tbody tr').length;
-            console.log('[Atom Oferta] Grupo selecionado:', bestGroup.length, 'tables,', numRows, 'rows');
-
-            // Extrai headers de CADA table usando span.ui-column-title (PrimeNG limpo)
-            // Se não existir, usa textContent do th com limpeza
-            var headerMap = []; // [{text, tableIdx, colIdx}]
-            for (var gi = 0; gi < bestGroup.length; gi++) {
-                var ths = bestGroup[gi].querySelectorAll('thead th');
-                for (var hi = 0; hi < ths.length; hi++) {
-                    var hText = '';
-                    var colTitle = ths[hi].querySelector('.ui-column-title, [class*="column-title"]');
-                    if (colTitle) {
-                        hText = colTitle.textContent.trim().toLowerCase();
-                    } else {
-                        // Limpa sort icons e espaços extras
-                        hText = ths[hi].textContent.trim().toLowerCase().replace(/[↕↑↓▲▼♦]/g, '').trim();
-                        // Se ficou longo demais (tem input de filtro), pega só primeira palavra
-                        if (hText.length > 30) hText = hText.split(/\s/)[0];
-                    }
-                    headerMap.push({ text: hText, tIdx: gi, cIdx: hi });
+            // Agrupa body tables pelo MESMO nro de rows (frozen + scrollable têm mesmas rows)
+            var numRows = 0;
+            var pairedTables = [];
+            for (var pt = 0; pt < bodyTables.length; pt++) {
+                if (bodyTables[pt].numRows > numRows) {
+                    numRows = bodyTables[pt].numRows;
+                    pairedTables = [bodyTables[pt]];
+                } else if (bodyTables[pt].numRows === numRows) {
+                    pairedTables.push(bodyTables[pt]);
                 }
             }
-            console.log('[Atom Oferta] Headers encontrados:', headerMap.map(function(h) { return '"' + h.text + '"'; }).join(', '));
+            console.log('[Atom Oferta] Paired tables (mesmo nro rows):', pairedTables.length, 'com', numRows, 'rows');
+
+            // Junta todos os headers em ordem
+            var allHeaders = [];
+            for (var ah = 0; ah < pairedTables.length; ah++) {
+                allHeaders = allHeaders.concat(pairedTables[ah].headers);
+            }
+            console.log('[Atom Oferta] ALL HEADERS:', allHeaders.join(' | '));
 
             // Analisa cada row
             var tarifarios = [];
@@ -653,10 +679,10 @@ try {
                     rejectReason: ''
                 };
 
-                // Mescla cells de TODAS as tables do grupo
+                // Mescla cells de TODAS as paired tables
                 var globalCol = 0;
-                for (var tIdx = 0; tIdx < bestGroup.length; tIdx++) {
-                    var tRow = bestGroup[tIdx].querySelectorAll('tbody tr')[r];
+                for (var tIdx = 0; tIdx < pairedTables.length; tIdx++) {
+                    var tRow = pairedTables[tIdx].rows[r];
                     if (!tRow) continue;
 
                     // Salva refs: primeira table = frozen (buttons), ultima = scrollable (dados)
@@ -665,7 +691,7 @@ try {
 
                     var cells = tRow.querySelectorAll('td');
                     for (var ci = 0; ci < cells.length; ci++) {
-                        var hdr = (headerMap[globalCol] || {}).text || '';
+                        var hdr = allHeaders[globalCol] || '';
                         var txt = cells[ci].textContent.trim();
 
                         // Cod: número de 4+ dígitos
