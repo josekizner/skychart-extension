@@ -563,202 +563,78 @@ try {
 
     // =============================================
     // ANÁLISE INTELIGENTE DE TARIFÁRIOS
+    // Abordagem simples: encontra botões "..." direto
     // =============================================
     function analyzeTarifarios(quote) {
         console.log('[Atom Oferta] === ANÁLISE INTELIGENTE DE TARIFÁRIOS ===');
 
-        // Carrega regras do acordo do cliente
         var clienteKey = 'acordo_' + (quote.cliente || 'unknown').toLowerCase().replace(/\s+/g, '_');
         chrome.storage.local.get(clienteKey, function(data) {
             var clientRules = data[clienteKey] || { armadoresBloqueados: [], incluirIOF: false };
             console.log('[Atom Oferta] Regras:', JSON.stringify(clientRules).substring(0, 200));
 
-            // PrimeNG scrollable tables: header e body são tables SEPARADOS!
-            // Header: .ui-table-scrollable-header table (tem thead, sem tbody)
-            // Body: .ui-table-scrollable-body table (tem tbody, sem thead)
-            // Podem ter frozen e unfrozen views (2 pares)
-
-            // 1. Encontra TODOS os body tables com rows
-            var bodyTables = [];
-            var bodyTableEls = document.querySelectorAll('.ui-table-scrollable-body table');
-            console.log('[Atom Oferta] Body tables (.ui-table-scrollable-body table):', bodyTableEls.length);
-
-            // Fallback: se não achou com selector específico, tenta tables com tbody tr
-            if (bodyTableEls.length === 0) {
-                var allT = document.querySelectorAll('table');
-                for (var ft = 0; ft < allT.length; ft++) {
-                    if (allT[ft].querySelectorAll('tbody tr').length > 0) {
-                        bodyTableEls = [allT[ft]];
-                        break;
-                    }
+            // Encontra TODOS os botões "..." na página
+            var allSpans = document.querySelectorAll('span.ui-button-text, span.ui-clickable');
+            var dotButtons = [];
+            for (var s = 0; s < allSpans.length; s++) {
+                if (allSpans[s].textContent.trim() === '...') {
+                    dotButtons.push(allSpans[s]);
                 }
             }
+            console.log('[Atom Oferta] Botões "..." encontrados:', dotButtons.length);
 
-            for (var bt = 0; bt < bodyTableEls.length; bt++) {
-                var rows = bodyTableEls[bt].querySelectorAll('tbody tr');
-                if (rows.length > 0) {
-                    // Encontra o header table irmão (no mesmo container pai)
-                    var parent = bodyTableEls[bt].closest('.ui-table-scrollable-body');
-                    var headerTable = null;
-                    if (parent && parent.parentElement) {
-                        var headerDiv = parent.parentElement.querySelector('.ui-table-scrollable-header');
-                        if (headerDiv) {
-                            headerTable = headerDiv.querySelector('table');
-                        }
-                    }
-
-                    // Extrai headers desse par
-                    var headers = [];
-                    if (headerTable) {
-                        var ths = headerTable.querySelectorAll('th');
-                        for (var hi = 0; hi < ths.length; hi++) {
-                            var colTitle = ths[hi].querySelector('.ui-column-title, [class*="column-title"]');
-                            var hText = colTitle ? colTitle.textContent.trim().toLowerCase() :
-                                ths[hi].textContent.trim().toLowerCase().replace(/[↕↑↓▲▼♦]/g, '').trim();
-                            if (hText.length > 30) hText = hText.split(/\s/)[0];
-                            headers.push(hText);
-                        }
-                    }
-
-                    bodyTables.push({
-                        bodyEl: bodyTableEls[bt],
-                        headerEl: headerTable,
-                        rows: rows,
-                        headers: headers,
-                        numRows: rows.length
-                    });
-
-                    console.log('[Atom Oferta] BodyTable[' + bt + ']:', rows.length, 'rows,', headers.length, 'headers:', headers.join(', '));
-                }
-            }
-
-            if (bodyTables.length === 0) {
-                showToast('Tabela de tarifários não encontrada', 'error', 4000);
+            if (dotButtons.length === 0) {
+                showToast('Nenhum botão de observação encontrado', 'warning', 4000);
+                crossCheckAndSelect([], quote, clientRules);
                 return;
             }
 
-            // Agrupa body tables pelo MESMO nro de rows (frozen + scrollable têm mesmas rows)
-            var numRows = 0;
-            var pairedTables = [];
-            for (var pt = 0; pt < bodyTables.length; pt++) {
-                if (bodyTables[pt].numRows > numRows) {
-                    numRows = bodyTables[pt].numRows;
-                    pairedTables = [bodyTables[pt]];
-                } else if (bodyTables[pt].numRows === numRows) {
-                    pairedTables.push(bodyTables[pt]);
-                }
-            }
-            console.log('[Atom Oferta] Paired tables (mesmo nro rows):', pairedTables.length, 'com', numRows, 'rows');
-
-            // Junta todos os headers em ordem
-            var allHeaders = [];
-            for (var ah = 0; ah < pairedTables.length; ah++) {
-                allHeaders = allHeaders.concat(pairedTables[ah].headers);
-            }
-            console.log('[Atom Oferta] ALL HEADERS:', allHeaders.join(' | '));
-
-            // Analisa cada row
             var tarifarios = [];
             var yellowRows = [];
 
-            for (var r = 0; r < numRows; r++) {
+            for (var d = 0; d < dotButtons.length; d++) {
+                var btn = dotButtons[d];
+                var row = btn.closest('tr');
+                if (!row) continue;
+
                 var tarInfo = {
-                    rowIndex: r,
-                    rowElement: null,
-                    frozenRow: null,
+                    rowIndex: d,
+                    rowElement: row,
+                    frozenRow: row,
+                    dotsButton: btn,
                     cod: '',
-                    descricao: '',
-                    isYellow: false,
-                    origem: '',
-                    destino: '',
                     armador: '',
-                    agente: '',
-                    container: '',
+                    isYellow: false,
                     observacao: '',
                     eligible: true,
                     rejectReason: ''
                 };
+                // Checa bg de cada cell nesta row
+                var cells = row.querySelectorAll('td');
+                for (var c = 0; c < cells.length; c++) {
+                    var cellText = cells[c].textContent.trim();
+                    // Extrai cod (número 5+ dígitos)
+                    if (cellText.match(/^\d{5,}$/)) tarInfo.cod = cellText;
 
-                // Mescla cells de TODAS as paired tables
-                var globalCol = 0;
-                for (var tIdx = 0; tIdx < pairedTables.length; tIdx++) {
-                    var tRow = pairedTables[tIdx].rows[r];
-                    if (!tRow) continue;
-
-                    // Salva refs: primeira table = frozen (buttons), ultima = scrollable (dados)
-                    if (tIdx === 0) tarInfo.frozenRow = tRow;
-                    tarInfo.rowElement = tRow; // ultima table é a que seleciona
-
-                    var cells = tRow.querySelectorAll('td');
-                    for (var ci = 0; ci < cells.length; ci++) {
-                        var hdr = allHeaders[globalCol] || '';
-                        var txt = cells[ci].textContent.trim();
-
-                        // Cod: número de 4+ dígitos
-                        if (hdr.indexOf('cod') >= 0 && txt.match(/^\d{4,}$/)) {
-                            tarInfo.cod = txt;
-                        }
-
-                        // Descrição + detecção amarelo
-                        if (hdr.indexOf('descri') >= 0 || hdr.indexOf('descrição') >= 0) {
-                            tarInfo.descricao = txt;
-                            // Checa BG amarelo/laranja em vários lugares
-                            var cellEl = cells[ci];
-                            var bg = window.getComputedStyle(cellEl).backgroundColor;
-                            var sty = cellEl.getAttribute('style') || '';
-                            var inner = cellEl.querySelector('span, div');
-                            var iBg = inner ? window.getComputedStyle(inner).backgroundColor : '';
-                            var iSty = inner ? (inner.getAttribute('style') || '') : '';
-
-                            console.log('[Atom Oferta] Row', r, 'Desc cell bg:', bg, '| inner bg:', iBg);
-
-                            var isYellow = 
-                                bg.indexOf('255, 255, 0') >= 0 || bg.indexOf('255, 193') >= 0 ||
-                                bg.indexOf('255, 200') >= 0 || bg.indexOf('255, 165') >= 0 ||
-                                bg.indexOf('255, 152') >= 0 || bg.indexOf('255, 235') >= 0 ||
-                                bg.indexOf('243, 156') >= 0 || bg.indexOf('255, 243') >= 0 ||
-                                sty.indexOf('yellow') >= 0 || sty.indexOf('orange') >= 0 ||
-                                iBg.indexOf('255, 255, 0') >= 0 || iBg.indexOf('255, 193') >= 0 ||
-                                iBg.indexOf('255, 200') >= 0 || iBg.indexOf('255, 152') >= 0 ||
-                                iBg.indexOf('243') >= 0 ||
-                                iSty.indexOf('yellow') >= 0 || iSty.indexOf('orange') >= 0 ||
-                                iSty.indexOf('#ff') >= 0 || iSty.indexOf('#FF') >= 0;
-
-                            // Também checa se bg NÃO é transparente/branco (qualquer cor sólida)
-                            if (!isYellow && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' && 
-                                bg !== 'rgb(255, 255, 255)' && bg !== '') {
-                                console.log('[Atom Oferta] Row', r, '- BG não-padrão:', bg);
-                            }
-
-                            if (isYellow) {
-                                tarInfo.isYellow = true;
-                                console.log('[Atom Oferta] 🟡 Row', r, 'cod', tarInfo.cod, '- AMARELA!');
-                            }
-                        }
-
-                        if (hdr.indexOf('origem') >= 0 && hdr.indexOf('país') < 0 && hdr.indexOf('pai') < 0) tarInfo.origem = txt;
-                        if (hdr.indexOf('destino') >= 0) tarInfo.destino = txt;
-                        if (hdr.indexOf('armador') >= 0) tarInfo.armador = txt;
-                        if (hdr.indexOf('agente') >= 0) tarInfo.agente = txt;
-                        if (hdr.indexOf('cont') >= 0 && hdr.indexOf('conta') < 0 && hdr.indexOf('contrat') < 0) tarInfo.container = txt;
-
-                        globalCol++;
+                    // Checa bg amarelo
+                    var bg = window.getComputedStyle(cells[c]).backgroundColor;
+                    if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' && bg !== 'rgb(255, 255, 255)' && bg !== '') {
+                        console.log('[Atom Oferta] Row', d, 'cell bg:', bg, 'text:', cellText.substring(0, 20));
+                        tarInfo.isYellow = true;
                     }
                 }
 
-                console.log('[Atom Oferta] Row[' + r + '] Cod:', tarInfo.cod, '| Armador:', tarInfo.armador, 
-                    '| Yellow:', tarInfo.isYellow, '| Desc:', tarInfo.descricao.substring(0, 25));
-
-                // Check armador bloqueado
-                if (clientRules.armadoresBloqueados && clientRules.armadoresBloqueados.length > 0) {
-                    for (var ab = 0; ab < clientRules.armadoresBloqueados.length; ab++) {
-                        if (tarInfo.armador.toUpperCase().indexOf(clientRules.armadoresBloqueados[ab]) >= 0) {
-                            tarInfo.eligible = false;
-                            tarInfo.rejectReason = 'Armador bloqueado: ' + clientRules.armadoresBloqueados[ab];
-                            console.log('[Atom Oferta] ✗ Linha', tarInfo.cod, '- BLOQUEADO:', tarInfo.rejectReason);
-                        }
+                // Checa spans com style inline de bg
+                var styledEls = row.querySelectorAll('[style*="background"]');
+                for (var se = 0; se < styledEls.length; se++) {
+                    var sBg = styledEls[se].style.backgroundColor;
+                    if (sBg && sBg !== '' && sBg !== 'transparent' && sBg !== 'rgb(255, 255, 255)') {
+                        console.log('[Atom Oferta] Row', d, 'inline bg:', sBg);
+                        tarInfo.isYellow = true;
                     }
                 }
+
+                console.log('[Atom Oferta] Row[' + d + '] Cod:', tarInfo.cod, '| Yellow:', tarInfo.isYellow);
 
                 tarifarios.push(tarInfo);
                 if (tarInfo.isYellow) yellowRows.push(tarInfo);
@@ -790,20 +666,8 @@ try {
         var tar = yellowRows[index];
         console.log('[Atom Oferta] Lendo observação do tarifário:', tar.cod, '(', index + 1, '/', yellowRows.length, ')');
 
-        // Clica no botão "..." da linha — pode estar na frozen ou scrollable row
-        var searchRows = [tar.rowElement];
-        if (tar.frozenRow) searchRows.unshift(tar.frozenRow);
-
-        var dotsBtn = null;
-        for (var sr = 0; sr < searchRows.length && !dotsBtn; sr++) {
-            var allBtns = searchRows[sr].querySelectorAll('button, .ui-button, span.ui-clickable, .ui-button-text');
-            for (var b = 0; b < allBtns.length; b++) {
-                if (allBtns[b].textContent.trim() === '...') {
-                    dotsBtn = allBtns[b];
-                    break;
-                }
-            }
-        }
+        // Usa o botão "..." já encontrado
+        var dotsBtn = tar.dotsButton;
 
         if (!dotsBtn) {
             console.log('[Atom Oferta] Botao ... nao encontrado na linha', tar.cod);
