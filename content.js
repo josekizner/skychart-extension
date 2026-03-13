@@ -563,7 +563,7 @@ try {
 
     // =============================================
     // ANÁLISE INTELIGENTE DE TARIFÁRIOS
-    // Abordagem simples: encontra botões "..." direto
+    // Clica TODOS os "...", lê textarea → se tem conteúdo = restrição
     // =============================================
     function analyzeTarifarios(quote) {
         console.log('[Atom Oferta] === ANÁLISE INTELIGENTE DE TARIFÁRIOS ===');
@@ -589,159 +589,127 @@ try {
                 return;
             }
 
-            var tarifarios = [];
-            var yellowRows = [];
-
+            // Deduplica: PrimeNG duplica botões em frozen+scrollable
+            var seen = {};
+            var uniqueButtons = [];
             for (var d = 0; d < dotButtons.length; d++) {
-                var btn = dotButtons[d];
-                var row = btn.closest('tr');
-                if (!row) continue;
+                var tr = dotButtons[d].closest('tr');
+                if (!tr) continue;
+                var codMatch = tr.textContent.match(/\b(\d{5,})\b/);
+                var cod = codMatch ? codMatch[1] : 'btn_' + d;
+                if (!seen[cod]) {
+                    seen[cod] = true;
+                    uniqueButtons.push({ btn: dotButtons[d], cod: cod, row: tr });
+                }
+            }
+            console.log('[Atom Oferta] Botões únicos (dedup):', uniqueButtons.length);
 
-                var tarInfo = {
-                    rowIndex: d,
-                    rowElement: row,
-                    frozenRow: row,
-                    dotsButton: btn,
-                    cod: '',
+            var tarifarios = [];
+            for (var u = 0; u < uniqueButtons.length; u++) {
+                tarifarios.push({
+                    rowIndex: u,
+                    rowElement: uniqueButtons[u].row,
+                    frozenRow: uniqueButtons[u].row,
+                    dotsButton: uniqueButtons[u].btn,
+                    cod: uniqueButtons[u].cod,
                     armador: '',
                     isYellow: false,
                     observacao: '',
                     eligible: true,
                     rejectReason: ''
-                };
-                // Checa bg de cada cell nesta row
-                var cells = row.querySelectorAll('td');
-                for (var c = 0; c < cells.length; c++) {
-                    var cellText = cells[c].textContent.trim();
-                    // Extrai cod (número 5+ dígitos)
-                    if (cellText.match(/^\d{5,}$/)) tarInfo.cod = cellText;
-
-                    // Checa bg amarelo
-                    var bg = window.getComputedStyle(cells[c]).backgroundColor;
-                    if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' && bg !== 'rgb(255, 255, 255)' && bg !== '') {
-                        console.log('[Atom Oferta] Row', d, 'cell bg:', bg, 'text:', cellText.substring(0, 20));
-                        tarInfo.isYellow = true;
-                    }
-                }
-
-                // Checa spans com style inline de bg
-                var styledEls = row.querySelectorAll('[style*="background"]');
-                for (var se = 0; se < styledEls.length; se++) {
-                    var sBg = styledEls[se].style.backgroundColor;
-                    if (sBg && sBg !== '' && sBg !== 'transparent' && sBg !== 'rgb(255, 255, 255)') {
-                        console.log('[Atom Oferta] Row', d, 'inline bg:', sBg);
-                        tarInfo.isYellow = true;
-                    }
-                }
-
-                console.log('[Atom Oferta] Row[' + d + '] Cod:', tarInfo.cod, '| Yellow:', tarInfo.isYellow);
-
-                tarifarios.push(tarInfo);
-                if (tarInfo.isYellow) yellowRows.push(tarInfo);
-            }
-
-            console.log('[Atom Oferta] === RESULTADO: Total:', tarifarios.length, '| Amarelos:', yellowRows.length, '===');
-
-            // Se tem linhas amarelas, lê as observações de cada uma (sequencial)
-            if (yellowRows.length > 0) {
-                showToast('Verificando ' + yellowRows.length + ' restrições (linhas amarelas)...', 'warning', 4000);
-                readYellowObservations(yellowRows, 0, function() {
-                    // Após ler todas, faz cross-check e seleciona
-                    crossCheckAndSelect(tarifarios, quote, clientRules);
                 });
-            } else {
-                // Sem amarelos, direto pro cross-check
-                crossCheckAndSelect(tarifarios, quote, clientRules);
             }
+
+            // Clica TODOS sequencialmente, lê textarea de cada dialog
+            showToast('Lendo observações de ' + tarifarios.length + ' tarifários...', 'info', 3000);
+            readAllObservations(tarifarios, 0, function() {
+                var yellowCount = 0;
+                for (var t = 0; t < tarifarios.length; t++) {
+                    if (tarifarios[t].isYellow) yellowCount++;
+                }
+                console.log('[Atom Oferta] === Total:', tarifarios.length, '| Com restrição:', yellowCount, '===');
+                crossCheckAndSelect(tarifarios, quote, clientRules);
+            });
         });
     }
 
-    // Lê observações das linhas amarelas (sequencial, uma por uma)
-    function readYellowObservations(yellowRows, index, callback) {
-        if (index >= yellowRows.length) {
+    // Clica "..." de cada tarifário sequencialmente, lê textarea
+    function readAllObservations(tarifarios, index, callback) {
+        if (index >= tarifarios.length) {
             callback();
             return;
         }
 
-        var tar = yellowRows[index];
-        console.log('[Atom Oferta] Lendo observação do tarifário:', tar.cod, '(', index + 1, '/', yellowRows.length, ')');
+        var tar = tarifarios[index];
+        console.log('[Atom Oferta] Clicando "..." do', tar.cod, '(', index + 1, '/', tarifarios.length, ')');
 
-        // Usa o botão "..." já encontrado
         var dotsBtn = tar.dotsButton;
-
         if (!dotsBtn) {
-            console.log('[Atom Oferta] Botao ... nao encontrado na linha', tar.cod);
-            readYellowObservations(yellowRows, index + 1, callback);
+            readAllObservations(tarifarios, index + 1, callback);
             return;
         }
 
-        // Clica no "..."
+        // Clica no botão (sobe pro button pai se for span)
         var clickTarget = dotsBtn;
-        if (clickTarget.tagName === 'SPAN') {
-            var parent = clickTarget.closest('button') || clickTarget.closest('.ui-button');
-            if (parent) clickTarget = parent;
-        }
+        var parentBtn = clickTarget.closest('button') || clickTarget.closest('.ui-button');
+        if (parentBtn) clickTarget = parentBtn;
+
         clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
         clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
         clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        clickTarget.click();
 
-        // Espera dialog abrir e lê o textarea
+        // Espera dialog abrir, lê textarea
         setTimeout(function() {
-            var dialog = document.querySelector('.ui-dialog, p-dialog');
+            var dialog = document.querySelector('.ui-dialog, p-dialog, [role="dialog"]');
             if (dialog) {
                 var textarea = dialog.querySelector('textarea');
-                if (textarea) {
-                    tar.observacao = textarea.value || textarea.textContent || '';
-                    console.log('[Atom Oferta] Obs. tarifário', tar.cod, ':', tar.observacao.substring(0, 100));
+                var obsText = textarea ? (textarea.value || textarea.textContent || '').trim() : '';
 
-                    // Cross-check com mercadoria
-                    var obsUpper = tar.observacao.toUpperCase();
-                    var mercUpper = (quote.mercadoria || '').toUpperCase();
+                if (obsText.length > 0) {
+                    tar.observacao = obsText;
+                    tar.isYellow = true;
+                    console.log('[Atom Oferta] 🟡', tar.cod, ':', obsText.substring(0, 80));
 
-                    // NAC = Named Account: apenas para tipos específicos de carga
-                    if (obsUpper.indexOf('NAC') >= 0) {
-                        // Verifica se é para carga química/IMO
-                        if (obsUpper.indexOf('QUIMIC') >= 0 || obsUpper.indexOf('IMO') >= 0) {
-                            // A mercadoria do cliente é química?
-                            if (mercUpper.indexOf('QUIMIC') < 0 && mercUpper.indexOf('IMO') < 0 &&
-                                mercUpper.indexOf('CHEMICAL') < 0) {
-                                tar.eligible = false;
-                                tar.rejectReason = 'NAC: apenas carga química/IMO (mercadoria: ' + quote.mercadoria + ')';
-                                console.log('[Atom Oferta] ✗ Linha', tar.cod, '- INELEGÍVEL:', tar.rejectReason);
-                            }
+                    // NAC check
+                    var obsUp = obsText.toUpperCase();
+                    if (obsUp.indexOf('NAC') >= 0 && (obsUp.indexOf('QUIMIC') >= 0 || obsUp.indexOf('IMO') >= 0)) {
+                        var merc = (tar._quote_merc || '').toUpperCase();
+                        if (merc.indexOf('QUIMIC') < 0 && merc.indexOf('IMO') < 0 && merc.indexOf('CHEMICAL') < 0) {
+                            tar.eligible = false;
+                            tar.rejectReason = 'NAC: carga quimica/IMO apenas';
                         }
                     }
-
-                    // Sobrepeso
-                    if (obsUpper.indexOf('SOBREPESO') >= 0) {
-                        tar.observacao += ' [⚠ SUJEITO A SOBREPESO]';
-                        console.log('[Atom Oferta] ⚠ Linha', tar.cod, '- Sujeito a SOBREPESO');
+                    if (obsUp.indexOf('SOBREPESO') >= 0 || obsUp.indexOf('OWS') >= 0) {
+                        tar.observacao += ' [SOBREPESO]';
                     }
+                } else {
+                    console.log('[Atom Oferta]', tar.cod, '- Sem observacao');
                 }
 
-                // Fecha o dialog — clica em "Atualizar" ou no X
-                var closeBtn = dialog.querySelector('.ui-dialog-titlebar-close, .ui-dialog-titlebar-icon');
+                // Fecha dialog
+                var closeBtn = dialog.querySelector('.ui-dialog-titlebar-close, .ui-dialog-titlebar-icon, button[aria-label="Close"]');
                 if (closeBtn) {
                     closeBtn.click();
                 } else {
-                    // Tenta botão Atualizar
                     var btns = dialog.querySelectorAll('button, .ui-button-text');
                     for (var bi = 0; bi < btns.length; bi++) {
-                        if (btns[bi].textContent.trim() === 'Atualizar') {
+                        if (btns[bi].textContent.trim() === 'Atualizar' || btns[bi].textContent.trim() === 'Fechar') {
                             btns[bi].click();
                             break;
                         }
                     }
                 }
+            } else {
+                console.log('[Atom Oferta]', tar.cod, '- Dialog nao abriu');
             }
 
-            // Próxima linha amarela (delay pra dialog fechar)
             setTimeout(function() {
-                readYellowObservations(yellowRows, index + 1, callback);
-            }, 1500);
-
-        }, 2000);
+                readAllObservations(tarifarios, index + 1, callback);
+            }, 800);
+        }, 1500);
     }
+
 
     // Cross-check final e seleção da melhor rota
     function crossCheckAndSelect(tarifarios, quote, clientRules) {
