@@ -107,12 +107,18 @@
     function readCustosTable() {
         var items = [];
         
-        // Encontra a tabela de custos — PrimeNG usa p-table, ui-table, ou table normal
-        var custosTable = null;
-        var allTables = document.querySelectorAll('table, p-table');
+        // PrimeNG datatable usa DUAS tabelas separadas:
+        // Header: ui-datatable-scrollable-header-box > table (THs)
+        // Body:   ui-datatable-scrollable-table-wrapper > table (TDs)
+        
+        // 1. Encontra a tabela HEADER que tem "Taxa" e "Venda" nos THs
+        var headerTable = null;
+        var allTables = document.querySelectorAll('table');
 
         for (var t = 0; t < allTables.length; t++) {
             var headers = allTables[t].querySelectorAll('th');
+            if (headers.length < 10) continue; // Custos tem muitas colunas (~34)
+            
             var hasTaxa = false;
             var hasVenda = false;
             for (var h = 0; h < headers.length; h++) {
@@ -121,27 +127,27 @@
                 if (htxt.indexOf('venda') >= 0) hasVenda = true;
             }
             if (hasTaxa && hasVenda) {
-                custosTable = allTables[t];
-                console.log(TAG, 'Tabela custos encontrada! Tag:', custosTable.tagName, 'Headers:', headers.length);
+                headerTable = allTables[t];
+                console.log(TAG, 'Header table encontrada! THs:', headers.length);
                 break;
             }
         }
 
-        if (!custosTable) {
-            console.log(TAG, 'Tabela de custos não encontrada');
+        if (!headerTable) {
+            console.log(TAG, 'Header table de custos não encontrada');
             return items;
         }
 
-        // Detecta colunas via THs
-        var ths = custosTable.querySelectorAll('th');
+        // 2. Mapeia colunas do header
+        var ths = headerTable.querySelectorAll('th');
         var colMap = {};
         for (var ci = 0; ci < ths.length; ci++) {
             var colText = (ths[ci].textContent || '').trim().toLowerCase();
-            if (colText.indexOf('taxa') >= 0 && !colMap.taxa) colMap.taxa = ci;
-            if (colText.indexOf('tipo de cobran') >= 0 && !colMap.tipoCobranca) colMap.tipoCobranca = ci;
-            if (colText.indexOf('moeda venda') >= 0 || (colText === 'moeda' && !colMap.moeda)) colMap.moeda = ci;
+            if (colText.indexOf('taxa') >= 0 && colMap.taxa === undefined) colMap.taxa = ci;
+            if (colText.indexOf('tipo de cobran') >= 0 && colMap.tipoCobranca === undefined) colMap.tipoCobranca = ci;
+            if (colMap.moeda === undefined && colText.indexOf('moeda') >= 0 && colText.indexOf('compra') < 0 && colText.indexOf('venda') < 0) colMap.moeda = ci;
             if (colText.indexOf('total venda') >= 0) colMap.totalVenda = ci;
-            if (colText === 'venda' && colMap.totalVenda === undefined) colMap.venda = ci;
+            if (colText === 'venda' && colMap.totalVenda === undefined && colMap.venda === undefined) colMap.venda = ci;
         }
 
         if (colMap.totalVenda === undefined && colMap.venda !== undefined) {
@@ -150,22 +156,48 @@
 
         console.log(TAG, 'Colunas mapeadas:', JSON.stringify(colMap));
 
-        // Busca TODAS as TRs que contêm TDs — PrimeNG pode não ter <tbody>
-        var allRows = custosTable.querySelectorAll('tr');
-        console.log(TAG, 'Total TRs encontradas:', allRows.length);
-
-        var dataRows = [];
-        for (var r = 0; r < allRows.length; r++) {
-            var tds = allRows[r].querySelectorAll('td');
-            if (tds.length >= 3) {
-                dataRows.push(allRows[r]);
+        // 3. Encontra a tabela BODY (irmã do header)
+        // Sobe até o container do datatable e busca a table-wrapper
+        var bodyTable = null;
+        var headerBox = headerTable.closest('.ui-datatable-scrollable-header-box, .ui-datatable-scrollable-header');
+        
+        if (headerBox) {
+            // Sobe mais um nível para encontrar o wrapper irmão
+            var datatableContainer = headerBox.parentElement;
+            if (datatableContainer) datatableContainer = datatableContainer.parentElement;
+            if (!datatableContainer) datatableContainer = headerBox.parentElement;
+            
+            // Busca a table dentro de ui-datatable-scrollable-table-wrapper
+            var bodyWrapper = datatableContainer ? datatableContainer.querySelector('.ui-datatable-scrollable-table-wrapper') : null;
+            if (bodyWrapper) {
+                bodyTable = bodyWrapper.querySelector('table');
+            }
+        }
+        
+        if (!bodyTable) {
+            // Fallback: busca a próxima tabela com TDs após a header table
+            var foundHeader = false;
+            for (var t2 = 0; t2 < allTables.length; t2++) {
+                if (allTables[t2] === headerTable) { foundHeader = true; continue; }
+                if (foundHeader && allTables[t2].querySelectorAll('td').length > 10) {
+                    bodyTable = allTables[t2];
+                    break;
+                }
             }
         }
 
-        console.log(TAG, 'TRs com dados (>= 3 TDs):', dataRows.length);
+        if (!bodyTable) {
+            console.log(TAG, 'Body table de custos não encontrada');
+            return items;
+        }
+
+        // 4. Lê as rows de dados
+        var dataRows = bodyTable.querySelectorAll('tr');
+        console.log(TAG, 'Body table: TRs:', dataRows.length, 'TDs:', bodyTable.querySelectorAll('td').length);
 
         for (var r = 0; r < dataRows.length; r++) {
             var cells = dataRows[r].querySelectorAll('td');
+            if (cells.length < 3) continue;
 
             var taxa = colMap.taxa !== undefined && cells[colMap.taxa] ? cells[colMap.taxa].textContent.trim() : '';
             var moeda = colMap.moeda !== undefined && cells[colMap.moeda] ? cells[colMap.moeda].textContent.trim() : '';
@@ -175,9 +207,8 @@
                 totalVenda = cells[colMap.totalVenda].textContent.trim();
             }
 
-            // Pula linhas sem taxa ou com taxa muito curta
+            // Pula linhas sem taxa
             if (!taxa || taxa.length < 2) continue;
-            // Pula headers repetidos
             if (taxa.toLowerCase() === 'taxa') continue;
 
             items.push({
