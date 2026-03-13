@@ -391,12 +391,17 @@
             if (htxt.indexOf('Transit') >= 0) transitCol = hi;
         }
 
-        for (var r = 0; r < Math.min(rows.length, 3); r++) {
+        // Escaneia TODAS as linhas, pega até 5 resultados válidos
+        // HMM usa 2 linhas por resultado (principal + detalhe), por isso temos 10 linhas pra 5 resultados
+        for (var r = 0; r < rows.length && results.length < 5; r++) {
             var cells = rows[r].querySelectorAll('td');
             if (cells.length < 5) continue;
 
             var vessel = vesselCol >= 0 && cells[vesselCol] ? cells[vesselCol].textContent.trim() : '';
             var transitTime = transitCol >= 0 && cells[transitCol] ? cells[transitCol].textContent.trim() : '';
+
+            // Pula linhas vazias ou sub-linhas sem dados
+            if (!vessel && !transitTime) continue;
 
             var etd = '';
             var eta = '';
@@ -409,13 +414,19 @@
             }
 
             if (vessel || etd) {
+                // Limpa nome do navio: remove códigos [KMP], [FIL] etc
+                var cleanVessel = vessel.replace(/\[.*?\]/g, ' ').replace(/\s+/g, ' ').trim();
+                // Pega só o primeiro navio se tem dois (transbordo)
+                var vesselParts = cleanVessel.split(/\t|\n/);
+                var mainVessel = vesselParts[0] ? vesselParts[0].trim() : cleanVessel;
+
                 results.push({
-                    vessel: vessel.replace(/\[.*?\]/g, '').trim(),
+                    vessel: mainVessel,
                     etd: etd,
                     eta: eta,
-                    transitTime: transitTime + (transitTime && !transitTime.match(/dia/i) ? ' dias' : '')
+                    transitTime: transitTime ? (transitTime + (transitTime.match(/dia/i) ? '' : ' dias')) : ''
                 });
-                console.log(TAG, 'Sailing #' + (r + 1) + ':', vessel, '| ETD:', etd, '| ETA:', eta, '| TT:', transitTime);
+                console.log(TAG, 'Sailing #' + results.length + ':', mainVessel, '| ETD:', etd, '| ETA:', eta, '| TT:', transitTime);
             }
         }
 
