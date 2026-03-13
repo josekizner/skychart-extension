@@ -259,7 +259,7 @@
             chrome.storage.local.get('serasaCNPJ', function(data) {
                 if (data.serasaCNPJ) {
                     console.log('[Atom Serasa] CNPJ pendente em pagina desconhecida, redirecionando...');
-                    location.href = 'https://www.serasaempreendedor.com.br/v2/consulta-serasa';
+                    location.href = 'https://www.serasaempreendedor.com.br/v2/consulta-serasa/new';
                 }
             });
         }

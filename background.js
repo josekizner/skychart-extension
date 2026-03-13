@@ -248,7 +248,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "openSerasaConsulta") {
     console.log("[Serasa Consulta] Abrindo para CNPJ:", request.cnpj);
     chrome.tabs.create({
-      url: "https://www.serasaempreendedor.com.br/v2/consulta-serasa",
+      url: "https://www.serasaempreendedor.com.br/v2/consulta-serasa/new",
       active: true
     });
     sendResponse({ success: true });
