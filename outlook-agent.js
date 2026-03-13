@@ -487,6 +487,8 @@
         if (preview) preview.remove();
         var actions = panel.querySelector('#atom-outlook-actions');
         if (actions) actions.remove();
+        var rules = panel.querySelector('#atom-client-rules');
+        if (rules) rules.remove();
         setStatus('Pronto', false);
     }
 

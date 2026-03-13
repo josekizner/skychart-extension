@@ -16,6 +16,7 @@
     font-family: 'Segoe UI', Inter, system-ui, sans-serif;
     transition: all 0.3s ease;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
 }
 
 #atom-outlook-panel.expanded {
@@ -28,6 +29,7 @@
     min-width: 180px;
     max-width: 600px;
     flex-direction: column;
+    overflow-y: auto;
     align-items: stretch;
     padding: 0;
     border-radius: 10px;
