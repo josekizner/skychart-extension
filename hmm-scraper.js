@@ -64,7 +64,7 @@
 
         var fromInput = document.querySelector('#srchPointFrom');
         var toInput = document.querySelector('#srchPointTo');
-        if (!fromInput || toInput) {
+        if (!fromInput || !toInput) {
             console.log(TAG, 'Inputs não encontrados, esperando...');
             setTimeout(function() { runWithVerification(from, to, attempt); }, 1000);
             return;
