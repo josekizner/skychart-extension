@@ -2,13 +2,9 @@
 // Executa em https://www.serasaempreendedor.com.br/*
 (function() {
     'use strict';
-    // Permission check
     chrome.storage.local.get('enabledAgents', function(d) {
         var e = d.enabledAgents || [];
         if (e.indexOf('serasa') < 0) { console.log('[Serasa] Desabilitado'); return; }
-        _initSerasa();
-    });
-    function _initSerasa() {
 
     var SERASA_CREDS = {
         email: 'joane.vieira@mondshipping.com.br',
@@ -265,4 +261,4 @@
     }
 
     console.log('[Atom Serasa] Content script carregado em:', location.href);
-} })();
+}); })();

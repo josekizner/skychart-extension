@@ -6,9 +6,6 @@
     chrome.storage.local.get('enabledAgents', function(d) {
         var e = d.enabledAgents || [];
         if (e.indexOf('cotacao') < 0) { console.log('[Outlook] Desabilitado'); return; }
-        _initOutlook();
-    });
-    function _initOutlook() {
 
     console.log('[Atom Email] Content script carregado em:', location.href);
 
@@ -556,4 +553,4 @@
         setTimeout(init, 2000);
     }
 
-} })();
+}); })();
