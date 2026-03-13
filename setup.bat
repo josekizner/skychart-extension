@@ -80,7 +80,10 @@ echo set "PATH=%%PATH%%;C:\Program Files\Git\cmd" >> "%INSTALL_DIR%\do-update.ba
 echo cd /d "%INSTALL_DIR%" >> "%INSTALL_DIR%\do-update.bat"
 echo git pull origin main --quiet >> "%INSTALL_DIR%\do-update.bat"
 
-schtasks /create /tn "AtomExtensionUpdate" /tr "\"%INSTALL_DIR%\do-update.bat\"" /sc minute /mo 30 /f >nul 2>nul
+:: VBS wrapper pra rodar invisivel (sem piscar CMD)
+echo CreateObject("WScript.Shell").Run """%INSTALL_DIR%\do-update.bat""", 0, False > "%INSTALL_DIR%\do-update.vbs"
+
+schtasks /create /tn "AtomExtensionUpdate" /tr "wscript.exe \"%INSTALL_DIR%\do-update.vbs\"" /sc minute /mo 30 /f >nul 2>nul
 if errorlevel 1 (
     echo   Auto-update nao agendado.
 ) else (
