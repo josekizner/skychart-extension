@@ -1,50 +1,6 @@
 const GEMINI_API_KEY = "AIzaSyAUJQghRHkjEnM4HQCeVF_6LuS2iTQy-KQ";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-
-// ===== PERMISSION INIT =====
-// Le local-config.json na instalacao e configura enabledAgents
-chrome.runtime.onInstalled.addListener(function() {
-  fetch(chrome.runtime.getURL('local-config.json'))
-    .then(function(r) { return r.json(); })
-    .then(function(cfg) {
-      var PROFILES = {
-        master: ['cambio','serasa','frete','tracking','cotacao'],
-        financeiro: ['cambio','serasa'],
-        operacional: ['tracking','frete'],
-        comercial: ['cotacao','frete']
-      };
-      var agents = PROFILES[cfg.profile] || [];
-      chrome.storage.local.set({ userProfile: cfg.profile, enabledAgents: agents, configLoaded: true });
-      console.log('[Atom] Perfil configurado:', cfg.profile, agents);
-    })
-    .catch(function() {
-      // Sem config = nao libera nada ate configurar pelo popup
-      chrome.storage.local.get('enabledAgents', function(d) {
-        if (!d.enabledAgents) {
-          chrome.storage.local.set({ enabledAgents: ['cambio','serasa','frete','tracking','cotacao'], userProfile: 'master' });
-          console.log('[Atom] Sem local-config.json, agentes bloqueados');
-        }
-      });
-    });
-});
-
-// Tambem roda no startup (nao so install)
-chrome.runtime.onStartup.addListener(function() {
-  fetch(chrome.runtime.getURL('local-config.json'))
-    .then(function(r) { return r.json(); })
-    .then(function(cfg) {
-      var PROFILES = {
-        master: ['cambio','serasa','frete','tracking','cotacao'],
-        financeiro: ['cambio','serasa'],
-        operacional: ['tracking','frete'],
-        comercial: ['cotacao','frete']
-      };
-      var agents = PROFILES[cfg.profile] || [];
-      chrome.storage.local.set({ userProfile: cfg.profile, enabledAgents: agents, configLoaded: true });
-    })
-    .catch(function() {});
-});
 // ===== AUTO-UPDATE =====
 const CURRENT_VERSION = "1.0.0";
 // IMPORTANTE: Mude esta URL após criar o repo no GitHub
