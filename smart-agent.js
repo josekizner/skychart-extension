@@ -1034,15 +1034,33 @@ var SkAgent = (function () {
     }
 
     // ===== VISION VERIFY: Screenshot + Gemini analisa se tudo tá correto =====
+    // Fallback: se screenshot falhar, verifica pelo DOM diretamente
     async function visionVerifyPage(label) {
         SkDebug.log(label, 'INFO', 'Tirando screenshot pra Gemini revisar...');
 
+        // Primeiro tenta screenshot + Gemini
+        var screenshotOk = await tryVisionScreenshot(label);
+        
+        if (!screenshotOk) {
+            // Fallback: verificação por DOM
+            SkDebug.log(label, 'INFO', 'Fallback: verificando pelo DOM...');
+            await domBasedVerify(label);
+        }
+        
+        return true;
+    }
+
+    function tryVisionScreenshot(label) {
         return new Promise(function(resolve) {
-            // Pede screenshot ao background
             chrome.runtime.sendMessage({ action: 'visionScreenshot' }, function(screenshotResponse) {
+                if (chrome.runtime.lastError) {
+                    SkDebug.log(label, 'INFO', 'Screenshot erro: ' + chrome.runtime.lastError.message);
+                    resolve(false);
+                    return;
+                }
                 if (!screenshotResponse || !screenshotResponse.success || !screenshotResponse.image) {
-                    SkDebug.log(label, 'INFO', 'Screenshot falhou, pulando verificação');
-                    resolve(true);
+                    SkDebug.log(label, 'INFO', 'Screenshot falhou: ' + JSON.stringify(screenshotResponse || 'sem resposta').substring(0, 100));
+                    resolve(false);
                     return;
                 }
 
@@ -1060,7 +1078,7 @@ var SkAgent = (function () {
                     '  "issues": ["descricao do problema 1", "descricao do problema 2"],\n' +
                     '  "totalIOF": "valor encontrado ou ZERO",\n' +
                     '  "totalContrato": "valor encontrado ou ZERO",\n' +
-                    '  "actions": ["gerarIOF", "gerarContrato"] // ações necessárias se algo estiver errado\n' +
+                    '  "actions": ["gerarIOF", "gerarContrato"]\n' +
                     '}';
 
                 chrome.runtime.sendMessage({
@@ -1070,8 +1088,8 @@ var SkAgent = (function () {
                     viewport: { width: window.innerWidth, height: window.innerHeight }
                 }, async function(analysisResponse) {
                     if (!analysisResponse || !analysisResponse.success || !analysisResponse.data) {
-                        SkDebug.log(label, 'INFO', 'Gemini não respondeu, pulando');
-                        resolve(true);
+                        SkDebug.log(label, 'INFO', 'Gemini não respondeu, usando fallback DOM');
+                        resolve(false);
                         return;
                     }
 
@@ -1085,31 +1103,128 @@ var SkAgent = (function () {
                     }
 
                     // Tem problemas — tenta corrigir
-                    SkDebug.log(label, 'INFO', '⚠️ Problemas encontrados: ' + (result.issues || []).join(', '));
-
-                    var actions = result.actions || [];
-                    for (var a = 0; a < actions.length; a++) {
-                        if (actions[a] === 'gerarIOF' || actions[a].indexOf('IOF') >= 0) {
-                            SkDebug.log(label, 'EXEC', 'Re-clicando Gerar IOF...');
-                            clickButtonByLabel('Gerar IOF');
-                            await delay(3000);
-                            // Espera toast
-                            await waitForToast('IOF retry', 'sucesso', 10000);
-                            await delay(1000);
-                        }
-                        if (actions[a] === 'gerarContrato' || actions[a].indexOf('contrato') >= 0 || actions[a].indexOf('Contrato') >= 0) {
-                            SkDebug.log(label, 'EXEC', 'Re-clicando Gerar contrato de cambio...');
-                            clickButtonByLabel('Gerar contrato de cambio');
-                            await delay(3000);
-                        }
-                    }
-
-                    SkDebug.log(label, 'OK', 'Correções aplicadas baseado na visão');
+                    SkDebug.log(label, 'INFO', '⚠️ Problemas: ' + (result.issues || []).join(', '));
+                    await executeVisionCorrections(result.actions || [], label);
                     resolve(true);
                 });
             });
         });
     }
+
+    // Verificação por DOM: lê os valores diretamente da tela
+    async function domBasedVerify(label) {
+        SkDebug.log(label, 'INFO', 'Lendo valores do DOM...');
+        
+        var issues = [];
+        
+        // Procura Total IOF
+        var totalIOF = findValueNearLabel('Total IOF', 'Total de Iof');
+        SkDebug.log(label, 'INFO', 'Total IOF: "' + totalIOF + '"');
+        if (!totalIOF || totalIOF === '0' || totalIOF === '0,00' || totalIOF === '0.00') {
+            issues.push('Total IOF está zerado');
+        }
+
+        // Procura Total Contrato de Câmbio
+        var totalContrato = findValueNearLabel('Total Contrato', 'Total contrato de Câmbio', 'Total contrato');
+        SkDebug.log(label, 'INFO', 'Total Contrato: "' + totalContrato + '"');
+        if (!totalContrato || totalContrato === '0' || totalContrato === '0,00' || totalContrato === '0.00') {
+            issues.push('Total Contrato de Câmbio está zerado');
+        }
+
+        if (issues.length === 0) {
+            SkDebug.log(label, 'OK', '✅ Verificação DOM: tudo OK! IOF=' + totalIOF + ' Contrato=' + totalContrato);
+            return;
+        }
+
+        SkDebug.log(label, 'INFO', '⚠️ Problemas DOM: ' + issues.join(', '));
+
+        // Corrige
+        if (issues.some(function(i) { return i.indexOf('IOF') >= 0; })) {
+            SkDebug.log(label, 'EXEC', 'Re-clicando Gerar IOF...');
+            clickButtonByLabel('Gerar IOF');
+            await delay(3000);
+            await waitForToast('IOF retry', 'sucesso', 10000);
+            await delay(1000);
+        }
+
+        if (issues.some(function(i) { return i.indexOf('Contrato') >= 0; })) {
+            SkDebug.log(label, 'EXEC', 'Re-clicando Gerar contrato de cambio...');
+            clickButtonByLabel('Gerar contrato de cambio');
+            await delay(3000);
+        }
+
+        SkDebug.log(label, 'OK', 'Correções aplicadas');
+    }
+
+    // Busca valor perto de um label no DOM
+    function findValueNearLabel() {
+        var labels = Array.prototype.slice.call(arguments);
+        
+        var allEls = document.querySelectorAll('label, span, td, div');
+        for (var i = 0; i < allEls.length; i++) {
+            var text = (allEls[i].textContent || '').trim();
+            
+            for (var l = 0; l < labels.length; l++) {
+                if (text.toLowerCase().indexOf(labels[l].toLowerCase()) >= 0 && text.length < 60) {
+                    // Encontrou o label — procura o valor perto
+                    var next = allEls[i].nextElementSibling;
+                    if (next) {
+                        var val = getNumericValue(next);
+                        if (val) return val;
+                    }
+                    var input = allEls[i].querySelector('input');
+                    if (!input) input = allEls[i].parentElement ? allEls[i].parentElement.querySelector('input') : null;
+                    if (input && input.value) return input.value.trim();
+                    var parent = allEls[i].parentElement;
+                    if (parent) {
+                        var children = parent.children;
+                        var foundSelf = false;
+                        for (var c = 0; c < children.length; c++) {
+                            if (children[c] === allEls[i]) { foundSelf = true; continue; }
+                            if (foundSelf) {
+                                var v = getNumericValue(children[c]);
+                                if (v) return v;
+                            }
+                        }
+                    }
+                    var td = allEls[i].closest('td');
+                    if (td && td.nextElementSibling) {
+                        var v2 = getNumericValue(td.nextElementSibling);
+                        if (v2) return v2;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    function getNumericValue(el) {
+        if (!el) return null;
+        var inp = el.querySelector ? el.querySelector('input') : null;
+        if (inp && inp.value) return inp.value.trim();
+        var t = (el.textContent || '').trim();
+        if (t.match(/\d+[.,]\d+/) || t.match(/^\d+$/)) return t;
+        return null;
+    }
+
+    async function executeVisionCorrections(actions, label) {
+        for (var a = 0; a < actions.length; a++) {
+            if (actions[a] === 'gerarIOF' || (actions[a].indexOf && actions[a].indexOf('IOF') >= 0)) {
+                SkDebug.log(label, 'EXEC', 'Re-clicando Gerar IOF...');
+                clickButtonByLabel('Gerar IOF');
+                await delay(3000);
+                await waitForToast('IOF retry', 'sucesso', 10000);
+                await delay(1000);
+            }
+            if (actions[a] === 'gerarContrato' || (actions[a].indexOf && (actions[a].indexOf('contrato') >= 0 || actions[a].indexOf('Contrato') >= 0))) {
+                SkDebug.log(label, 'EXEC', 'Re-clicando Gerar contrato de cambio...');
+                clickButtonByLabel('Gerar contrato de cambio');
+                await delay(3000);
+            }
+        }
+        SkDebug.log(label, 'OK', 'Correções aplicadas baseado na visão');
+    }
+
     // ===== INTERVENÇÃO HUMANA: Agente pausa, usuário faz, agente aprende =====
     async function humanTakeover(stepLabel, actionType, expectedValue) {
         SkDebug.log(stepLabel, 'INFO', '🙋 INTERVENÇÃO HUMANA — Faça a ação manualmente. Clique PRONTO quando terminar.');
