@@ -107,20 +107,24 @@
     function readCustosTable() {
         var items = [];
         
-        // Encontra a tabela dentro do accordion Custos
-        var tables = document.querySelectorAll('table');
+        // Encontra a tabela de custos — PrimeNG usa p-table, ui-table, ou table normal
         var custosTable = null;
+        var allTables = document.querySelectorAll('table, p-table');
 
-        for (var t = 0; t < tables.length; t++) {
-            var headers = tables[t].querySelectorAll('th');
+        for (var t = 0; t < allTables.length; t++) {
+            var headers = allTables[t].querySelectorAll('th');
+            var hasTaxa = false;
+            var hasVenda = false;
             for (var h = 0; h < headers.length; h++) {
                 var htxt = (headers[h].textContent || '').trim().toLowerCase();
-                if (htxt.indexOf('taxa') >= 0 || htxt.indexOf('total venda') >= 0) {
-                    custosTable = tables[t];
-                    break;
-                }
+                if (htxt.indexOf('taxa') >= 0) hasTaxa = true;
+                if (htxt.indexOf('venda') >= 0) hasVenda = true;
             }
-            if (custosTable) break;
+            if (hasTaxa && hasVenda) {
+                custosTable = allTables[t];
+                console.log(TAG, 'Tabela custos encontrada! Tag:', custosTable.tagName, 'Headers:', headers.length);
+                break;
+            }
         }
 
         if (!custosTable) {
@@ -128,41 +132,53 @@
             return items;
         }
 
-        // Detecta colunas
-        var ths = custosTable.querySelectorAll('thead th, tr:first-child th');
+        // Detecta colunas via THs
+        var ths = custosTable.querySelectorAll('th');
         var colMap = {};
         for (var ci = 0; ci < ths.length; ci++) {
             var colText = (ths[ci].textContent || '').trim().toLowerCase();
             if (colText.indexOf('taxa') >= 0 && !colMap.taxa) colMap.taxa = ci;
-            if (colText.indexOf('tipo de cobran') >= 0) colMap.tipoCobranca = ci;
-            if (colText.indexOf('moeda') >= 0 && colText.indexOf('compra') < 0 && colText.indexOf('venda') < 0) colMap.moeda = ci;
-            if (colText.indexOf('total venda') >= 0 || (colText.indexOf('venda') >= 0 && colText.indexOf('total') >= 0)) colMap.totalVenda = ci;
-            if (colText === 'venda') colMap.venda = ci;
+            if (colText.indexOf('tipo de cobran') >= 0 && !colMap.tipoCobranca) colMap.tipoCobranca = ci;
+            if (colText.indexOf('moeda venda') >= 0 || (colText === 'moeda' && !colMap.moeda)) colMap.moeda = ci;
+            if (colText.indexOf('total venda') >= 0) colMap.totalVenda = ci;
+            if (colText === 'venda' && colMap.totalVenda === undefined) colMap.venda = ci;
         }
 
-        console.log(TAG, 'Colunas mapeadas:', JSON.stringify(colMap));
-
-        // Se não achou totalVenda, tenta pegar a última coluna "venda" ou usar a coluna "Venda"
         if (colMap.totalVenda === undefined && colMap.venda !== undefined) {
             colMap.totalVenda = colMap.venda;
         }
 
-        var rows = custosTable.querySelectorAll('tbody tr');
-        for (var r = 0; r < rows.length; r++) {
-            var cells = rows[r].querySelectorAll('td');
-            if (cells.length < 3) continue;
+        console.log(TAG, 'Colunas mapeadas:', JSON.stringify(colMap));
 
-            var taxa = colMap.taxa !== undefined ? (cells[colMap.taxa] ? cells[colMap.taxa].textContent.trim() : '') : '';
-            var moeda = colMap.moeda !== undefined ? (cells[colMap.moeda] ? cells[colMap.moeda].textContent.trim() : '') : '';
+        // Busca TODAS as TRs que contêm TDs — PrimeNG pode não ter <tbody>
+        var allRows = custosTable.querySelectorAll('tr');
+        console.log(TAG, 'Total TRs encontradas:', allRows.length);
+
+        var dataRows = [];
+        for (var r = 0; r < allRows.length; r++) {
+            var tds = allRows[r].querySelectorAll('td');
+            if (tds.length >= 3) {
+                dataRows.push(allRows[r]);
+            }
+        }
+
+        console.log(TAG, 'TRs com dados (>= 3 TDs):', dataRows.length);
+
+        for (var r = 0; r < dataRows.length; r++) {
+            var cells = dataRows[r].querySelectorAll('td');
+
+            var taxa = colMap.taxa !== undefined && cells[colMap.taxa] ? cells[colMap.taxa].textContent.trim() : '';
+            var moeda = colMap.moeda !== undefined && cells[colMap.moeda] ? cells[colMap.moeda].textContent.trim() : '';
             var totalVenda = '';
 
-            // Pega Total venda — tenta coluna mapeada, senão busca a última coluna com valor numérico significativo
             if (colMap.totalVenda !== undefined && cells[colMap.totalVenda]) {
                 totalVenda = cells[colMap.totalVenda].textContent.trim();
             }
 
-            // Pula linhas sem taxa
+            // Pula linhas sem taxa ou com taxa muito curta
             if (!taxa || taxa.length < 2) continue;
+            // Pula headers repetidos
+            if (taxa.toLowerCase() === 'taxa') continue;
 
             items.push({
                 taxa: taxa,
@@ -170,6 +186,8 @@
                 totalVenda: totalVenda,
                 totalVendaNum: parseNumBR(totalVenda)
             });
+
+            console.log(TAG, '  Row', r, ':', taxa, '|', moeda, '|', totalVenda);
         }
 
         return items;
