@@ -78,11 +78,7 @@ echo [4/4] Configurando auto-update...
 echo @echo off > "%INSTALL_DIR%\do-update.bat"
 echo set "PATH=%%PATH%%;C:\Program Files\Git\cmd" >> "%INSTALL_DIR%\do-update.bat"
 echo cd /d "%INSTALL_DIR%" >> "%INSTALL_DIR%\do-update.bat"
-echo copy /y profile-config.js profile-config.bak >nul 2>nul >> "%INSTALL_DIR%\do-update.bat"
-echo git checkout -- profile-config.js >nul 2>nul >> "%INSTALL_DIR%\do-update.bat"
 echo git pull origin main --quiet >> "%INSTALL_DIR%\do-update.bat"
-echo copy /y profile-config.bak profile-config.js >nul 2>nul >> "%INSTALL_DIR%\do-update.bat"
-echo del profile-config.bak >nul 2>nul >> "%INSTALL_DIR%\do-update.bat"
 
 schtasks /create /tn "AtomExtensionUpdate" /tr "\"%INSTALL_DIR%\do-update.bat\"" /sc minute /mo 30 /f >nul 2>nul
 if errorlevel 1 (
