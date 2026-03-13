@@ -10,7 +10,7 @@
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: linear-gradient(145deg, #0c0e14 0%, #111827 50%, #0c1220 100%);
       color: #e2e8f0;
-      overflow-y: auto; overflow-x: hidden;
+      overflow: hidden;
     }
     .header {
       padding: 20px 20px 16px;
@@ -20,22 +20,16 @@
     .header::after {
       content: '';
       position: absolute;
-      bottom: 0; left: 20px; right: 20px;
-      height: 1px;
+      bottom: 0; left: 20px; right: 20px; height: 1px;
       background: linear-gradient(90deg, transparent, rgba(99,102,241,0.3), transparent);
     }
     .brand {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
       margin-bottom: 4px;
     }
     .atom-icon {
-      width: 32px; height: 32px;
-      border-radius: 10px;
-      overflow-y: auto; overflow-x: hidden;
-      box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+      width: 32px; height: 32px; border-radius: 10px; overflow: hidden;
+      box-shadow: 0 4px 12px rgba(99,102,241,0.3); flex-shrink: 0;
     }
     .atom-icon img { width: 100%; height: 100%; object-fit: cover; }
     .brand-text h1 {
@@ -47,9 +41,13 @@
       font-size: 10px; color: #64748b; letter-spacing: 1.5px;
       text-transform: uppercase; font-weight: 500;
     }
+    .status-row {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: 12px;
+    }
     .status-pill {
       display: inline-flex; align-items: center; gap: 6px;
-      margin-top: 12px; padding: 5px 14px;
+      padding: 5px 14px;
       background: rgba(16,185,129,0.08);
       border: 1px solid rgba(16,185,129,0.2);
       border-radius: 20px; font-size: 11px; color: #6ee7b7; font-weight: 500;
@@ -62,9 +60,9 @@
       0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
       50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16,185,129,0); }
     }
-    .profile-badge {
-      display: inline-flex; align-items: center; gap: 5px;
-      margin-top: 8px; padding: 4px 12px;
+    .profile-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 5px 12px;
       background: rgba(99,102,241,0.08);
       border: 1px solid rgba(99,102,241,0.2);
       border-radius: 20px; font-size: 10px; color: #a5b4fc; font-weight: 500;
@@ -74,9 +72,7 @@
       font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
       color: #475569; font-weight: 600; margin-bottom: 10px;
     }
-    .agents-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-    }
+    .agents-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .agent-card {
       padding: 10px 12px;
       background: rgba(255,255,255,0.03);
@@ -120,7 +116,6 @@
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 8px; color: #fff; font-size: 12px;
       font-family: inherit; outline: none;
-      transition: border 0.2s, box-shadow 0.2s;
     }
     .input-group input:focus {
       border-color: rgba(99,102,241,0.5);
@@ -133,7 +128,7 @@
       background: linear-gradient(135deg, #6366f1, #8b5cf6);
       border: none; border-radius: 8px; color: #fff; font-size: 12px;
       font-weight: 600; font-family: inherit; cursor: pointer;
-      transition: all 0.2s; letter-spacing: 0.3px;
+      transition: all 0.2s;
     }
     .btn-save:hover { filter: brightness(1.1); box-shadow: 0 4px 16px rgba(99,102,241,0.3); }
     .btn-save:active { transform: scale(0.98); }
@@ -141,42 +136,50 @@
       display: none; color: #6ee7b7; font-size: 10px;
       text-align: center; margin-top: 6px; font-weight: 500;
     }
-    /* Gear icon */
     .gear-btn {
-      position: absolute; top: 14px; right: 14px;
-      background: none; border: none; color: #475569;
-      font-size: 16px; cursor: pointer; padding: 4px;
-      border-radius: 6px; transition: all 0.2s;
+      position: absolute; top: 16px; right: 16px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+      color: #64748b; font-size: 14px; cursor: pointer;
+      padding: 4px 6px; border-radius: 6px; transition: all 0.2s;
+      line-height: 1;
     }
-    .gear-btn:hover { color: #a5b4fc; background: rgba(99,102,241,0.1); }
-    /* Admin Panel (hidden by default) */
-    .admin-panel { display: none; padding: 0 20px 14px; }
-    .admin-panel.visible { display: block; }
-    .admin-card {
-      background: rgba(99,102,241,0.05);
-      border: 1px solid rgba(99,102,241,0.2);
-      border-radius: 12px; padding: 14px;
+    .gear-btn:hover { color: #a5b4fc; background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.3); }
+    /* Admin Overlay */
+    .admin-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85); z-index: 100; backdrop-filter: blur(4px);
     }
-    .admin-card h3 {
-      font-size: 13px; color: #e2e8f0; margin-bottom: 10px;
+    .admin-overlay.visible { display: flex; align-items: center; justify-content: center; }
+    .admin-modal {
+      width: 280px;
+      background: linear-gradient(145deg, #1e293b, #0f172a);
+      border: 1px solid rgba(99,102,241,0.3);
+      border-radius: 16px; padding: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .admin-modal h3 {
+      font-size: 14px; color: #e2e8f0; margin-bottom: 12px;
       display: flex; align-items: center; gap: 6px;
     }
-    .admin-card .pwd-row {
-      display: flex; gap: 6px; margin-bottom: 10px;
+    .admin-close {
+      position: absolute; top: 12px; right: 14px;
+      background: none; border: none; color: #64748b;
+      font-size: 18px; cursor: pointer; line-height: 1;
     }
-    .admin-card .pwd-row input {
+    .admin-close:hover { color: #e2e8f0; }
+    .pwd-row { display: flex; gap: 6px; margin-bottom: 8px; }
+    .pwd-row input {
       flex: 1; padding: 8px 10px; background: rgba(0,0,0,0.4);
       border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
       color: #fff; font-size: 12px; font-family: inherit; outline: none;
     }
-    .admin-card .pwd-row button {
+    .pwd-row button {
       padding: 8px 14px; background: linear-gradient(135deg, #6366f1, #8b5cf6);
       border: none; border-radius: 8px; color: #fff; font-size: 11px;
       font-weight: 600; cursor: pointer; white-space: nowrap;
     }
-    .pwd-error {
-      display: none; color: #f87171; font-size: 10px; margin-bottom: 8px;
-    }
+    .pwd-error { display: none; color: #f87171; font-size: 10px; margin-bottom: 8px; }
     .admin-body { display: none; }
     .admin-body.visible { display: block; }
     .agent-check {
@@ -190,7 +193,7 @@
     }
     .footer {
       padding: 10px 20px 14px; text-align: center;
-      font-size: 9px; color: #334155; letter-spacing: 0.5px;
+      font-size: 9px; color: #334155;
     }
     .footer span { color: #475569; }
   </style>
@@ -198,7 +201,7 @@
 <body>
 
   <div class="header">
-    <button class="gear-btn" id="gear-btn" title="Admin">⚙</button>
+    <button class="gear-btn" id="gear-btn" title="Configurar permissões">⚙</button>
     <div class="brand">
       <div class="atom-icon"><img src="icon48.png" alt="Atom"></div>
       <div class="brand-text">
@@ -206,12 +209,9 @@
         <div class="subtitle">Multiagentes &bull; Mond Shipping</div>
       </div>
     </div>
-    <div class="status-pill">
-      <div class="pulse"></div>
-      <span id="status-text">Todos os agentes ativos</span>
-    </div>
-    <div class="profile-badge" id="profile-badge">
-      <span id="profile-name">Master</span>
+    <div class="status-row">
+      <div class="status-pill"><div class="pulse"></div><span id="status-text">Todos os agentes ativos</span></div>
+      <div class="profile-pill" id="profile-pill"><span id="profile-name">Master</span></div>
     </div>
   </div>
 
@@ -241,10 +241,25 @@
     </div>
   </div>
 
-  <!-- Admin Panel -->
-  <div class="admin-panel" id="admin-panel">
-    <div class="admin-card">
-      <h3>🔑 Admin</h3>
+  <div class="settings">
+    <div class="settings-card">
+      <div class="section-label">Configurações</div>
+      <div class="input-group">
+        <label>E-mail de alerta (Pricing)</label>
+        <input type="email" id="pricing-email" placeholder="email@mondshipping.com.br">
+      </div>
+      <button class="btn-save" id="save-btn">Salvar</button>
+      <div class="saved-msg" id="saved-msg">Configuração salva</div>
+    </div>
+  </div>
+
+  <div class="footer">Mond Shipping &bull; <span>v2.2</span></div>
+
+  <!-- Admin Overlay Modal -->
+  <div class="admin-overlay" id="admin-overlay">
+    <div class="admin-modal">
+      <button class="admin-close" id="admin-close">&times;</button>
+      <h3>🔑 Permissões</h3>
       <div class="pwd-row" id="pwd-row">
         <input type="password" id="admin-pwd" placeholder="Senha admin">
         <button id="admin-unlock">Entrar</button>
@@ -262,32 +277,16 @@
           </select>
         </div>
         <div id="agent-checks">
-          <div class="agent-check"><input type="checkbox" id="chk-cambio" value="cambio"> Câmbio <span class="tag">Financeiro</span></div>
-          <div class="agent-check"><input type="checkbox" id="chk-serasa" value="serasa"> Serasa <span class="tag">Financeiro</span></div>
-          <div class="agent-check"><input type="checkbox" id="chk-frete" value="frete"> Frete <span class="tag">Todos</span></div>
-          <div class="agent-check"><input type="checkbox" id="chk-tracking" value="tracking"> Tracking <span class="tag">Operacional</span></div>
-          <div class="agent-check"><input type="checkbox" id="chk-cotacao" value="cotacao"> Cotação <span class="tag">Comercial</span></div>
+          <div class="agent-check"><input type="checkbox" value="cambio"> Câmbio <span class="tag">Financeiro</span></div>
+          <div class="agent-check"><input type="checkbox" value="serasa"> Serasa <span class="tag">Financeiro</span></div>
+          <div class="agent-check"><input type="checkbox" value="frete"> Frete <span class="tag">Todos</span></div>
+          <div class="agent-check"><input type="checkbox" value="tracking"> Tracking <span class="tag">Operacional</span></div>
+          <div class="agent-check"><input type="checkbox" value="cotacao"> Cotação <span class="tag">Comercial</span></div>
         </div>
         <button class="btn-save" id="admin-save">Salvar Permissões</button>
         <div class="saved-msg" id="admin-saved">Permissões salvas!</div>
       </div>
     </div>
-  </div>
-
-  <div class="settings">
-    <div class="settings-card">
-      <div class="section-label">Configurações</div>
-      <div class="input-group">
-        <label>E-mail de alerta (Pricing)</label>
-        <input type="email" id="pricing-email" placeholder="email@mondshipping.com.br">
-      </div>
-      <button class="btn-save" id="save-btn">Salvar</button>
-      <div class="saved-msg" id="saved-msg">Configuração salva</div>
-    </div>
-  </div>
-
-  <div class="footer">
-    Mond Shipping &bull; <span>v2.2</span>
   </div>
 
   <script>
@@ -300,28 +299,22 @@
     var LABELS = { master:'Master', financeiro:'Financeiro', operacional:'Operacional', comercial:'Comercial', custom:'Personalizado' };
     var ADMIN_PWD = 'atom2026';
 
-    // Load
-    // Auto-load profile from local-config.json if first time
+    // Load config
     chrome.storage.local.get(['pricingEmail','enabledAgents','userProfile','configLoaded'], function(d) {
+      document.getElementById('pricing-email').value = d.pricingEmail || 'paulo.zanella@mondshipping.com.br';
+
+      // Auto-load from local-config.json if first time
       if (!d.configLoaded) {
-        // First time: try to load from local-config.json
         fetch(chrome.runtime.getURL('local-config.json'))
           .then(function(r) { return r.json(); })
           .then(function(cfg) {
             var agents = PROFILES[cfg.profile] || PROFILES.master;
-            chrome.storage.local.set({
-              userProfile: cfg.profile,
-              enabledAgents: agents,
-              configLoaded: true
-            });
+            chrome.storage.local.set({ userProfile: cfg.profile, enabledAgents: agents, configLoaded: true });
             applyPermissions(agents, cfg.profile);
           })
-          .catch(function() {
-            // No config file, default to master
-            chrome.storage.local.set({ configLoaded: true });
-          });
+          .catch(function() { chrome.storage.local.set({ configLoaded: true }); });
       }
-      document.getElementById('pricing-email').value = d.pricingEmail || 'paulo.zanella@mondshipping.com.br';
+
       applyPermissions(d.enabledAgents || PROFILES.master, d.userProfile || 'master');
     });
 
@@ -331,9 +324,7 @@
       for (var i = 0; i < cards.length; i++) {
         if (agents.indexOf(cards[i].getAttribute('data-agent')) >= 0) {
           cards[i].classList.remove('hidden'); n++;
-        } else {
-          cards[i].classList.add('hidden');
-        }
+        } else { cards[i].classList.add('hidden'); }
       }
       document.getElementById('status-text').textContent = n === 5 ? 'Todos os agentes ativos' : n + ' agentes ativos';
       document.getElementById('profile-name').textContent = LABELS[profile] || profile;
@@ -344,21 +335,24 @@
       var email = document.getElementById('pricing-email').value.trim();
       if (!email || !email.includes('@')) return;
       chrome.storage.local.set({ pricingEmail: email }, function() {
-        var msg = document.getElementById('saved-msg');
-        msg.style.display = 'block';
-        setTimeout(function() { msg.style.display = 'none'; }, 2000);
+        var m = document.getElementById('saved-msg'); m.style.display = 'block';
+        setTimeout(function() { m.style.display = 'none'; }, 2000);
       });
     });
 
-    // Gear → toggle admin panel
+    // Gear → open admin overlay
     document.getElementById('gear-btn').addEventListener('click', function() {
-      var panel = document.getElementById('admin-panel');
-      panel.classList.toggle('visible');
-      if (!panel.classList.contains('visible')) return;
+      document.getElementById('admin-overlay').classList.add('visible');
       document.getElementById('admin-pwd').value = '';
       document.getElementById('pwd-error').style.display = 'none';
       document.getElementById('admin-body').classList.remove('visible');
       document.getElementById('pwd-row').style.display = 'flex';
+      document.getElementById('admin-pwd').focus();
+    });
+
+    // Close
+    document.getElementById('admin-close').addEventListener('click', function() {
+      document.getElementById('admin-overlay').classList.remove('visible');
     });
 
     // Unlock
@@ -368,18 +362,17 @@
     function doUnlock() {
       if (document.getElementById('admin-pwd').value === ADMIN_PWD) {
         document.getElementById('pwd-row').style.display = 'none';
-        document.getElementById('pwd-error').style.display = 'none';
         document.getElementById('admin-body').classList.add('visible');
         chrome.storage.local.get(['enabledAgents','userProfile'], function(d) {
           document.getElementById('profile-select').value = d.userProfile || 'master';
           setCheckboxes(d.enabledAgents || PROFILES.master);
         });
       } else {
-        document.getElementById('pwd-error').style.display = 'block';
+        var e = document.getElementById('pwd-error'); e.style.display = 'block';
+        setTimeout(function() { e.style.display = 'none'; }, 2000);
       }
     }
 
-    // Profile select → update checkboxes
     document.getElementById('profile-select').addEventListener('change', function() {
       var p = this.value;
       if (p !== 'custom' && PROFILES[p]) setCheckboxes(PROFILES[p]);
@@ -389,36 +382,28 @@
       var cbs = document.querySelectorAll('.agent-check input');
       for (var i = 0; i < cbs.length; i++) cbs[i].checked = list.indexOf(cbs[i].value) >= 0;
     }
-
     function getChecked() {
-      var r = [];
-      var cbs = document.querySelectorAll('.agent-check input');
+      var r = [], cbs = document.querySelectorAll('.agent-check input');
       for (var i = 0; i < cbs.length; i++) if (cbs[i].checked) r.push(cbs[i].value);
       return r;
     }
 
-    // Checkbox change → auto-detect profile
     document.getElementById('agent-checks').addEventListener('change', function() {
-      var c = getChecked().sort().join(',');
-      var matched = 'custom';
-      for (var p in PROFILES) {
-        if (PROFILES[p].slice().sort().join(',') === c) { matched = p; break; }
-      }
+      var c = getChecked().sort().join(','), matched = 'custom';
+      for (var p in PROFILES) { if (PROFILES[p].slice().sort().join(',') === c) { matched = p; break; } }
       document.getElementById('profile-select').value = matched;
     });
 
-    // Save permissions
     document.getElementById('admin-save').addEventListener('click', function() {
       var profile = document.getElementById('profile-select').value;
       var agents = getChecked();
       chrome.storage.local.set({ userProfile: profile, enabledAgents: agents }, function() {
         applyPermissions(agents, profile);
-        var msg = document.getElementById('admin-saved');
-        msg.style.display = 'block';
+        var m = document.getElementById('admin-saved'); m.style.display = 'block';
         setTimeout(function() {
-          msg.style.display = 'none';
-          document.getElementById('admin-panel').classList.remove('visible');
-        }, 1500);
+          m.style.display = 'none';
+          document.getElementById('admin-overlay').classList.remove('visible');
+        }, 1200);
       });
     });
   </script>
