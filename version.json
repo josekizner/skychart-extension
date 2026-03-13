@@ -1,5 +1,5 @@
 {
-  "version": "1.8.0",
+  "version": "1.9.0",
   "date": "2026-03-13",
-  "changelog": "Painel persistente de status + HMM schedule scraper + diagnostico descricao"
+  "changelog": "HMM scraper reescrito: autocomplete matching, vision verify, retry 3x, learning"
 }

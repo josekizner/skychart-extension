@@ -29,7 +29,7 @@ chrome.runtime.onInstalled.addListener(loadProfileFromConfig);
 chrome.runtime.onStartup.addListener(loadProfileFromConfig);
 
 // ===== AUTO-UPDATE COM AUTO-RELOAD =====
-const CURRENT_VERSION = "1.8.0";
+const CURRENT_VERSION = "1.9.0";
 const UPDATE_CHECK_URL = "https://raw.githubusercontent.com/josekizner/skychart-extension/main/version.json";
 const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
@@ -127,7 +127,84 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  // Tracking: Maersk scraper envia dados de volta
+  // HMM: Verificação visual antes de clicar Retrieve
+  if (request.action === "hmm_verify_screenshot") {
+    const tabId = sender.tab.id;
+    console.log("[HMM] Capturando screenshot pra verificação...");
+
+    chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
+      if (!dataUrl) {
+        console.log("[HMM] Screenshot falhou, assumindo OK");
+        chrome.tabs.sendMessage(tabId, { action: 'hmm_vision_result', verified: true });
+        return;
+      }
+
+      // Envia pro Gemini pra verificar
+      const prompt = `Olhe esta screenshot de um site de schedule de navios.
+Os campos "From" e "To" devem estar preenchidos com:
+- From: porta/cidade que CONTENHA "${request.expectedFrom}"
+- To: porta/cidade que CONTENHA "${request.expectedTo}"
+
+Atualmente os campos mostram:
+- From: "${request.currentFrom}"
+- To: "${request.currentTo}"
+
+Os valores estão corretos? Responda APENAS com JSON:
+{"verified": true/false, "suggestion": "o que corrigir", "correctedFrom": "texto correto pra buscar no From se errado", "correctedTo": "texto correto pra buscar no To se errado"}`;
+
+      const base64 = dataUrl.replace(/^data:image\/[a-z]+;base64,/, '');
+
+      fetch(GEMINI_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: 'image/png', data: base64 } }
+            ]
+          }]
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+        const clean = text.replace(/```json\n?/g, '').replace(/```/g, '').trim();
+        try {
+          const result = JSON.parse(clean);
+          console.log("[HMM] Gemini verificou:", result);
+          chrome.tabs.sendMessage(tabId, { action: 'hmm_vision_result', ...result });
+        } catch(e) {
+          console.log("[HMM] Erro parse Gemini:", e.message, 'raw:', clean.substring(0, 100));
+          // Se não conseguiu parsear, assume OK
+          chrome.tabs.sendMessage(tabId, { action: 'hmm_vision_result', verified: true });
+        }
+      })
+      .catch(err => {
+        console.error("[HMM] Erro Gemini:", err);
+        chrome.tabs.sendMessage(tabId, { action: 'hmm_vision_result', verified: true });
+      });
+    });
+
+    return true;
+  }
+
+  // HMM: Precisa verificação manual
+  if (request.action === "hmm_needs_manual") {
+    console.log("[HMM] Verificação manual necessária:", request.message);
+    // Notifica todas as tabs do Skychart
+    chrome.tabs.query({ url: 'https://app2.skychart.com.br/*' }, (tabs) => {
+      tabs.forEach(tab => {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'hmm_manual_needed',
+          from: request.from,
+          to: request.to,
+          message: request.message
+        });
+      });
+    });
+    return true;
+  }
   if (request.action === "maerskTrackingData") {
     const maerskTabId = sender.tab.id;
     const skychartTabId = pendingTrackingTabs[maerskTabId];
