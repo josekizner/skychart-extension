@@ -616,51 +616,134 @@
         var extraCount = results.filter(function(r) { return r.status === 'extra_custos'; }).length;
         var errorCount = results.filter(function(r) { return r.status === 'error'; }).length;
 
-        var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">';
-        html += '<h3 style="margin:0;font-size:16px;color:#fff;">Chequeio: Cotação vs Custos</h3>';
-        html += '<button onclick="this.closest(\'#sk-check-panel\').remove()" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;">✕</button>';
+        // Calcula totais por moeda
+        var totais = { oferta: {}, sistema: {} };
+        for (var t = 0; t < results.length; t++) {
+            var r = results[t];
+            if (r.moedaCotacao && r.valorCotacaoNum) {
+                totais.oferta[r.moedaCotacao] = (totais.oferta[r.moedaCotacao] || 0) + r.valorCotacaoNum;
+            }
+            if (r.moedaCustos && r.valorCustosNum) {
+                totais.sistema[r.moedaCustos] = (totais.sistema[r.moedaCustos] || 0) + r.valorCustosNum;
+            }
+        }
+
+        var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+        html += '<h3 style="margin:0;font-size:16px;color:#fff;">Chequeio: Oferta vs Sistema</h3>';
+        html += '<button onclick="this.closest(\'#sk-check-panel\').remove()" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;line-height:1;">✕</button>';
         html += '</div>';
 
-        // Resumo
-        html += '<div style="display:flex;gap:12px;margin-bottom:15px;">';
-        if (okCount > 0) html += '<span style="background:#2ecc7133;color:#2ecc71;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;">✅ ' + okCount + ' OK</span>';
-        if (divCount > 0) html += '<span style="background:#e7444433;color:#e74444;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;">❌ ' + divCount + ' Divergência</span>';
-        if (missCount > 0) html += '<span style="background:#f39c1233;color:#f39c12;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;">⚠️ ' + missCount + ' Faltando</span>';
-        if (extraCount > 0) html += '<span style="background:#3498db33;color:#3498db;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;">ℹ️ ' + extraCount + ' Extra</span>';
-        if (errorCount > 0) html += '<span style="background:#e7444433;color:#e74444;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:bold;">⛔ Erro</span>';
+        // Resumo badges
+        html += '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">';
+        if (okCount > 0) html += '<span style="background:#2ecc7122;color:#2ecc71;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:bold;">✅ ' + okCount + ' Batendo</span>';
+        if (divCount > 0) html += '<span style="background:#e7444422;color:#e74444;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:bold;">❌ ' + divCount + ' Divergente</span>';
+        if (missCount > 0) html += '<span style="background:#f39c1222;color:#f39c12;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:bold;">⚠️ ' + missCount + ' Faltando no Sistema</span>';
+        if (extraCount > 0) html += '<span style="background:#3498db22;color:#3498db;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:bold;">ℹ️ ' + extraCount + ' Só no Sistema</span>';
+        if (errorCount > 0) html += '<span style="background:#e7444422;color:#e74444;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:bold;">⛔ Erro</span>';
         html += '</div>';
 
-        // Tabela de resultados
-        html += '<div style="max-height:350px;overflow-y:auto;">';
+        // Tabela comparativa
+        html += '<div style="max-height:320px;overflow-y:auto;margin-bottom:12px;">';
         html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-        html += '<tr style="border-bottom:1px solid #333;">';
-        html += '<th style="text-align:left;padding:6px;color:#888;">Status</th>';
-        html += '<th style="text-align:left;padding:6px;color:#888;">Taxa</th>';
-        html += '<th style="text-align:right;padding:6px;color:#888;">Cotação</th>';
-        html += '<th style="text-align:right;padding:6px;color:#888;">Custos</th>';
+        html += '<tr style="border-bottom:2px solid #444;position:sticky;top:0;background:#1a1a2e;">';
+        html += '<th style="text-align:left;padding:6px 4px;color:#888;width:24px;"></th>';
+        html += '<th style="text-align:left;padding:6px 4px;color:#888;">Taxa</th>';
+        html += '<th style="text-align:right;padding:6px 4px;color:#6C63FF;font-weight:bold;">Oferta (PDF)</th>';
+        html += '<th style="text-align:right;padding:6px 4px;color:#4ECDC4;font-weight:bold;">Sistema</th>';
+        html += '<th style="text-align:center;padding:6px 4px;color:#888;width:70px;">Status</th>';
         html += '</tr>';
 
         for (var i = 0; i < results.length; i++) {
             var r = results[i];
-            var statusIcon = r.status === 'ok' ? '✅' : r.status === 'divergencia' ? '❌' : r.status === 'faltando_custos' ? '⚠️' : r.status === 'extra_custos' ? 'ℹ️' : '⛔';
-            var rowColor = r.status === 'ok' ? '#2ecc71' : r.status === 'divergencia' ? '#e74444' : r.status === 'faltando_custos' ? '#f39c12' : '#3498db';
-            var taxaLabel = r.taxaCotacao || r.taxaCustos || r.message || '';
+            var statusIcon, statusText, rowBg;
 
-            html += '<tr style="border-bottom:1px solid #222;color:' + rowColor + ';">';
-            html += '<td style="padding:6px;">' + statusIcon + '</td>';
-            html += '<td style="padding:6px;color:#ddd;">' + taxaLabel + '</td>';
-            html += '<td style="text-align:right;padding:6px;">' + (r.valorCotacao ? (r.moedaCotacao || '') + ' ' + r.valorCotacao : '-') + '</td>';
-            html += '<td style="text-align:right;padding:6px;">' + (r.valorCustos ? (r.moedaCustos || '') + ' ' + r.valorCustos : '-') + '</td>';
+            if (r.status === 'ok') {
+                statusIcon = '✅'; statusText = 'OK'; rowBg = 'transparent';
+            } else if (r.status === 'divergencia') {
+                statusIcon = '❌'; statusText = 'Diferente'; rowBg = '#e7444410';
+            } else if (r.status === 'faltando_custos') {
+                statusIcon = '⚠️'; statusText = 'Falta'; rowBg = '#f39c1210';
+            } else if (r.status === 'extra_custos') {
+                statusIcon = 'ℹ️'; statusText = 'Extra'; rowBg = '#3498db10';
+            } else {
+                statusIcon = '⛔'; statusText = 'Erro'; rowBg = '#e7444410';
+            }
+
+            var taxaLabel = r.taxaCotacao || r.taxaCustos || '';
+
+            // Formata valores com moeda
+            var ofertaVal = r.valorCotacao ? (r.moedaCotacao || '') + ' ' + r.valorCotacao : '-';
+            var sistemaVal = r.valorCustos ? (r.moedaCustos || '') + ' ' + r.valorCustos : '-';
+
+            // Cor do valor
+            var ofertaColor = r.status === 'faltando_custos' ? '#f39c12' : '#6C63FF';
+            var sistemaColor = r.status === 'extra_custos' ? '#3498db' : '#4ECDC4';
+
+            html += '<tr style="border-bottom:1px solid #222;background:' + rowBg + ';">';
+            html += '<td style="padding:5px 4px;font-size:13px;">' + statusIcon + '</td>';
+            html += '<td style="padding:5px 4px;color:#ddd;">' + taxaLabel + '</td>';
+            html += '<td style="text-align:right;padding:5px 4px;color:' + ofertaColor + ';">' + ofertaVal + '</td>';
+            html += '<td style="text-align:right;padding:5px 4px;color:' + sistemaColor + ';">' + sistemaVal + '</td>';
+            html += '<td style="text-align:center;padding:5px 4px;font-size:10px;color:#888;">' + statusText + '</td>';
             html += '</tr>';
 
-            // Se divergência, mostra detalhe
+            // Linha de divergência detalhada
             if (r.status === 'divergencia') {
-                html += '<tr style="border-bottom:1px solid #222;">';
+                var diff = r.valorCustosNum - r.valorCotacaoNum;
+                var diffSign = diff > 0 ? '+' : '';
+                html += '<tr style="background:' + rowBg + ';border-bottom:1px solid #222;">';
                 html += '<td></td>';
-                html += '<td colspan="3" style="padding:3px 6px;font-size:11px;color:#e74444;">';
-                html += 'Esperado: ' + (r.moedaCotacao || '') + ' ' + (r.valorCotacao || '') + ' → Sistema: ' + (r.moedaCustos || '') + ' ' + (r.valorCustos || '');
+                html += '<td colspan="4" style="padding:2px 4px 6px;font-size:10px;color:#e74444;">';
+                html += '↳ Oferta: ' + (r.moedaCotacao || '') + ' ' + (r.valorCotacao || '') + ' → Sistema: ' + (r.moedaCustos || '') + ' ' + (r.valorCustos || '');
+                html += ' (dif: ' + diffSign + formatNumBR(diff) + ')';
                 html += '</td></tr>';
             }
+
+            if (r.status === 'faltando_custos') {
+                html += '<tr style="background:' + rowBg + ';border-bottom:1px solid #222;">';
+                html += '<td></td>';
+                html += '<td colspan="4" style="padding:2px 4px 6px;font-size:10px;color:#f39c12;">↳ Existe na Oferta mas NÃO está nos Custos do sistema</td>';
+                html += '</tr>';
+            }
+
+            if (r.status === 'extra_custos') {
+                html += '<tr style="background:' + rowBg + ';border-bottom:1px solid #222;">';
+                html += '<td></td>';
+                html += '<td colspan="4" style="padding:2px 4px 6px;font-size:10px;color:#3498db;">↳ Existe nos Custos do sistema mas NÃO está na Oferta</td>';
+                html += '</tr>';
+            }
+        }
+
+        html += '</table></div>';
+
+        // TOTAIS por moeda
+        html += '<div style="border-top:2px solid #444;padding-top:10px;">';
+        html += '<div style="font-size:12px;font-weight:bold;color:#888;margin-bottom:6px;">TOTAIS</div>';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+        html += '<tr style="border-bottom:1px solid #333;">';
+        html += '<th style="text-align:left;padding:4px;color:#888;">Moeda</th>';
+        html += '<th style="text-align:right;padding:4px;color:#6C63FF;">Oferta (PDF)</th>';
+        html += '<th style="text-align:right;padding:4px;color:#4ECDC4;">Sistema</th>';
+        html += '<th style="text-align:right;padding:4px;color:#888;">Diferença</th>';
+        html += '</tr>';
+
+        var allMoedas = {};
+        for (var m in totais.oferta) allMoedas[m] = true;
+        for (var m2 in totais.sistema) allMoedas[m2] = true;
+
+        for (var moeda in allMoedas) {
+            var ofTotal = totais.oferta[moeda] || 0;
+            var sisTotal = totais.sistema[moeda] || 0;
+            var diffTotal = sisTotal - ofTotal;
+            var diffColor = Math.abs(diffTotal) < 0.01 ? '#2ecc71' : '#e74444';
+            var diffPrefix = diffTotal > 0 ? '+' : '';
+
+            html += '<tr>';
+            html += '<td style="padding:4px;color:#fff;font-weight:bold;">' + moeda + '</td>';
+            html += '<td style="text-align:right;padding:4px;color:#6C63FF;">' + formatNumBR(ofTotal) + '</td>';
+            html += '<td style="text-align:right;padding:4px;color:#4ECDC4;">' + formatNumBR(sisTotal) + '</td>';
+            html += '<td style="text-align:right;padding:4px;color:' + diffColor + ';font-weight:bold;">' + diffPrefix + formatNumBR(diffTotal) + '</td>';
+            html += '</tr>';
         }
 
         html += '</table></div>';
@@ -669,10 +752,15 @@
         document.body.appendChild(panel);
     }
 
+    function formatNumBR(num) {
+        if (num === 0) return '0,00';
+        return num.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
     function createPanel() {
         var panel = document.createElement('div');
         panel.id = 'sk-check-panel';
-        panel.style.cssText = 'position:fixed;bottom:20px;right:20px;width:500px;max-height:500px;background:#1a1a2e;color:#fff;border-radius:12px;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,0.6);z-index:2147483647;font-family:Arial,sans-serif;border:1px solid #333;';
+        panel.style.cssText = 'position:fixed;bottom:20px;right:20px;width:620px;max-height:550px;background:#1a1a2e;color:#fff;border-radius:12px;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,0.6);z-index:2147483647;font-family:Arial,sans-serif;border:1px solid #333;';
         return panel;
     }
 
