@@ -17,7 +17,8 @@
     "https://docs.google.com/*",
     "https://www.serasaempreendedor.com.br/*",
     "https://outlook.office.com/*",
-    "https://outlook.office365.com/*"
+    "https://outlook.office365.com/*",
+    "https://www.hmm21.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -68,6 +69,14 @@
       ],
       "css": [
         "outlook-agent.css"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.hmm21.com/*"
+      ],
+      "js": [
+        "hmm-scraper.js"
       ]
     }
   ],

@@ -29,7 +29,7 @@ chrome.runtime.onInstalled.addListener(loadProfileFromConfig);
 chrome.runtime.onStartup.addListener(loadProfileFromConfig);
 
 // ===== AUTO-UPDATE COM AUTO-RELOAD =====
-const CURRENT_VERSION = "1.7.0";
+const CURRENT_VERSION = "1.8.0";
 const UPDATE_CHECK_URL = "https://raw.githubusercontent.com/josekizner/skychart-extension/main/version.json";
 const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
@@ -83,6 +83,46 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     sendResponse({ success: true, message: 'Tracking aberto' });
+    return true;
+  }
+
+  // HMM Schedule: abre site e busca sailings
+  if (request.action === "open_hmm_schedule") {
+    const from = request.from;
+    const to = request.to;
+    const skychartTabId = sender.tab.id;
+    const hmmUrl = 'https://www.hmm21.com/e-service/general/schedule/ScheduleMain.do';
+
+    console.log("[HMM] Abrindo schedule:", from, "→", to);
+
+    chrome.tabs.create({ url: hmmUrl, active: false }, (tab) => {
+      // Espera a página carregar e envia os parâmetros
+      setTimeout(() => {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'hmm_search_schedule',
+          from: from,
+          to: to
+        }, (response) => {
+          console.log('[HMM] Scraper respondeu:', response);
+        });
+      }, 3000);
+
+      // Ouve resultados do scraper
+      var hmmListener = function(msg, msgSender) {
+        if (msg.action === 'hmm_schedule_results' && msgSender.tab && msgSender.tab.id === tab.id) {
+          console.log('[HMM] Resultados recebidos, encaminhando pro Skychart');
+          chrome.tabs.sendMessage(skychartTabId, {
+            action: 'hmm_schedule_results',
+            results: msg.results
+          });
+          setTimeout(() => { chrome.tabs.remove(tab.id); }, 2000);
+          chrome.runtime.onMessage.removeListener(hmmListener);
+        }
+      };
+      chrome.runtime.onMessage.addListener(hmmListener);
+    });
+
+    sendResponse({ success: true, message: 'HMM schedule aberto' });
     return true;
   }
 

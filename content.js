@@ -887,7 +887,98 @@ try {
     }
 
 
-    // Cross-check final e seleção da rota mais barata elegível
+
+    // ===== PAINEL PERSISTENTE DE STATUS =====
+    function showStatusPanel(eligible, ineligible, best, quote) {
+        var panel = document.getElementById('atom-status-panel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'atom-status-panel';
+            panel.innerHTML = '<div id="atom-status-header"><span>ATOM Cotacao</span><span class="toggle">−</span></div><div id="atom-status-body"></div>';
+            document.body.appendChild(panel);
+
+            // Toggle collapse
+            panel.querySelector('#atom-status-header').addEventListener('click', function() {
+                panel.classList.toggle('collapsed');
+                panel.querySelector('.toggle').textContent = panel.classList.contains('collapsed') ? '+' : '−';
+            });
+        }
+
+        var body = panel.querySelector('#atom-status-body');
+        var html = '';
+
+        // Seção: Seleção
+        html += '<div class="section-title">Melhor Rota</div>';
+        if (best) {
+            var freteStr = best.vlFrete ? best.vlFrete.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : 'N/A';
+            html += '<div style="background:rgba(76,175,80,0.12);border-radius:8px;padding:8px;border-left:3px solid #4caf50;">';
+            html += '<div style="font-size:14px;font-weight:700;color:#81c784;">' + best.armador + '</div>';
+            html += '<div style="font-size:11px;color:#aaa;margin-top:2px;">Cod: ' + best.cod + ' | Frete: USD ' + freteStr + '</div>';
+            if (best.observacao) {
+                html += '<div style="font-size:10px;color:#ffd54f;margin-top:4px;">Obs: ' + best.observacao.substring(0, 60) + '</div>';
+            }
+            html += '</div>';
+        }
+
+        // Seção: Ranking
+        html += '<div class="section-title">Ranking (' + eligible.length + ' elegíveis)</div>';
+        html += '<table class="atom-rank-table"><thead><tr><th>#</th><th>Armador</th><th>Frete</th><th>Obs</th></tr></thead><tbody>';
+        for (var i = 0; i < eligible.length; i++) {
+            var rowClass = i === 0 ? 'best-row' : '';
+            var fStr = eligible[i].vlFrete ? eligible[i].vlFrete.toLocaleString('pt-BR') : '-';
+            var obsIcon = eligible[i].observacao ? '!' : '-';
+            html += '<tr class="' + rowClass + '"><td>' + (i + 1) + '</td><td>' + eligible[i].armador + '</td><td>' + fStr + '</td><td>' + obsIcon + '</td></tr>';
+        }
+        html += '</tbody></table>';
+
+        // Descartados
+        if (ineligible.length > 0) {
+            html += '<div class="section-title">Descartadas (' + ineligible.length + ')</div>';
+            for (var d = 0; d < ineligible.length; d++) {
+                html += '<div style="font-size:10px;opacity:0.5;text-decoration:line-through;margin:2px 0;">' + ineligible[d].armador + ' — ' + ineligible[d].rejectReason + '</div>';
+            }
+        }
+
+        // Seção: Sailings (placeholder, preenchido depois pelo HMM scraper)
+        html += '<div class="section-title">Sailings <span id="atom-sailing-status" class="atom-status-badge loading">Buscando...</span></div>';
+        html += '<div id="atom-sailings-content">Abrindo site do armador...</div>';
+
+        body.innerHTML = html;
+    }
+
+    function updateStatusSailings(results) {
+        var container = document.getElementById('atom-sailings-content');
+        var badge = document.getElementById('atom-sailing-status');
+        if (!container) return;
+
+        if (!results || results.length === 0) {
+            container.innerHTML = '<div style="color:#ef9a9a;font-size:11px;">Nenhum sailing encontrado</div>';
+            if (badge) { badge.className = 'atom-status-badge error'; badge.textContent = 'Vazio'; }
+            return;
+        }
+
+        if (badge) { badge.className = 'atom-status-badge done'; badge.textContent = results.length + ' encontrados'; }
+
+        var html = '';
+        for (var i = 0; i < results.length; i++) {
+            var r = results[i];
+            html += '<div class="atom-sailing">';
+            html += '<div class="vessel-name">' + (r.vessel || 'TBD') + '</div>';
+            html += '<div class="sailing-detail">ETD: ' + (r.etd || '-') + ' | ETA: ' + (r.eta || '-') + ' | TT: ' + (r.transitTime || '-') + '</div>';
+            html += '</div>';
+        }
+        container.innerHTML = html;
+    }
+
+    // Listener para receber resultados do HMM scraper
+    chrome.runtime.onMessage.addListener(function(msg) {
+        if (msg.action === 'hmm_schedule_results') {
+            console.log('[Atom Oferta] Sailings recebidos:', msg.results.length);
+            updateStatusSailings(msg.results);
+        }
+    });
+
+
     function crossCheckAndSelect(tarifarios, quote, clientRules) {
         console.log('[Atom Oferta] === CROSS-CHECK E SELEÇÃO ===');
 
@@ -955,9 +1046,25 @@ try {
             best.rowElement.click();
             console.log('[Atom Oferta] Melhor rota selecionada:', best.cod, '| Armador:', best.armador, '| Frete:', best.vlFrete);
 
+            // Mostra painel persistente
+            showStatusPanel(eligible, ineligible, best, quote);
+
             setTimeout(function() {
                 var freteStr = best.vlFrete ? ('R$ ' + best.vlFrete.toLocaleString('pt-BR')) : 'N/A';
                 showToast('Melhor rota: ' + best.cod + ' (' + best.armador + ') — Frete: ' + freteStr + '. Revise e clique Vincular.', 'success', 8000);
+
+                // Trigger HMM scraper se armador for HMM/Hyundai
+                var armUp = (best.armador || '').toUpperCase();
+                if (armUp.indexOf('HMM') >= 0 || armUp.indexOf('HYUNDAI') >= 0) {
+                    console.log('[Atom Oferta] Abrindo HMM schedule...');
+                    var origem = quote.origem || '';
+                    var destino = quote.destino || '';
+                    chrome.runtime.sendMessage({
+                        action: 'open_hmm_schedule',
+                        from: origem,
+                        to: destino
+                    });
+                }
             }, 2000);
         }
     }
