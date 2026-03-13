@@ -1,36 +1,58 @@
 @echo off
-:: =====================================================
-:: ATOM Auto-Update Script
-:: Faz git pull na pasta da extensão periodicamente
-:: Adicione ao Task Scheduler do Windows (a cada 30 min)
-:: =====================================================
+:: ============================================================
+:: SKYCHART AI — Auto-Update Agent
+:: Roda git pull a cada 5 minutos automaticamente
+:: Para instalar: copie este arquivo para a pasta Startup
+:: Win+R → shell:startup → cole o atalho aqui
+:: ============================================================
 
-set EXTENSION_PATH=%~dp0
+title Skychart AI Auto-Update
 
-echo [Atom Update] %date% %time% - Verificando atualizações...
+:: Caminho da extensão (ajuste se necessário)
+set EXT_PATH=%~dp0
 
-cd /d "%EXTENSION_PATH%"
-
-:: Verifica se é um repositório git
-if not exist ".git" (
-    echo [Atom Update] ERRO: Pasta não é um repositório git
-    exit /b 1
+:: Se o script está na pasta da extensão, usa o diretório dele
+:: Se não, tenta o caminho padrão
+if not exist "%EXT_PATH%.git" (
+    :: Tenta caminhos comuns
+    for %%P in (
+        "%USERPROFILE%\.gemini\antigravity\scratch\skychart-extension"
+        "%USERPROFILE%\Desktop\skychart-extension"
+        "%USERPROFILE%\Documents\skychart-extension"
+    ) do (
+        if exist "%%~P\.git" set EXT_PATH=%%~P
+    )
 )
 
-:: Salva hash atual
-for /f %%i in ('git rev-parse HEAD') do set OLD_HASH=%%i
+echo ============================================
+echo   SKYCHART AI — Auto-Update Agent
+echo   Pasta: %EXT_PATH%
+echo   Intervalo: 5 minutos
+echo   NÃO feche esta janela!
+echo ============================================
+echo.
 
-:: Faz pull
-git pull origin main --quiet
+:LOOP
+echo [%date% %time%] Verificando atualizações...
 
-:: Compara hash
-for /f %%i in ('git rev-parse HEAD') do set NEW_HASH=%%i
+cd /d "%EXT_PATH%"
 
-if "%OLD_HASH%"=="%NEW_HASH%" (
-    echo [Atom Update] Sem atualizações.
+:: Faz git fetch pra ver se tem mudanças
+git fetch origin main --quiet 2>nul
+
+:: Checa se tem commits novos
+for /f %%i in ('git rev-list HEAD..origin/main --count 2^>nul') do set BEHIND=%%i
+
+if "%BEHIND%"=="" set BEHIND=0
+
+if %BEHIND% GTR 0 (
+    echo [%date% %time%] %BEHIND% commits novos encontrados! Atualizando...
+    git pull origin main --quiet
+    echo [%date% %time%] ATUALIZADO! Extensão vai recarregar sozinha.
 ) else (
-    echo [Atom Update] ATUALIZADO! %OLD_HASH:~0,8% → %NEW_HASH:~0,8%
-    echo [Atom Update] Recarregue a extensão no Chrome: chrome://extensions
+    echo [%date% %time%] Tudo atualizado.
 )
 
-exit /b 0
+:: Aguarda 5 minutos (300 segundos)
+timeout /t 300 /nobreak >nul
+goto LOOP
