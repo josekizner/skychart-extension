@@ -89,7 +89,7 @@
       "resources": [
         "lib/pdf.worker.min.js",
         "page-inject.js",
-        "modules/*.json"
+        "modules/*.json",`n        "local-config.json"
       ],
       "matches": [
         "https://app2.skychart.com.br/*"
