@@ -288,6 +288,7 @@
       </div>
     </div>
   </div>
+  <script src="profile-config.js"></script>
 
   <script>
     var PROFILES = {
@@ -299,23 +300,16 @@
     var LABELS = { master:'Master', financeiro:'Financeiro', operacional:'Operacional', comercial:'Comercial', custom:'Personalizado' };
     var ADMIN_PWD = 'realsteel';
 
-    // Load config
-    chrome.storage.local.get(['pricingEmail','enabledAgents','userProfile','configLoaded'], function(d) {
-      document.getElementById('pricing-email').value = d.pricingEmail || 'paulo.zanella@mondshipping.com.br';
+    // Load config - usa ATOM_PROFILE do profile-config.js (carregado via script tag)
+    var currentProfile = (typeof ATOM_PROFILE !== 'undefined') ? ATOM_PROFILE : 'master';
+    var currentAgents = PROFILES[currentProfile] || PROFILES.master;
+    chrome.storage.local.set({ userProfile: currentProfile, enabledAgents: currentAgents, configLoaded: true });
 
-      // Sempre tenta ler local-config.json pra garantir perfil certo
-      fetch(chrome.runtime.getURL('local-config.json'))
-        .then(function(r) { return r.json(); })
-        .then(function(cfg) {
-          var agents = PROFILES[cfg.profile] || PROFILES.master;
-          chrome.storage.local.set({ userProfile: cfg.profile, enabledAgents: agents, configLoaded: true });
-          applyPermissions(agents, cfg.profile);
-        })
-        .catch(function() {
-          // Sem local-config.json, usa o que tiver no storage (ou default master)
-          applyPermissions(d.enabledAgents || PROFILES.master, d.userProfile || 'master');
-        });
+    chrome.storage.local.get(['pricingEmail'], function(d) {
+      document.getElementById('pricing-email').value = d.pricingEmail || 'paulo.zanella@mondshipping.com.br';
     });
+
+    applyPermissions(currentAgents, currentProfile);
 
     function applyPermissions(agents, profile) {
       var cards = document.querySelectorAll('.agent-card');
