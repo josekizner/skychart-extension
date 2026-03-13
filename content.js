@@ -571,78 +571,74 @@ try {
         var clienteKey = 'acordo_' + (quote.cliente || 'unknown').toLowerCase().replace(/\s+/g, '_');
         chrome.storage.local.get(clienteKey, function(data) {
             var clientRules = data[clienteKey] || { armadoresBloqueados: [], incluirIOF: false };
-            console.log('[Atom Oferta] Regras carregadas:', clientRules);
+            console.log('[Atom Oferta] Regras:', JSON.stringify(clientRules).substring(0, 200));
 
-            // Pega a tabela de tarifários — PrimeNG usa estruturas variadas
-            var table = null;
-            var tableSelectors = [
-                '.ui-table-scrollable-body table',
-                'p-table .ui-table-scrollable-body-table',
-                '.ui-table-wrapper table',
-                'p-table table',
-                '.ui-table table',
-                '.ui-table-unfrozen-body table',
-                'table.ui-table-scrollable-body-table',
-                'table'
-            ];
+            // Encontra TODAS as tables da pagina e agrupa por nro de rows
+            var allPageTables = document.querySelectorAll('table');
+            var byRowCount = {};
+            console.log('[Atom Oferta] Total tables na página:', allPageTables.length);
 
-            for (var ts = 0; ts < tableSelectors.length; ts++) {
-                var candidate = document.querySelectorAll(tableSelectors[ts]);
-                for (var tc = 0; tc < candidate.length; tc++) {
-                    var tRows = candidate[tc].querySelectorAll('tbody tr');
-                    if (tRows.length > 0) {
-                        // Pega a tabela com mais colunas (a scrollable principal)
-                        var thCount = candidate[tc].querySelectorAll('thead th').length;
-                        if (!table || thCount > (table.querySelectorAll('thead th').length || 0)) {
-                            table = candidate[tc];
-                        }
-                    }
+            for (var ti = 0; ti < allPageTables.length; ti++) {
+                var trs = allPageTables[ti].querySelectorAll('tbody tr');
+                var ths = allPageTables[ti].querySelectorAll('thead th');
+                if (trs.length > 0) {
+                    var rc = trs.length;
+                    if (!byRowCount[rc]) byRowCount[rc] = [];
+                    byRowCount[rc].push(allPageTables[ti]);
+                    console.log('[Atom Oferta] Table[' + ti + ']:', rc, 'rows,', ths.length, 'cols,', allPageTables[ti].className.substring(0, 50));
                 }
-                if (table) break;
             }
 
-            if (!table) {
-                console.log('[Atom Oferta] Tabela de tarifários nao encontrada. Selectors tentados:', tableSelectors.join(', '));
-                // Lista todas as tables na pagina pra debug
-                var allTables = document.querySelectorAll('table');
-                console.log('[Atom Oferta] Tables na pagina:', allTables.length);
-                for (var at = 0; at < allTables.length; at++) {
-                    console.log('[Atom Oferta] Table', at, ':', allTables[at].querySelectorAll('tbody tr').length, 'rows,', allTables[at].className.substring(0, 50));
+            // PrimeNG split: frozen + scrollable = 2 tables com MESMO nro de rows
+            // Escolhe o grupo com MAIS tables (geralmente 2) e rows >= 2
+            var bestGroup = null;
+            for (var rc in byRowCount) {
+                var numR = parseInt(rc);
+                if (numR >= 1) {
+                    if (!bestGroup || byRowCount[rc].length > bestGroup.length ||
+                        (byRowCount[rc].length === bestGroup.length && numR > bestGroup[0].querySelectorAll('tbody tr').length)) {
+                        bestGroup = byRowCount[rc];
+                    }
                 }
+            }
+
+            if (!bestGroup) {
                 showToast('Tabela de tarifários não encontrada', 'error', 4000);
                 return;
             }
 
-            console.log('[Atom Oferta] Tabela encontrada:', table.className.substring(0, 60), '| Headers:', table.querySelectorAll('thead th').length);
+            var numRows = bestGroup[0].querySelectorAll('tbody tr').length;
+            console.log('[Atom Oferta] Grupo selecionado:', bestGroup.length, 'tables,', numRows, 'rows');
 
-            var rows = table.querySelectorAll('tbody tr');
-            console.log('[Atom Oferta] Linhas na tabela:', rows.length);
-
-            if (rows.length === 0) {
-                showToast('Nenhum tarifário encontrado', 'warning', 4000);
-                return;
-            }
-
-            // PrimeNG split tables: frozen table (buttons/descrição) + scrollable table (dados)
-            // Precisamos mesclar dados de ambas pra cada row index
-            var allTables = document.querySelectorAll('table');
-            var dataTables = [];
-            for (var dt = 0; dt < allTables.length; dt++) {
-                var dtRows = allTables[dt].querySelectorAll('tbody tr');
-                if (dtRows.length > 0 && dtRows.length === rows.length) {
-                    dataTables.push(allTables[dt]);
+            // Extrai headers de CADA table usando span.ui-column-title (PrimeNG limpo)
+            // Se não existir, usa textContent do th com limpeza
+            var headerMap = []; // [{text, tableIdx, colIdx}]
+            for (var gi = 0; gi < bestGroup.length; gi++) {
+                var ths = bestGroup[gi].querySelectorAll('thead th');
+                for (var hi = 0; hi < ths.length; hi++) {
+                    var hText = '';
+                    var colTitle = ths[hi].querySelector('.ui-column-title, [class*="column-title"]');
+                    if (colTitle) {
+                        hText = colTitle.textContent.trim().toLowerCase();
+                    } else {
+                        // Limpa sort icons e espaços extras
+                        hText = ths[hi].textContent.trim().toLowerCase().replace(/[↕↑↓▲▼♦]/g, '').trim();
+                        // Se ficou longo demais (tem input de filtro), pega só primeira palavra
+                        if (hText.length > 30) hText = hText.split(/\s/)[0];
+                    }
+                    headerMap.push({ text: hText, tIdx: gi, cIdx: hi });
                 }
             }
-            console.log('[Atom Oferta] Tables com mesmo nro de rows:', dataTables.length);
+            console.log('[Atom Oferta] Headers encontrados:', headerMap.map(function(h) { return '"' + h.text + '"'; }).join(', '));
 
-            // Analisa cada linha
+            // Analisa cada row
             var tarifarios = [];
             var yellowRows = [];
 
-            for (var r = 0; r < rows.length; r++) {
+            for (var r = 0; r < numRows; r++) {
                 var tarInfo = {
                     rowIndex: r,
-                    rowElement: rows[r],
+                    rowElement: null,
                     frozenRow: null,
                     cod: '',
                     descricao: '',
@@ -652,69 +648,82 @@ try {
                     armador: '',
                     agente: '',
                     container: '',
-                    frete: 0,
                     observacao: '',
                     eligible: true,
                     rejectReason: ''
                 };
 
-                // Coleta TODAS as cells de TODAS as tables pra essa row
-                var allCells = [];
-                var allHeaders = [];
-                for (var tbl = 0; tbl < dataTables.length; tbl++) {
-                    var tblRow = dataTables[tbl].querySelectorAll('tbody tr')[r];
-                    if (!tblRow) continue;
-                    // Salva referencia da frozen row (pro botao ...)
-                    if (tbl === 0 && dataTables.length > 1) tarInfo.frozenRow = tblRow;
-                    var tblCells = tblRow.querySelectorAll('td');
-                    var tblHeaders = dataTables[tbl].querySelectorAll('thead th');
-                    for (var cc = 0; cc < tblCells.length; cc++) {
-                        allCells.push(tblCells[cc]);
-                        allHeaders.push(tblHeaders[cc] ? tblHeaders[cc].textContent.trim().toLowerCase() : '');
-                    }
-                }
+                // Mescla cells de TODAS as tables do grupo
+                var globalCol = 0;
+                for (var tIdx = 0; tIdx < bestGroup.length; tIdx++) {
+                    var tRow = bestGroup[tIdx].querySelectorAll('tbody tr')[r];
+                    if (!tRow) continue;
 
-                if (allCells.length < 2) continue;
+                    // Salva refs: primeira table = frozen (buttons), ultima = scrollable (dados)
+                    if (tIdx === 0) tarInfo.frozenRow = tRow;
+                    tarInfo.rowElement = tRow; // ultima table é a que seleciona
 
-                // Extrai dados de todas as cells
-                for (var c = 0; c < allCells.length; c++) {
-                    var hdr = allHeaders[c] || '';
-                    var cellText = allCells[c].textContent.trim();
+                    var cells = tRow.querySelectorAll('td');
+                    for (var ci = 0; ci < cells.length; ci++) {
+                        var hdr = (headerMap[globalCol] || {}).text || '';
+                        var txt = cells[ci].textContent.trim();
 
-                    if (hdr.indexOf('cod') >= 0 && cellText.match(/^\d+$/)) tarInfo.cod = cellText;
-                    
-                    if (hdr.indexOf('descri') >= 0) {
-                        tarInfo.descricao = cellText;
-                        // Checa amarelo — vários métodos
-                        var cellBg = window.getComputedStyle(allCells[c]).backgroundColor;
-                        var cellStyle = allCells[c].getAttribute('style') || '';
-                        var inner = allCells[c].querySelector('span, div, td');
-                        var innerBg = inner ? window.getComputedStyle(inner).backgroundColor : '';
-                        var innerStyle = inner ? (inner.getAttribute('style') || '') : '';
-                        
-                        if (cellBg.indexOf('255, 255, 0') >= 0 || cellBg.indexOf('255, 193') >= 0 ||
-                            cellBg.indexOf('255, 200') >= 0 || cellBg.indexOf('255, 165') >= 0 ||
-                            cellStyle.indexOf('yellow') >= 0 || cellStyle.indexOf('rgb(255') >= 0 ||
-                            innerBg.indexOf('255, 255, 0') >= 0 || innerBg.indexOf('255, 193') >= 0 ||
-                            innerBg.indexOf('255, 200') >= 0 || innerStyle.indexOf('yellow') >= 0 ||
-                            allCells[c].classList.contains('amarelo') || allCells[c].classList.contains('warning') ||
-                            (inner && inner.style && inner.style.backgroundColor && 
-                             inner.style.backgroundColor !== 'transparent' && inner.style.backgroundColor !== '')) {
-                            tarInfo.isYellow = true;
-                            console.log('[Atom Oferta] 🟡 Linha', tarInfo.cod || r, '- AMARELA (bg:', cellBg, ')');
+                        // Cod: número de 4+ dígitos
+                        if (hdr.indexOf('cod') >= 0 && txt.match(/^\d{4,}$/)) {
+                            tarInfo.cod = txt;
                         }
+
+                        // Descrição + detecção amarelo
+                        if (hdr.indexOf('descri') >= 0 || hdr.indexOf('descrição') >= 0) {
+                            tarInfo.descricao = txt;
+                            // Checa BG amarelo/laranja em vários lugares
+                            var cellEl = cells[ci];
+                            var bg = window.getComputedStyle(cellEl).backgroundColor;
+                            var sty = cellEl.getAttribute('style') || '';
+                            var inner = cellEl.querySelector('span, div');
+                            var iBg = inner ? window.getComputedStyle(inner).backgroundColor : '';
+                            var iSty = inner ? (inner.getAttribute('style') || '') : '';
+
+                            console.log('[Atom Oferta] Row', r, 'Desc cell bg:', bg, '| inner bg:', iBg);
+
+                            var isYellow = 
+                                bg.indexOf('255, 255, 0') >= 0 || bg.indexOf('255, 193') >= 0 ||
+                                bg.indexOf('255, 200') >= 0 || bg.indexOf('255, 165') >= 0 ||
+                                bg.indexOf('255, 152') >= 0 || bg.indexOf('255, 235') >= 0 ||
+                                bg.indexOf('243, 156') >= 0 || bg.indexOf('255, 243') >= 0 ||
+                                sty.indexOf('yellow') >= 0 || sty.indexOf('orange') >= 0 ||
+                                iBg.indexOf('255, 255, 0') >= 0 || iBg.indexOf('255, 193') >= 0 ||
+                                iBg.indexOf('255, 200') >= 0 || iBg.indexOf('255, 152') >= 0 ||
+                                iBg.indexOf('243') >= 0 ||
+                                iSty.indexOf('yellow') >= 0 || iSty.indexOf('orange') >= 0 ||
+                                iSty.indexOf('#ff') >= 0 || iSty.indexOf('#FF') >= 0;
+
+                            // Também checa se bg NÃO é transparente/branco (qualquer cor sólida)
+                            if (!isYellow && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' && 
+                                bg !== 'rgb(255, 255, 255)' && bg !== '') {
+                                console.log('[Atom Oferta] Row', r, '- BG não-padrão:', bg);
+                            }
+
+                            if (isYellow) {
+                                tarInfo.isYellow = true;
+                                console.log('[Atom Oferta] 🟡 Row', r, 'cod', tarInfo.cod, '- AMARELA!');
+                            }
+                        }
+
+                        if (hdr.indexOf('origem') >= 0 && hdr.indexOf('país') < 0 && hdr.indexOf('pai') < 0) tarInfo.origem = txt;
+                        if (hdr.indexOf('destino') >= 0) tarInfo.destino = txt;
+                        if (hdr.indexOf('armador') >= 0) tarInfo.armador = txt;
+                        if (hdr.indexOf('agente') >= 0) tarInfo.agente = txt;
+                        if (hdr.indexOf('cont') >= 0 && hdr.indexOf('conta') < 0 && hdr.indexOf('contrat') < 0) tarInfo.container = txt;
+
+                        globalCol++;
                     }
-                    
-                    if (hdr.indexOf('origem') >= 0) tarInfo.origem = cellText;
-                    if (hdr.indexOf('destino') >= 0) tarInfo.destino = cellText;
-                    if (hdr.indexOf('armador') >= 0) tarInfo.armador = cellText;
-                    if (hdr.indexOf('agente') >= 0) tarInfo.agente = cellText;
-                    if ((hdr.indexOf('cont') >= 0 && hdr.indexOf('conta') < 0) || hdr.indexOf('equip') >= 0) tarInfo.container = cellText;
                 }
 
-                console.log('[Atom Oferta] Tarif.', tarInfo.cod, '|', tarInfo.armador, '| Yellow:', tarInfo.isYellow);
+                console.log('[Atom Oferta] Row[' + r + '] Cod:', tarInfo.cod, '| Armador:', tarInfo.armador, 
+                    '| Yellow:', tarInfo.isYellow, '| Desc:', tarInfo.descricao.substring(0, 25));
 
-                // Checa armador bloqueado
+                // Check armador bloqueado
                 if (clientRules.armadoresBloqueados && clientRules.armadoresBloqueados.length > 0) {
                     for (var ab = 0; ab < clientRules.armadoresBloqueados.length; ab++) {
                         if (tarInfo.armador.toUpperCase().indexOf(clientRules.armadoresBloqueados[ab]) >= 0) {
@@ -729,7 +738,7 @@ try {
                 if (tarInfo.isYellow) yellowRows.push(tarInfo);
             }
 
-            console.log('[Atom Oferta] Total tarifários:', tarifarios.length, '| Amarelos:', yellowRows.length);
+            console.log('[Atom Oferta] === RESULTADO: Total:', tarifarios.length, '| Amarelos:', yellowRows.length, '===');
 
             // Se tem linhas amarelas, lê as observações de cada uma (sequencial)
             if (yellowRows.length > 0) {
