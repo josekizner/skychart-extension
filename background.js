@@ -1,4 +1,4 @@
-const GEMINI_API_KEY = "AIzaSyAUJQghRHkjEnM4HQCeVF_6LuS2iTQy-KQ";
+const GEMINI_API_KEY = "AIzaSyCG5QN20AROmOu-58TZgQf1rqwDQbQeauI";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // ===== AUTO-UPDATE =====
