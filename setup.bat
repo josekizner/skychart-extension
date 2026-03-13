@@ -8,25 +8,57 @@ echo   ATOM - Setup Extensao Mond Shipping
 echo  ===================================
 echo.
 
-set "SOURCE_DIR=%~dp0"
 set "INSTALL_DIR=%USERPROFILE%\atom-extension"
+set "REPO=https://github.com/josekizner/skychart-extension.git"
 
-:: 1. Copia a pasta pra perfil do usuario
-echo [1/3] Copiando extensao para %INSTALL_DIR%...
-
-if exist "%INSTALL_DIR%" rmdir /s /q "%INSTALL_DIR%" >nul 2>nul
-xcopy "%SOURCE_DIR%*" "%INSTALL_DIR%\" /s /e /y /q >nul 2>nul
-
-if not exist "%INSTALL_DIR%\manifest.json" (
-    echo [ERRO] Falha ao copiar. Verifique permissoes.
-    pause
-    exit /b 1
+:: 1. Verifica/instala Git
+where git >nul 2>nul
+if errorlevel 1 (
+    echo [1/4] Git nao encontrado. Instalando...
+    winget install --id Git.Git -e --silent --accept-package-agreements --accept-source-agreements >nul 2>nul
+    if errorlevel 1 (
+        echo   Winget falhou. Tentando download direto...
+        powershell -Command "Invoke-WebRequest -Uri 'https://github.com/git-for-windows/git/releases/download/v2.47.1.windows.2/Git-2.47.1.2-64-bit.exe' -OutFile '%TEMP%\git-install.exe'"
+        if exist "%TEMP%\git-install.exe" (
+            "%TEMP%\git-install.exe" /VERYSILENT /NORESTART
+            del "%TEMP%\git-install.exe" >nul 2>nul
+        )
+    )
+    :: Recarrega PATH
+    set "PATH=%PATH%;C:\Program Files\Git\cmd;C:\Program Files\Git\bin"
+    where git >nul 2>nul
+    if errorlevel 1 (
+        echo [ERRO] Nao foi possivel instalar Git automaticamente.
+        echo   Instale manualmente: https://git-scm.com/download/win
+        echo   Depois rode setup.bat de novo.
+        pause
+        exit /b 1
+    )
+    echo   Git instalado!
+) else (
+    echo [1/4] Git encontrado.
 )
-echo   Copiado!
 
-:: 2. Seleciona departamento
+:: 2. Clona ou atualiza
+echo [2/4] Baixando extensao...
+if exist "%INSTALL_DIR%\.git" (
+    cd /d "%INSTALL_DIR%"
+    git pull origin main --quiet
+    echo   Atualizado!
+) else (
+    if exist "%INSTALL_DIR%" rmdir /s /q "%INSTALL_DIR%" >nul 2>nul
+    git clone "%REPO%" "%INSTALL_DIR%" --quiet
+    if errorlevel 1 (
+        echo [ERRO] Falha ao clonar repositorio.
+        pause
+        exit /b 1
+    )
+    echo   Clonado!
+)
+
+:: 3. Seleciona departamento
 echo.
-echo [2/3] Selecione o departamento:
+echo [3/4] Selecione o departamento:
 echo.
 echo   1 = Financeiro   (Cambio + Serasa + Frete)
 echo   2 = Operacional  (Tracking + Frete)
@@ -48,13 +80,30 @@ if not defined PROFILE (
 
 echo   Perfil: %PROFILE%
 echo {"profile":"%PROFILE%"} > "%INSTALL_DIR%\local-config.json"
-echo [3/3] Perfil salvo!
+
+:: 4. Auto-update a cada 30 min (git pull)
+echo [4/4] Configurando auto-update...
+
+(
+echo @echo off
+echo set "PATH=%%PATH%%;C:\Program Files\Git\cmd"
+echo cd /d "%INSTALL_DIR%"
+echo git pull origin main --quiet
+) > "%INSTALL_DIR%\do-update.bat"
+
+schtasks /create /tn "AtomExtensionUpdate" /tr "\"%INSTALL_DIR%\do-update.bat\"" /sc minute /mo 30 /f >nul 2>nul
+if errorlevel 1 (
+    echo   Auto-update nao agendado automaticamente.
+) else (
+    echo   Auto-update agendado (a cada 30 min)!
+)
 
 echo.
 echo  ===================================
 echo   INSTALACAO CONCLUIDA!
 echo   Perfil: %PROFILE%
 echo   Pasta:  %INSTALL_DIR%
+echo   Auto-update: a cada 30 min
 echo  ===================================
 echo.
 echo   PROXIMO PASSO:
@@ -64,7 +113,6 @@ echo   3. Ative "Modo do desenvolvedor"
 echo   4. Clique "Carregar sem compactacao"
 echo   5. Selecione: %INSTALL_DIR%
 echo.
-echo   Para atualizar: copie a pasta nova
-echo   e rode setup.bat de novo.
+echo   As atualizacoes serao automaticas!
 echo.
 pause
