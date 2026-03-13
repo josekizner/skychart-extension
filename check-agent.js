@@ -8,6 +8,13 @@
     var TAG = '[Check Agent]';
     var checkBtnInjected = false;
 
+    // Listener: background manda clicar o download (padrão Serasa)
+    chrome.runtime.onMessage.addListener(function(request) {
+        if (request.action === 'clickCheckDownload' && window._checkDlBtn) {
+            console.log(TAG, 'Background pediu clique no download');
+            window._checkDlBtn.click();
+        }
+    });
     // ===== OBSERVER: Detecta quando a aba Custos é aberta =====
     var observer = new MutationObserver(function() {
         if (checkBtnInjected) return;
@@ -224,7 +231,7 @@
         return items;
     }
 
-    // ===== BUSCA E BAIXA COTAÇÃO =====
+    // ===== BUSCA E BAIXA COTAÇÃO (padrão Serasa: captureNewTabUrl + fetch + pdfjsLib) =====
     async function findAndDownloadCotacao() {
         // Clica na aba Arquivos
         var archivosTab = findAccordionHeader('Arquivos');
@@ -233,37 +240,16 @@
             return null;
         }
 
-        // Clica pra abrir
         archivosTab.click();
-        await delay(1500);
+        await delay(2000);
 
-        // Busca a tabela de Tipos de Arquivo
-        var tables = document.querySelectorAll('table');
-        var fileTable = null;
-        for (var t = 0; t < tables.length; t++) {
-            var ths = tables[t].querySelectorAll('th');
-            for (var h = 0; h < ths.length; h++) {
-                if ((ths[h].textContent || '').indexOf('Nome do Arquivo') >= 0 ||
-                    (ths[h].textContent || '').indexOf('Tipo arquivo') >= 0) {
-                    fileTable = tables[t];
-                    break;
-                }
-            }
-            if (fileTable) break;
-        }
-
-        if (!fileTable) {
-            console.log(TAG, 'Tabela de arquivos não encontrada');
-            return null;
-        }
-
-        // Busca row com "Cotação Cliente" na coluna Tipo
-        var rows = fileTable.querySelectorAll('tbody tr');
+        // Busca row com "Cotação Cliente" na tabela de Tipos de Arquivo
+        var allRows = document.querySelectorAll('tr');
         var targetRow = null;
-        for (var r = 0; r < rows.length; r++) {
-            var rowText = rows[r].textContent || '';
+        for (var r = 0; r < allRows.length; r++) {
+            var rowText = allRows[r].textContent || '';
             if (rowText.indexOf('Cotação Cliente') >= 0 || rowText.indexOf('Cotacao Cliente') >= 0) {
-                targetRow = rows[r];
+                targetRow = allRows[r];
                 console.log(TAG, 'Cotação Cliente encontrada na row', r);
                 break;
             }
@@ -274,35 +260,54 @@
             return null;
         }
 
-        // Encontra o botão de download nessa row
-        var downloadBtn = targetRow.querySelector('.fa-download, [class*="download"]');
-        if (downloadBtn) {
-            downloadBtn = downloadBtn.closest('button, a') || downloadBtn;
-        }
+        // Encontra o botão/ícone de download nessa row
+        var dlIcon = targetRow.querySelector('.fa-download');
+        var dlBtn = dlIcon ? (dlIcon.closest('button, a, span') || dlIcon) : null;
 
-        if (!downloadBtn) {
-            // Tenta qualquer botão na row
+        if (!dlBtn) {
             var btns = targetRow.querySelectorAll('button, a');
             for (var b = 0; b < btns.length; b++) {
                 if ((btns[b].innerHTML || '').indexOf('download') >= 0) {
-                    downloadBtn = btns[b];
+                    dlBtn = btns[b];
                     break;
                 }
             }
         }
 
-        if (!downloadBtn) {
-            console.log(TAG, 'Botão download não encontrado na row da Cotação');
+        if (!dlBtn) {
+            console.log(TAG, 'Botão download não encontrado');
             return null;
         }
 
-        console.log(TAG, 'Clicando download...');
-        downloadBtn.click();
-        await delay(3000);
+        // Tenta pegar URL diretamente do href
+        var pdfUrl = null;
+        var linkEl = dlBtn.closest('a[href]') || dlBtn.querySelector('a[href]');
+        if (linkEl && linkEl.href) {
+            pdfUrl = linkEl.href;
+            console.log(TAG, 'URL direta do link:', pdfUrl.substring(0, 80));
+        }
 
-        // O PDF abre em nova aba — pede pro background capturar o texto
-        var pdfText = await getPDFTextFromTab();
-        
+        // Se não tem link direto, usa captureNewTabUrl (padrão Serasa)
+        if (!pdfUrl) {
+            console.log(TAG, 'Sem link direto, usando captureNewTabUrl...');
+            window._checkDlBtn = dlBtn;
+
+            var urlResponse = await new Promise(function(resolve) {
+                chrome.runtime.sendMessage(
+                    { action: 'captureNewTabUrl_check' },
+                    function(response) { resolve(response); }
+                );
+            });
+
+            if (urlResponse && urlResponse.success && urlResponse.url) {
+                pdfUrl = urlResponse.url;
+                console.log(TAG, 'URL capturada via background:', pdfUrl.substring(0, 80));
+            } else {
+                console.log(TAG, 'captureNewTabUrl falhou:', urlResponse);
+                return null;
+            }
+        }
+
         // Volta pra aba Custos
         var custosTab = findAccordionHeader('Custos');
         if (custosTab) {
@@ -310,29 +315,43 @@
             await delay(800);
         }
 
-        return pdfText;
-    }
+        // Fetch o PDF diretamente (content script tem os cookies!)
+        console.log(TAG, 'Baixando PDF:', pdfUrl.substring(0, 80));
+        try {
+            var resp = await fetch(pdfUrl, { credentials: 'include' });
+            var blob = await resp.blob();
+            console.log(TAG, 'PDF blob:', blob.size, 'bytes, tipo:', blob.type);
 
-    // Pega texto do PDF — tenta via Gemini
-    function getPDFTextFromTab() {
-        return new Promise(function(resolve) {
-            // Tenta achar a aba do PDF
-            chrome.runtime.sendMessage({
-                action: 'check_extract_pdf'
-            }, function(response) {
-                if (response && response.success && response.text) {
-                    console.log(TAG, 'PDF extraído:', response.text.length, 'chars');
-                    resolve(response.text);
-                } else {
-                    console.log(TAG, 'Extração PDF falhou, tentando DOM da nova aba');
-                    // Fallback: tenta ler o fileName e pedir Gemini
-                    resolve(null);
-                }
+            var base64 = await new Promise(function(resolve) {
+                var reader = new FileReader();
+                reader.onload = function() { resolve(reader.result.split(',')[1]); };
+                reader.readAsDataURL(blob);
             });
 
-            // Timeout de 15s
-            setTimeout(function() { resolve(null); }, 15000);
-        });
+            // Decodifica e extrai texto com pdf.js (já carregado)
+            var binaryString = atob(base64);
+            var pdfBytes = new Uint8Array(binaryString.length);
+            for (var i = 0; i < binaryString.length; i++) {
+                pdfBytes[i] = binaryString.charCodeAt(i);
+            }
+
+            var pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+            var fullText = '';
+            for (var pg = 1; pg <= pdfDoc.numPages; pg++) {
+                var page = await pdfDoc.getPage(pg);
+                var textContent = await page.getTextContent();
+                var pageText = textContent.items.map(function(item) { return item.str; }).join('\n');
+                fullText += pageText + '\n\n';
+            }
+
+            console.log(TAG, 'Texto extraído:', fullText.length, 'chars');
+            console.log(TAG, 'Preview:', fullText.substring(0, 500));
+
+            return fullText;
+        } catch (err) {
+            console.error(TAG, 'Erro ao baixar/parsear PDF:', err);
+            return null;
+        }
     }
 
     // ===== PARSEIA PDF DE COTAÇÃO =====

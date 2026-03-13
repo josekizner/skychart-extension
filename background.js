@@ -294,6 +294,62 @@ Os valores estão corretos? Responda APENAS com JSON:
     return true;
   }
 
+  // CHECK AGENT: Captura URL da aba nova (cotação PDF) — mesmo padrão do Serasa
+  if (request.action === "captureNewTabUrl_check") {
+    const senderTabId = sender.tab ? sender.tab.id : null;
+
+    (async () => {
+      try {
+        const tabPromise = new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            chrome.tabs.onCreated.removeListener(listener);
+            resolve(null);
+          }, 15000);
+
+          function listener(tab) {
+            clearTimeout(timeout);
+            chrome.tabs.onCreated.removeListener(listener);
+            setTimeout(async () => {
+              try {
+                const t = await chrome.tabs.get(tab.id);
+                resolve({ tabId: tab.id, url: t.url || t.pendingUrl });
+              } catch (e) {
+                resolve({ tabId: tab.id, url: tab.pendingUrl || tab.url });
+              }
+            }, 3000);
+          }
+          chrome.tabs.onCreated.addListener(listener);
+        });
+
+        // Manda content clicar o botão de download
+        if (senderTabId) {
+          chrome.tabs.sendMessage(senderTabId, { action: 'clickCheckDownload' }).catch(() => { });
+        }
+
+        const newTab = await tabPromise;
+
+        if (!newTab || !newTab.url) {
+          sendResponse({ success: false, error: 'Nenhuma aba nova em 15s' });
+          return;
+        }
+
+        console.log("[Check] URL capturada:", newTab.url);
+        chrome.tabs.remove(newTab.tabId).catch(() => { });
+
+        if (senderTabId) {
+          chrome.tabs.update(senderTabId, { active: true }).catch(() => { });
+        }
+
+        sendResponse({ success: true, url: newTab.url });
+      } catch (err) {
+        console.error("[Check] Erro:", err);
+        sendResponse({ success: false, error: err.message });
+      }
+    })();
+
+    return true;
+  }
+
   // SERASA: Captura URL da aba nova que abrir, fecha ela, e retorna URL
   if (request.action === "captureNewTabUrl") {
     const senderTabId = sender.tab ? sender.tab.id : null;
