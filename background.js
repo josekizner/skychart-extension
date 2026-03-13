@@ -115,7 +115,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             action: 'hmm_schedule_results',
             results: msg.results
           });
-          setTimeout(() => { chrome.tabs.remove(tab.id); }, 2000);
+          // NÃO fecha a aba pra debug
+          // setTimeout(() => { chrome.tabs.remove(tab.id); }, 2000);
           chrome.runtime.onMessage.removeListener(hmmListener);
         }
       };
