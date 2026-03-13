@@ -300,19 +300,49 @@
     var LABELS = { master:'Master', financeiro:'Financeiro', operacional:'Operacional', comercial:'Comercial', custom:'Personalizado' };
     var ADMIN_PWD = 'realsteel';
 
-    // Load config - usa ATOM_PROFILE do profile-config.js (carregado via script tag)
-    var currentProfile = (typeof ATOM_PROFILE !== 'undefined') ? ATOM_PROFILE.trim() : 'master';
-    var currentAgents = PROFILES[currentProfile] || PROFILES.master;
-    console.log('[Atom Popup] ATOM_PROFILE raw:', typeof ATOM_PROFILE !== 'undefined' ? ATOM_PROFILE : 'UNDEFINED');
-    console.log('[Atom Popup] currentProfile:', currentProfile, 'agents:', currentAgents);
-    document.title = 'Atom [' + currentProfile + ']';
-    chrome.storage.local.set({ userProfile: currentProfile, enabledAgents: currentAgents, configLoaded: true });
-
-    chrome.storage.local.get(['pricingEmail'], function(d) {
+    // Load from chrome.storage FIRST (most reliable)
+    chrome.storage.local.get(['enabledAgents','userProfile','pricingEmail'], function(d) {
       document.getElementById('pricing-email').value = d.pricingEmail || 'paulo.zanella@mondshipping.com.br';
+
+      if (d.userProfile && d.enabledAgents) {
+        // Profile already saved — use it
+        applyPermissions(d.enabledAgents, d.userProfile);
+      } else if (typeof ATOM_PROFILE !== 'undefined' && ATOM_PROFILE.trim() !== 'master') {
+        // profile-config.js loaded with non-master profile (from setup.bat)
+        var p = ATOM_PROFILE.trim();
+        var agents = PROFILES[p] || PROFILES.master;
+        chrome.storage.local.set({ userProfile: p, enabledAgents: agents });
+        applyPermissions(agents, p);
+      } else {
+        // First run — show department selector
+        showProfileSelector();
+      }
     });
 
-    applyPermissions(currentAgents, currentProfile);
+    function showProfileSelector() {
+      var overlay = document.createElement('div');
+      overlay.id = 'profile-selector-overlay';
+      overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Inter,sans-serif;color:#fff;';
+      overlay.innerHTML = '<div style="text-align:center;max-width:280px;">' +
+        '<h2 style="margin:0 0 8px;font-size:18px;">Bem-vindo ao Atom</h2>' +
+        '<p style="color:#999;font-size:12px;margin:0 0 20px;">Selecione seu departamento:</p>' +
+        '<button class="prof-btn" data-p="financeiro" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Financeiro — Câmbio, Serasa</button>' +
+        '<button class="prof-btn" data-p="operacional" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Operacional — Tracking, Frete</button>' +
+        '<button class="prof-btn" data-p="comercial" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Comercial — Cotação, Frete</button>' +
+        '<button class="prof-btn" data-p="master" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#2d5a1e;color:#fff;font-size:14px;cursor:pointer;">Master — Todos</button>' +
+        '</div>';
+      document.body.appendChild(overlay);
+      var btns = overlay.querySelectorAll('.prof-btn');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].addEventListener('click', function() {
+          var prof = this.getAttribute('data-p');
+          var agents = PROFILES[prof];
+          chrome.storage.local.set({ userProfile: prof, enabledAgents: agents });
+          overlay.remove();
+          applyPermissions(agents, prof);
+        });
+      }
+    }
 
     function applyPermissions(agents, profile) {
       var cards = document.querySelectorAll('.agent-card');
