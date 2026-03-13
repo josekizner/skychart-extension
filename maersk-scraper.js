@@ -7,6 +7,12 @@
 
 (function() {
     'use strict';
+    chrome.storage.local.get('enabledAgents', function(d) {
+        var e = d.enabledAgents || ['cambio','serasa','frete','tracking','cotacao'];
+        if (e.indexOf('tracking') < 0) { console.log('[Maersk] Desabilitado'); return; }
+        _initMaersk();
+    });
+    function _initMaersk() {
 
     console.log('[Maersk Scraper] Carregado em:', window.location.href);
 
@@ -227,4 +233,4 @@
             transshipments: result.transshipments.length
         });
     }
-})();
+} })();

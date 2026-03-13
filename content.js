@@ -15,6 +15,16 @@ try {
 
     console.log("Skychart AI: Script carregado com sucesso.");
 
+    // Permission check — carrega agentes habilitados
+    var _atomEnabledAgents = ['cambio','serasa','frete','tracking','cotacao']; // default: todos
+    chrome.storage.local.get('enabledAgents', function(d) {
+        if (d.enabledAgents) _atomEnabledAgents = d.enabledAgents;
+        console.log('[Atom] Agentes habilitados:', _atomEnabledAgents.join(', '));
+    });
+    function isAgentEnabled(agentId) {
+        return _atomEnabledAgents.indexOf(agentId) >= 0;
+    }
+
     // Listener para notificações de atualização, tracking data e navegacao
     chrome.runtime.onMessage.addListener(function(msg) {
         if (msg.action === 'updateAvailable') {

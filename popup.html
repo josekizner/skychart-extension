@@ -33,6 +33,8 @@
       justify-content: center;
       gap: 10px;
       margin-bottom: 4px;
+      cursor: default;
+      -webkit-user-select: none;
     }
     .atom-icon {
       width: 32px; height: 32px;
@@ -82,6 +84,21 @@
       50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16,185,129,0); }
     }
 
+    /* Profile Badge */
+    .profile-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 8px;
+      padding: 4px 12px;
+      background: rgba(99,102,241,0.08);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 20px;
+      font-size: 10px;
+      color: #a5b4fc;
+      font-weight: 500;
+    }
+
     /* Agents Grid */
     .section {
       padding: 14px 20px;
@@ -114,6 +131,9 @@
       border-color: rgba(255,255,255,0.12);
       transform: translateY(-1px);
     }
+    .agent-card.disabled {
+      display: none;
+    }
     .agent-icon {
       width: 28px; height: 28px;
       border-radius: 8px;
@@ -127,6 +147,7 @@
     .agent-icon.serasa { background: rgba(16,185,129,0.15); }
     .agent-icon.frete { background: rgba(245,158,11,0.15); }
     .agent-icon.tracking { background: rgba(168,85,247,0.15); }
+    .agent-icon.cotacao { background: rgba(236,72,153,0.15); }
     .agent-name {
       font-size: 11px;
       font-weight: 600;
@@ -159,7 +180,7 @@
       margin-bottom: 4px;
       display: block;
     }
-    .input-group input {
+    .input-group input, .input-group select {
       width: 100%;
       padding: 9px 12px;
       background: rgba(0,0,0,0.3);
@@ -171,11 +192,12 @@
       outline: none;
       transition: border 0.2s, box-shadow 0.2s;
     }
-    .input-group input:focus {
+    .input-group input:focus, .input-group select:focus {
       border-color: rgba(99,102,241,0.5);
       box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
     }
     .input-group input::placeholder { color: #334155; }
+    .input-group select option { background: #1e293b; color: #fff; }
 
     .btn-save {
       width: 100%;
@@ -206,6 +228,117 @@
       font-weight: 500;
     }
 
+    /* Admin Modal */
+    .admin-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 100;
+      backdrop-filter: blur(4px);
+    }
+    .admin-modal {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 280px;
+      background: linear-gradient(145deg, #1e293b, #0f172a);
+      border: 1px solid rgba(99,102,241,0.3);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    .admin-modal h3 {
+      font-size: 14px;
+      color: #e2e8f0;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .admin-modal .admin-sub {
+      font-size: 10px;
+      color: #64748b;
+      margin-bottom: 14px;
+    }
+    .admin-modal .close-admin {
+      position: absolute;
+      top: 12px; right: 14px;
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .admin-modal .close-admin:hover { color: #e2e8f0; }
+
+    .password-field {
+      margin-bottom: 14px;
+    }
+    .password-field input {
+      width: 100%;
+      padding: 9px 12px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+    }
+    .password-field input:focus {
+      border-color: rgba(99,102,241,0.5);
+    }
+    .password-error {
+      display: none;
+      color: #f87171;
+      font-size: 10px;
+      margin-top: 4px;
+    }
+
+    .admin-content { display: none; }
+    .admin-content.visible { display: block; }
+
+    .profile-select {
+      margin-bottom: 12px;
+    }
+    .profile-select select {
+      width: 100%;
+      padding: 9px 12px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .agent-checks {
+      margin-bottom: 10px;
+    }
+    .agent-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+    .agent-check input[type="checkbox"] {
+      accent-color: #6366f1;
+      width: 14px;
+      height: 14px;
+    }
+    .agent-check .tag {
+      font-size: 8px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(99,102,241,0.15);
+      color: #a5b4fc;
+      margin-left: auto;
+    }
+
     /* Footer */
     .footer {
       padding: 10px 20px 14px;
@@ -221,7 +354,7 @@
 
   <!-- Header -->
   <div class="header">
-    <div class="brand">
+    <div class="brand" id="brand-logo">
       <div class="atom-icon"><img src="icon48.png" alt="Atom"></div>
       <div class="brand-text">
         <h1>Atom</h1>
@@ -230,40 +363,50 @@
     </div>
     <div class="status-pill">
       <div class="pulse"></div>
-      Todos os agentes ativos
+      <span id="status-text">Todos os agentes ativos</span>
+    </div>
+    <div class="profile-badge" id="profile-badge">
+      🔒 <span id="profile-name">Master</span>
     </div>
   </div>
 
   <!-- Agents -->
   <div class="section">
     <div class="section-label">Agentes</div>
-    <div class="agents-grid">
-      <div class="agent-card">
+    <div class="agents-grid" id="agents-grid">
+      <div class="agent-card" data-agent="cambio">
         <div class="agent-icon cambio">C</div>
         <div>
           <div class="agent-name">Câmbio</div>
           <div class="agent-desc">Extração de PDF</div>
         </div>
       </div>
-      <div class="agent-card">
+      <div class="agent-card" data-agent="serasa">
         <div class="agent-icon serasa">S</div>
         <div>
           <div class="agent-name">Serasa</div>
           <div class="agent-desc">Score & crédito</div>
         </div>
       </div>
-      <div class="agent-card">
+      <div class="agent-card" data-agent="frete">
         <div class="agent-icon frete">F</div>
         <div>
           <div class="agent-name">Frete</div>
           <div class="agent-desc">Análise de mercado</div>
         </div>
       </div>
-      <div class="agent-card">
+      <div class="agent-card" data-agent="tracking">
         <div class="agent-icon tracking">T</div>
         <div>
           <div class="agent-name">Tracking</div>
           <div class="agent-desc">Rastreio Maersk</div>
+        </div>
+      </div>
+      <div class="agent-card" data-agent="cotacao">
+        <div class="agent-icon cotacao">Q</div>
+        <div>
+          <div class="agent-name">Cotação</div>
+          <div class="agent-desc">Outlook & ofertas</div>
         </div>
       </div>
     </div>
@@ -283,19 +426,113 @@
   </div>
 
   <div class="footer">
-    Mond Shipping &bull; <span>v2.1</span>
+    Mond Shipping &bull; <span>v2.2</span>
+  </div>
+
+  <!-- Admin Modal (Hidden) -->
+  <div class="admin-overlay" id="admin-overlay">
+    <div class="admin-modal">
+      <button class="close-admin" id="close-admin">&times;</button>
+      <h3>🔑 Admin</h3>
+      <div class="admin-sub">Configuração de permissões</div>
+
+      <div class="password-field" id="password-field">
+        <input type="password" id="admin-password" placeholder="Senha admin">
+        <div class="password-error" id="password-error">Senha incorreta</div>
+      </div>
+      <button class="btn-save" id="admin-unlock" style="margin-top:0;margin-bottom:14px">Desbloquear</button>
+
+      <div class="admin-content" id="admin-content">
+        <div class="profile-select">
+          <label style="font-size:11px;color:#94a3b8;font-weight:500;margin-bottom:4px;display:block">Perfil</label>
+          <select id="profile-select">
+            <option value="master">🔓 Master (todos)</option>
+            <option value="financeiro">💰 Financeiro</option>
+            <option value="operacional">📦 Operacional</option>
+            <option value="comercial">📧 Comercial</option>
+            <option value="custom">⚙️ Personalizado</option>
+          </select>
+        </div>
+
+        <div class="agent-checks" id="agent-checks">
+          <div class="agent-check"><input type="checkbox" id="chk-cambio" value="cambio"> Câmbio <span class="tag">Financeiro</span></div>
+          <div class="agent-check"><input type="checkbox" id="chk-serasa" value="serasa"> Serasa <span class="tag">Financeiro</span></div>
+          <div class="agent-check"><input type="checkbox" id="chk-frete" value="frete"> Frete <span class="tag">Todos</span></div>
+          <div class="agent-check"><input type="checkbox" id="chk-tracking" value="tracking"> Tracking <span class="tag">Operacional</span></div>
+          <div class="agent-check"><input type="checkbox" id="chk-cotacao" value="cotacao"> Cotação <span class="tag">Comercial</span></div>
+        </div>
+
+        <button class="btn-save" id="admin-save">Salvar Permissões</button>
+        <div class="saved-msg" id="admin-saved">Permissões salvas!</div>
+      </div>
+    </div>
   </div>
 
   <script>
-    var defaultEmail = 'paulo.zanella@mondshipping.com.br';
+    // ========== PROFILES ==========
+    var PROFILES = {
+      master:       ['cambio', 'serasa', 'frete', 'tracking', 'cotacao'],
+      financeiro:   ['cambio', 'serasa', 'frete'],
+      operacional:  ['tracking', 'frete'],
+      comercial:    ['cotacao', 'frete']
+    };
+
+    var PROFILE_LABELS = {
+      master: 'Master',
+      financeiro: 'Financeiro',
+      operacional: 'Operacional',
+      comercial: 'Comercial',
+      custom: 'Personalizado'
+    };
+
+    var ADMIN_PASSWORD = 'atom2026';
+
+    // ========== INIT ==========
     var emailInput = document.getElementById('pricing-email');
     var saveBtn = document.getElementById('save-btn');
     var savedMsg = document.getElementById('saved-msg');
+    var agentsGrid = document.getElementById('agents-grid');
+    var statusText = document.getElementById('status-text');
+    var profileBadge = document.getElementById('profile-badge');
+    var profileNameEl = document.getElementById('profile-name');
 
-    chrome.storage.local.get('pricingEmail', function(data) {
-      emailInput.value = data.pricingEmail || defaultEmail;
+    // Load saved config
+    chrome.storage.local.get(['pricingEmail', 'enabledAgents', 'userProfile'], function(data) {
+      emailInput.value = data.pricingEmail || 'paulo.zanella@mondshipping.com.br';
+
+      var profile = data.userProfile || 'master';
+      var enabled = data.enabledAgents || PROFILES.master;
+
+      applyPermissions(enabled, profile);
     });
 
+    // ========== APPLY PERMISSIONS ==========
+    function applyPermissions(enabledAgents, profile) {
+      var cards = agentsGrid.querySelectorAll('.agent-card');
+      var visibleCount = 0;
+
+      for (var i = 0; i < cards.length; i++) {
+        var agentId = cards[i].getAttribute('data-agent');
+        if (enabledAgents.indexOf(agentId) >= 0) {
+          cards[i].classList.remove('disabled');
+          visibleCount++;
+        } else {
+          cards[i].classList.add('disabled');
+        }
+      }
+
+      // Update status
+      if (visibleCount === 5) {
+        statusText.textContent = 'Todos os agentes ativos';
+      } else {
+        statusText.textContent = visibleCount + ' agentes ativos';
+      }
+
+      // Update profile badge
+      profileNameEl.textContent = PROFILE_LABELS[profile] || profile;
+    }
+
+    // ========== SAVE EMAIL ==========
     saveBtn.addEventListener('click', function() {
       var email = emailInput.value.trim();
       if (!email || !email.includes('@')) {
@@ -312,6 +549,142 @@
           saveBtn.textContent = 'Salvar';
           saveBtn.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
         }, 2000);
+      });
+    });
+
+    // ========== ADMIN: 5 CLICKS ON LOGO ==========
+    var clickCount = 0;
+    var clickTimer = null;
+    var brandLogo = document.getElementById('brand-logo');
+
+    brandLogo.addEventListener('click', function() {
+      clickCount++;
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(function() { clickCount = 0; }, 1500);
+
+      if (clickCount >= 5) {
+        clickCount = 0;
+        openAdmin();
+      }
+    });
+
+    // ========== ADMIN MODAL ==========
+    var adminOverlay = document.getElementById('admin-overlay');
+    var closeAdmin = document.getElementById('close-admin');
+    var adminPassword = document.getElementById('admin-password');
+    var adminUnlock = document.getElementById('admin-unlock');
+    var passwordError = document.getElementById('password-error');
+    var passwordField = document.getElementById('password-field');
+    var adminContent = document.getElementById('admin-content');
+    var profileSelect = document.getElementById('profile-select');
+    var adminSave = document.getElementById('admin-save');
+    var adminSaved = document.getElementById('admin-saved');
+
+    function openAdmin() {
+      adminOverlay.style.display = 'block';
+      adminPassword.value = '';
+      passwordError.style.display = 'none';
+      adminContent.classList.remove('visible');
+      passwordField.style.display = 'block';
+      adminUnlock.style.display = 'block';
+      adminPassword.focus();
+    }
+
+    closeAdmin.addEventListener('click', function() {
+      adminOverlay.style.display = 'none';
+    });
+
+    adminOverlay.addEventListener('click', function(e) {
+      if (e.target === adminOverlay) adminOverlay.style.display = 'none';
+    });
+
+    // Unlock with password
+    adminUnlock.addEventListener('click', function() {
+      if (adminPassword.value === ADMIN_PASSWORD) {
+        passwordField.style.display = 'none';
+        adminUnlock.style.display = 'none';
+        adminContent.classList.add('visible');
+
+        // Load current config
+        chrome.storage.local.get(['enabledAgents', 'userProfile'], function(data) {
+          var profile = data.userProfile || 'master';
+          var enabled = data.enabledAgents || PROFILES.master;
+
+          profileSelect.value = profile;
+          updateCheckboxes(enabled);
+        });
+      } else {
+        passwordError.style.display = 'block';
+        adminPassword.style.borderColor = 'rgba(239,68,68,0.5)';
+        setTimeout(function() {
+          passwordError.style.display = 'none';
+          adminPassword.style.borderColor = 'rgba(255,255,255,0.1)';
+        }, 2000);
+      }
+    });
+
+    // Enter key on password
+    adminPassword.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') adminUnlock.click();
+    });
+
+    // Profile select changes checkboxes
+    profileSelect.addEventListener('change', function() {
+      var profile = profileSelect.value;
+      if (profile !== 'custom' && PROFILES[profile]) {
+        updateCheckboxes(PROFILES[profile]);
+      }
+    });
+
+    function updateCheckboxes(enabledList) {
+      var checkboxes = document.querySelectorAll('.agent-check input');
+      for (var i = 0; i < checkboxes.length; i++) {
+        checkboxes[i].checked = enabledList.indexOf(checkboxes[i].value) >= 0;
+      }
+    }
+
+    function getCheckedAgents() {
+      var checked = [];
+      var checkboxes = document.querySelectorAll('.agent-check input');
+      for (var i = 0; i < checkboxes.length; i++) {
+        if (checkboxes[i].checked) checked.push(checkboxes[i].value);
+      }
+      return checked;
+    }
+
+    // When checkboxes change, switch to custom if doesn't match a profile
+    document.getElementById('agent-checks').addEventListener('change', function() {
+      var checked = getCheckedAgents();
+      var matched = false;
+      for (var p in PROFILES) {
+        if (JSON.stringify(PROFILES[p].sort()) === JSON.stringify(checked.sort())) {
+          profileSelect.value = p;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) profileSelect.value = 'custom';
+    });
+
+    // Save permissions
+    adminSave.addEventListener('click', function() {
+      var profile = profileSelect.value;
+      var enabled = getCheckedAgents();
+
+      chrome.storage.local.set({
+        userProfile: profile,
+        enabledAgents: enabled
+      }, function() {
+        applyPermissions(enabled, profile);
+        adminSaved.style.display = 'block';
+        adminSave.textContent = 'Salvo!';
+        adminSave.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+        setTimeout(function() {
+          adminSaved.style.display = 'none';
+          adminSave.textContent = 'Salvar Permissões';
+          adminSave.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
+          adminOverlay.style.display = 'none';
+        }, 1500);
       });
     });
   </script>
