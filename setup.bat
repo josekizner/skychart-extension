@@ -1,5 +1,4 @@
 @echo off
-chcp 65001 >nul 2>nul
 title Atom - Setup
 color 0B
 
@@ -9,38 +8,38 @@ echo   ATOM - Setup Extensao Mond Shipping
 echo  ===================================
 echo.
 
-:: Verifica git
-where git >nul 2>nul
-if errorlevel 1 (
-    echo [ERRO] Git nao esta instalado!
-    echo Baixe em: https://git-scm.com/download/win
+set "INSTALL_DIR=%USERPROFILE%\atom-extension"
+set "ZIP_URL=https://github.com/josekizner/skychart-extension/archive/refs/heads/main.zip"
+set "ZIP_FILE=%TEMP%\atom-ext.zip"
+
+:: 1. Baixa o ZIP do GitHub
+echo [1/4] Baixando extensao...
+powershell -Command "Invoke-WebRequest -Uri '%ZIP_URL%' -OutFile '%ZIP_FILE%'" 2>nul
+if not exist "%ZIP_FILE%" (
+    echo [ERRO] Falha ao baixar. Verifique a internet.
     pause
     exit /b 1
 )
+echo   Download concluido!
 
-:: Pasta de instalacao
-set "INSTALL_DIR=%USERPROFILE%\atom-extension"
-echo [1/4] Pasta: %INSTALL_DIR%
+:: 2. Extrai
+echo [2/4] Extraindo...
+if exist "%INSTALL_DIR%" rmdir /s /q "%INSTALL_DIR%" >nul 2>nul
+powershell -Command "Expand-Archive -Path '%ZIP_FILE%' -DestinationPath '%TEMP%\atom-tmp' -Force"
+move "%TEMP%\atom-tmp\skychart-extension-main" "%INSTALL_DIR%" >nul 2>nul
+rmdir /s /q "%TEMP%\atom-tmp" >nul 2>nul
+del "%ZIP_FILE%" >nul 2>nul
 
-if exist "%INSTALL_DIR%\.git" (
-    echo   Extensao ja instalada. Atualizando...
-    cd /d "%INSTALL_DIR%"
-    git pull origin main --quiet
-    echo   Atualizado!
-) else (
-    echo   Clonando repositorio...
-    git clone https://github.com/josekizner/skychart-extension.git "%INSTALL_DIR%" --quiet
-    if errorlevel 1 (
-        echo [ERRO] Falha ao clonar.
-        pause
-        exit /b 1
-    )
-    echo   Clonado!
+if not exist "%INSTALL_DIR%\manifest.json" (
+    echo [ERRO] Falha na extracao.
+    pause
+    exit /b 1
 )
+echo   Extraido em %INSTALL_DIR%
 
-:: Seleciona departamento
+:: 3. Seleciona departamento
 echo.
-echo [2/4] Selecione o departamento:
+echo [3/4] Selecione o departamento:
 echo.
 echo   1 = Financeiro   (Cambio + Serasa + Frete)
 echo   2 = Operacional  (Tracking + Frete)
@@ -61,16 +60,23 @@ if not defined PROFILE (
 )
 
 echo   Perfil: %PROFILE%
-
-:: Salva config
 echo {"profile":"%PROFILE%"} > "%INSTALL_DIR%\local-config.json"
-echo [3/4] Configuracao salva.
 
-:: Auto-update via Task Scheduler
+:: 4. Auto-update (baixa ZIP a cada 30 min)
 echo [4/4] Configurando auto-update...
-echo @echo off > "%INSTALL_DIR%\do-update.bat"
-echo cd /d "%INSTALL_DIR%" >> "%INSTALL_DIR%\do-update.bat"
-echo git pull origin main --quiet >> "%INSTALL_DIR%\do-update.bat"
+
+(
+echo @echo off
+echo set "INSTALL_DIR=%INSTALL_DIR%"
+echo set "ZIP_URL=%ZIP_URL%"
+echo set "ZIP_FILE=%%TEMP%%\atom-ext.zip"
+echo powershell -Command "Invoke-WebRequest -Uri '%%ZIP_URL%%' -OutFile '%%ZIP_FILE%%'" 2^>nul
+echo if not exist "%%ZIP_FILE%%" exit /b 1
+echo powershell -Command "Expand-Archive -Path '%%ZIP_FILE%%' -DestinationPath '%%TEMP%%\atom-tmp' -Force"
+echo xcopy "%%TEMP%%\atom-tmp\skychart-extension-main\*" "%%INSTALL_DIR%%\" /s /y /q ^>nul 2^>nul
+echo rmdir /s /q "%%TEMP%%\atom-tmp" ^>nul 2^>nul
+echo del "%%ZIP_FILE%%" ^>nul 2^>nul
+) > "%INSTALL_DIR%\do-update.bat"
 
 schtasks /create /tn "AtomExtensionUpdate" /tr "\"%INSTALL_DIR%\do-update.bat\"" /sc minute /mo 30 /f >nul 2>nul
 if errorlevel 1 (
@@ -79,7 +85,6 @@ if errorlevel 1 (
     echo   Auto-update agendado (a cada 30 min).
 )
 
-:: Pronto
 echo.
 echo  ===================================
 echo   INSTALACAO CONCLUIDA!
