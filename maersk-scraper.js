@@ -8,12 +8,6 @@
 (function() {
     'use strict';
 
-    // Permission check
-    var _agentAllowed = true;
-    chrome.storage.local.get('enabledAgents', function(d) {
-        if (d.enabledAgents && d.enabledAgents.indexOf('tracking') < 0) { _agentAllowed = false; console.log('[Maersk] Desabilitado'); }
-    });
-
     console.log('[Maersk Scraper] Carregado em:', window.location.href);
 
     // Só executa se foi aberto pela extensão (via flag na URL)
