@@ -333,7 +333,7 @@
             var old = panel.querySelector('#atom-client-rules');
             if (old) old.remove();
 
-            var rulesHtml = ['<div id="atom-client-rules" style="padding:8px 10px;background:rgba(255,152,0,0.15);border-top:1px solid rgba(255,152,0,0.3);font-size:11px;">'];
+            var rulesHtml = ['<div id="atom-client-rules" style="padding:10px 12px;margin:10px 8px 4px;background:rgba(255,152,0,0.12);border:1px solid rgba(255,152,0,0.25);border-radius:8px;font-size:11px;text-align:center;">'];
             rulesHtml.push('<div style="color:#ff9800;font-weight:bold;margin-bottom:4px;">⚠ Acordo Comercial — ' + (rules.cliente || clienteName) + '</div>');
 
             var hasContent = false;
@@ -373,10 +373,10 @@
             rulesHtml.push('<div style="color:#555;font-size:9px;margin-top:3px;">Atualizado: ' + (rules.lastUpdated || '').substring(0, 10) + '</div>');
             rulesHtml.push('</div>');
 
-            // Insere antes dos botões de ação
+            // Insere DEPOIS dos botões de ação
             var actionsDiv = panel.querySelector('#atom-outlook-actions');
             if (actionsDiv) {
-                actionsDiv.insertAdjacentHTML('beforebegin', rulesHtml.join('\n'));
+                actionsDiv.insertAdjacentHTML('afterend', rulesHtml.join('\n'));
             } else {
                 panel.insertAdjacentHTML('beforeend', rulesHtml.join('\n'));
             }
@@ -423,10 +423,10 @@
 
                 rulesHtml.push('</div>');
 
-                // Insere antes dos botões ou no final
+                // Insere DEPOIS dos botões ou no final
                 var actionsDiv = panel.querySelector('#atom-outlook-actions');
                 if (actionsDiv) {
-                    actionsDiv.insertAdjacentHTML('beforebegin', rulesHtml.join('\n'));
+                    actionsDiv.insertAdjacentHTML('afterend', rulesHtml.join('\n'));
                 } else {
                     panel.insertAdjacentHTML('beforeend', rulesHtml.join('\n'));
                 }
