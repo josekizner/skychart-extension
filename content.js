@@ -537,20 +537,304 @@ try {
                                 setTimeout(function() {
                                     clickButtonByText('Filtrar');
                                     console.log('[Atom Oferta] Filtrar clicado!');
-                                    showToast('Tarifário filtrado!', 'success', 5000);
+                                    showToast('Tarifário filtrado! Analisando rotas...', 'info', 3000);
+
+                                    // 5. Analisa tarifários: yellow rows, observações, seleção inteligente
+                                    setTimeout(function() {
+                                        analyzeTarifarios(quote);
+                                    }, 3000);
                                 }, 1000);
                             });
                         } else {
                             console.log('[Atom Oferta] Container multiselect nao encontrado, pulando...');
                             setTimeout(function() {
                                 clickButtonByText('Filtrar');
-                                showToast('Tarifário filtrado!', 'success', 5000);
+                                showToast('Tarifário filtrado! Analisando rotas...', 'info', 3000);
+                                setTimeout(function() {
+                                    analyzeTarifarios(quote);
+                                }, 3000);
                             }, 1000);
                         }
                     }, 2000);
                 });
             }, 2000);
         });
+    }
+
+    // =============================================
+    // ANÁLISE INTELIGENTE DE TARIFÁRIOS
+    // =============================================
+    function analyzeTarifarios(quote) {
+        console.log('[Atom Oferta] === ANÁLISE INTELIGENTE DE TARIFÁRIOS ===');
+
+        // Carrega regras do acordo do cliente
+        var clienteKey = 'acordo_' + (quote.cliente || 'unknown').toLowerCase().replace(/\s+/g, '_');
+        chrome.storage.local.get(clienteKey, function(data) {
+            var clientRules = data[clienteKey] || { armadoresBloqueados: [], incluirIOF: false };
+            console.log('[Atom Oferta] Regras carregadas:', clientRules);
+
+            // Pega a tabela de tarifários
+            var table = document.querySelector('.ui-table-scrollable-body table, p-table table, .ui-table table');
+            if (!table) {
+                console.log('[Atom Oferta] Tabela de tarifários nao encontrada');
+                showToast('Tabela de tarifários não encontrada', 'error', 4000);
+                return;
+            }
+
+            var rows = table.querySelectorAll('tbody tr');
+            console.log('[Atom Oferta] Linhas na tabela:', rows.length);
+
+            if (rows.length === 0) {
+                showToast('Nenhum tarifário encontrado', 'warning', 4000);
+                return;
+            }
+
+            // Analisa cada linha
+            var tarifarios = [];
+            var yellowRows = [];
+
+            for (var r = 0; r < rows.length; r++) {
+                var row = rows[r];
+                var cells = row.querySelectorAll('td');
+                if (cells.length < 8) continue;
+
+                var tarInfo = {
+                    rowIndex: r,
+                    rowElement: row,
+                    cod: '',
+                    descricao: '',
+                    isYellow: false,
+                    origem: '',
+                    destino: '',
+                    armador: '',
+                    agente: '',
+                    container: '',
+                    frete: 0,
+                    observacao: '',
+                    eligible: true,
+                    rejectReason: ''
+                };
+
+                // Extrai dados das colunas
+                for (var c = 0; c < cells.length; c++) {
+                    var headerText = '';
+                    // Tenta mapear pela posição das colunas
+                    var th = table.querySelectorAll('thead th');
+                    if (th[c]) headerText = th[c].textContent.trim().toLowerCase();
+
+                    var cellText = cells[c].textContent.trim();
+
+                    if (headerText.indexOf('cod') >= 0) tarInfo.cod = cellText;
+                    if (headerText.indexOf('descri') >= 0 || c === 1) {
+                        tarInfo.descricao = cellText;
+                        // Checa se é amarelo
+                        var cellBg = window.getComputedStyle(cells[c]).backgroundColor;
+                        var cellStyle = cells[c].getAttribute('style') || '';
+                        var innerSpan = cells[c].querySelector('span, div');
+                        var innerBg = innerSpan ? window.getComputedStyle(innerSpan).backgroundColor : '';
+                        if (cellBg.indexOf('255, 255, 0') >= 0 || cellBg.indexOf('255, 193') >= 0 ||
+                            cellBg.indexOf('rgb(255, 2') >= 0 || cellStyle.indexOf('yellow') >= 0 ||
+                            cellStyle.indexOf('#ff') >= 0 || innerBg.indexOf('255, 255, 0') >= 0 ||
+                            innerBg.indexOf('255, 193') >= 0 || cells[c].classList.contains('amarelo') ||
+                            (innerSpan && innerSpan.style && innerSpan.style.backgroundColor)) {
+                            tarInfo.isYellow = true;
+                        }
+                    }
+                    if (headerText.indexOf('origem') >= 0) tarInfo.origem = cellText;
+                    if (headerText.indexOf('destino') >= 0) tarInfo.destino = cellText;
+                    if (headerText.indexOf('armador') >= 0) tarInfo.armador = cellText;
+                    if (headerText.indexOf('agente') >= 0) tarInfo.agente = cellText;
+                    if (headerText.indexOf('cont') >= 0 && headerText.indexOf('conta') < 0) tarInfo.container = cellText;
+                }
+
+                // Checa armador bloqueado
+                if (clientRules.armadoresBloqueados && clientRules.armadoresBloqueados.length > 0) {
+                    for (var ab = 0; ab < clientRules.armadoresBloqueados.length; ab++) {
+                        if (tarInfo.armador.toUpperCase().indexOf(clientRules.armadoresBloqueados[ab]) >= 0) {
+                            tarInfo.eligible = false;
+                            tarInfo.rejectReason = 'Armador bloqueado: ' + clientRules.armadoresBloqueados[ab];
+                            console.log('[Atom Oferta] ✗ Linha', tarInfo.cod, '- BLOQUEADO:', tarInfo.rejectReason);
+                        }
+                    }
+                }
+
+                tarifarios.push(tarInfo);
+                if (tarInfo.isYellow) yellowRows.push(tarInfo);
+            }
+
+            console.log('[Atom Oferta] Total tarifários:', tarifarios.length, '| Amarelos:', yellowRows.length);
+
+            // Se tem linhas amarelas, lê as observações de cada uma (sequencial)
+            if (yellowRows.length > 0) {
+                showToast('Verificando ' + yellowRows.length + ' restrições (linhas amarelas)...', 'warning', 4000);
+                readYellowObservations(yellowRows, 0, function() {
+                    // Após ler todas, faz cross-check e seleciona
+                    crossCheckAndSelect(tarifarios, quote, clientRules);
+                });
+            } else {
+                // Sem amarelos, direto pro cross-check
+                crossCheckAndSelect(tarifarios, quote, clientRules);
+            }
+        });
+    }
+
+    // Lê observações das linhas amarelas (sequencial, uma por uma)
+    function readYellowObservations(yellowRows, index, callback) {
+        if (index >= yellowRows.length) {
+            callback();
+            return;
+        }
+
+        var tar = yellowRows[index];
+        console.log('[Atom Oferta] Lendo observação do tarifário:', tar.cod, '(', index + 1, '/', yellowRows.length, ')');
+
+        // Clica no botão "..." da linha
+        var row = tar.rowElement;
+        var dotsBtn = row.querySelector('.ui-button-text, button');
+        // Procura botão com "..." dentro da linha
+        var allBtns = row.querySelectorAll('button, .ui-button, span.ui-clickable');
+        for (var b = 0; b < allBtns.length; b++) {
+            if (allBtns[b].textContent.trim() === '...') {
+                dotsBtn = allBtns[b];
+                break;
+            }
+        }
+
+        if (!dotsBtn || dotsBtn.textContent.trim() !== '...') {
+            console.log('[Atom Oferta] Botao ... nao encontrado na linha', tar.cod);
+            readYellowObservations(yellowRows, index + 1, callback);
+            return;
+        }
+
+        // Clica no "..."
+        var clickTarget = dotsBtn;
+        if (clickTarget.tagName === 'SPAN') {
+            var parent = clickTarget.closest('button') || clickTarget.closest('.ui-button');
+            if (parent) clickTarget = parent;
+        }
+        clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+        clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+        clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+
+        // Espera dialog abrir e lê o textarea
+        setTimeout(function() {
+            var dialog = document.querySelector('.ui-dialog, p-dialog');
+            if (dialog) {
+                var textarea = dialog.querySelector('textarea');
+                if (textarea) {
+                    tar.observacao = textarea.value || textarea.textContent || '';
+                    console.log('[Atom Oferta] Obs. tarifário', tar.cod, ':', tar.observacao.substring(0, 100));
+
+                    // Cross-check com mercadoria
+                    var obsUpper = tar.observacao.toUpperCase();
+                    var mercUpper = (quote.mercadoria || '').toUpperCase();
+
+                    // NAC = Named Account: apenas para tipos específicos de carga
+                    if (obsUpper.indexOf('NAC') >= 0) {
+                        // Verifica se é para carga química/IMO
+                        if (obsUpper.indexOf('QUIMIC') >= 0 || obsUpper.indexOf('IMO') >= 0) {
+                            // A mercadoria do cliente é química?
+                            if (mercUpper.indexOf('QUIMIC') < 0 && mercUpper.indexOf('IMO') < 0 &&
+                                mercUpper.indexOf('CHEMICAL') < 0) {
+                                tar.eligible = false;
+                                tar.rejectReason = 'NAC: apenas carga química/IMO (mercadoria: ' + quote.mercadoria + ')';
+                                console.log('[Atom Oferta] ✗ Linha', tar.cod, '- INELEGÍVEL:', tar.rejectReason);
+                            }
+                        }
+                    }
+
+                    // Sobrepeso
+                    if (obsUpper.indexOf('SOBREPESO') >= 0) {
+                        tar.observacao += ' [⚠ SUJEITO A SOBREPESO]';
+                        console.log('[Atom Oferta] ⚠ Linha', tar.cod, '- Sujeito a SOBREPESO');
+                    }
+                }
+
+                // Fecha o dialog — clica em "Atualizar" ou no X
+                var closeBtn = dialog.querySelector('.ui-dialog-titlebar-close, .ui-dialog-titlebar-icon');
+                if (closeBtn) {
+                    closeBtn.click();
+                } else {
+                    // Tenta botão Atualizar
+                    var btns = dialog.querySelectorAll('button, .ui-button-text');
+                    for (var bi = 0; bi < btns.length; bi++) {
+                        if (btns[bi].textContent.trim() === 'Atualizar') {
+                            btns[bi].click();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Próxima linha amarela (delay pra dialog fechar)
+            setTimeout(function() {
+                readYellowObservations(yellowRows, index + 1, callback);
+            }, 1500);
+
+        }, 2000);
+    }
+
+    // Cross-check final e seleção da melhor rota
+    function crossCheckAndSelect(tarifarios, quote, clientRules) {
+        console.log('[Atom Oferta] === CROSS-CHECK E SELEÇÃO ===');
+
+        // Pega o frete de cada linha na tabela de Taxas (quando a linha é selecionada)
+        // Por agora, vamos usar a tabela de tarifários diretamente
+        // O frete fica visível na seção Taxas quando uma linha é clicada
+
+        var eligible = tarifarios.filter(function(t) { return t.eligible; });
+        var ineligible = tarifarios.filter(function(t) { return !t.eligible; });
+
+        console.log('[Atom Oferta] Elegíveis:', eligible.length, '| Inelegíveis:', ineligible.length);
+
+        if (ineligible.length > 0) {
+            var reasons = ineligible.map(function(t) { return t.cod + ': ' + t.rejectReason; });
+            console.log('[Atom Oferta] Rotas descartadas:', reasons.join(' | '));
+        }
+
+        if (eligible.length === 0) {
+            showToast('⚠ Nenhuma rota elegível! Todas filtradas por restrições.', 'error', 8000);
+            return;
+        }
+
+        // Mostra resumo do que foi descartado e pede seleção
+        var summary = '✓ ' + eligible.length + ' rotas elegíveis';
+        if (ineligible.length > 0) {
+            summary += ' | ✗ ' + ineligible.length + ' descartadas';
+        }
+        showToast(summary, 'info', 5000);
+
+        // Seleciona a primeira linha elegível (clica nela)
+        // O operador vai revisar e decidir o frete, mas já destacamos as elegíveis
+        var bestRow = eligible[0].rowElement;
+        if (bestRow) {
+            // Marca visualmente as inelegíveis
+            for (var ie = 0; ie < ineligible.length; ie++) {
+                if (ineligible[ie].rowElement) {
+                    ineligible[ie].rowElement.style.opacity = '0.35';
+                    ineligible[ie].rowElement.style.textDecoration = 'line-through';
+                    ineligible[ie].rowElement.title = '✗ ' + ineligible[ie].rejectReason;
+                }
+            }
+
+            // Marca as elegíveis com borda verde
+            for (var el = 0; el < eligible.length; el++) {
+                if (eligible[el].rowElement) {
+                    eligible[el].rowElement.style.borderLeft = '3px solid #4caf50';
+                }
+            }
+
+            // Clica na primeira elegível
+            bestRow.click();
+            console.log('[Atom Oferta] Linha selecionada:', eligible[0].cod, '- Armador:', eligible[0].armador);
+
+            // Depois de selecionar, espera Taxas carregar, e clica em Vincular
+            setTimeout(function() {
+                showToast('Rota ' + eligible[0].cod + ' selecionada (' + eligible[0].armador + '). Revise e clique Vincular.', 'success', 8000);
+                // Auto-vincular: clickButtonByText('Vincular');
+                // Por segurança, deixa o operador revisar antes
+            }, 2000);
+        }
     }
 
     // Mapeia código de equipamento pro nome no Skychart
