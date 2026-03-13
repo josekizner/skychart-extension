@@ -303,19 +303,18 @@
     chrome.storage.local.get(['pricingEmail','enabledAgents','userProfile','configLoaded'], function(d) {
       document.getElementById('pricing-email').value = d.pricingEmail || 'paulo.zanella@mondshipping.com.br';
 
-      // Auto-load from local-config.json if first time
-      if (!d.configLoaded) {
-        fetch(chrome.runtime.getURL('local-config.json'))
-          .then(function(r) { return r.json(); })
-          .then(function(cfg) {
-            var agents = PROFILES[cfg.profile] || PROFILES.master;
-            chrome.storage.local.set({ userProfile: cfg.profile, enabledAgents: agents, configLoaded: true });
-            applyPermissions(agents, cfg.profile);
-          })
-          .catch(function() { chrome.storage.local.set({ configLoaded: true }); });
-      }
-
-      applyPermissions(d.enabledAgents || PROFILES.master, d.userProfile || 'master');
+      // Sempre tenta ler local-config.json pra garantir perfil certo
+      fetch(chrome.runtime.getURL('local-config.json'))
+        .then(function(r) { return r.json(); })
+        .then(function(cfg) {
+          var agents = PROFILES[cfg.profile] || PROFILES.master;
+          chrome.storage.local.set({ userProfile: cfg.profile, enabledAgents: agents, configLoaded: true });
+          applyPermissions(agents, cfg.profile);
+        })
+        .catch(function() {
+          // Sem local-config.json, usa o que tiver no storage (ou default master)
+          applyPermissions(d.enabledAgents || PROFILES.master, d.userProfile || 'master');
+        });
     });
 
     function applyPermissions(agents, profile) {
@@ -328,6 +327,16 @@
       }
       document.getElementById('status-text').textContent = n === 5 ? 'Todos os agentes ativos' : n + ' agentes ativos';
       document.getElementById('profile-name').textContent = LABELS[profile] || profile;
+      // Esconde gear e config pra nao-master
+      var gearBtn = document.getElementById('gear-btn');
+      var configSection = document.querySelector('.config-section');
+      if (profile !== 'master') {
+        if (gearBtn) gearBtn.style.display = 'none';
+        if (configSection) configSection.style.display = 'none';
+      } else {
+        if (gearBtn) gearBtn.style.display = '';
+        if (configSection) configSection.style.display = '';
+      }
     }
 
     // Save email
