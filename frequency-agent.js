@@ -1,22 +1,29 @@
 // ============================================================
 // FREQUENCY AGENT — Monitor de Frequência de Cotação
 // Roda em /app/oferta, analisa recência de cotação por cliente
+// v2 — cache local, ordenação por coluna, cot/mês
 // ============================================================
 (function() {
     'use strict';
 
     var TAG = '[Freq Agent]';
-    var API_URL = 'https://server-mond.tail46f98e.ts.net/api/comercial';
-    var API_TOKEN = 'b2e7c1f4-8a2d-4e3b-9c6a-7f1e2d5a9b3c';
     var ALERT_EMAIL = 'jose.kizner@mondshipping.com.br';
     var COOLDOWN_DAYS = 7;
     var panelCreated = false;
+
+    // ===== CACHE =====
+    var _cachedClients = null;
+    var _cacheTime = 0;
+    var CACHE_TTL = 10 * 60 * 1000; // 10 minutos
+
+    // ===== SORT STATE =====
+    var _sortCol = 'daysSinceLast';
+    var _sortDir = -1; // -1 = desc, 1 = asc
 
     function isContextValid() {
         try { return !!chrome.runtime && !!chrome.runtime.id; } catch(e) { return false; }
     }
 
-    // ===== DETECTA MÓDULO =====
     function isOfertaPage() {
         return location.href.indexOf('/app/oferta') >= 0;
     }
@@ -40,7 +47,6 @@
 
         document.body.appendChild(panel);
 
-        // Click na barra expande/colapsa
         document.getElementById('atom-freq-bar').addEventListener('click', function(e) {
             if (e.target.id === 'freq-minimize') return;
             togglePanel();
@@ -67,7 +73,14 @@
         var panel = document.getElementById('atom-freq-panel');
         panel.classList.add('expanded');
         document.getElementById('freq-minimize').style.display = '';
-        loadData();
+
+        // Se tem cache válido, renderiza direto
+        if (_cachedClients && (Date.now() - _cacheTime < CACHE_TTL)) {
+            console.log(TAG, 'Usando cache local (' + _cachedClients.length + ' clientes)');
+            renderPanel(_cachedClients);
+        } else {
+            loadData();
+        }
     }
 
     function collapsePanel() {
@@ -81,19 +94,17 @@
         var content = document.getElementById('atom-freq-content');
         content.innerHTML = '<div class="freq-loading"><div class="freq-spinner"></div>Carregando dados da API comercial...</div>';
 
-        // Pede pro background.js buscar
         chrome.runtime.sendMessage({ action: 'fetchFrequencyData' }, function(response) {
             if (!response || !response.success) {
                 content.innerHTML = '<div style="color:#f87171;padding:16px;">Erro ao carregar dados: ' + (response ? response.error : 'sem resposta') + '</div>';
                 return;
             }
-            processAndRender(response.data);
+            processData(response.data);
         });
     }
 
     // ===== CALCULO DE FREQUÊNCIA =====
-    function processAndRender(quotes) {
-        // Agrupa por cliente
+    function processData(quotes) {
         var clientMap = {};
         quotes.forEach(function(q) {
             if (!q.DS_CLIENTE) return;
@@ -122,38 +133,37 @@
             if (q.DS_RESPONSAVEL_INSIDE_SALES) c.insideSales = q.DS_RESPONSAVEL_INSIDE_SALES;
         });
 
-        // Calcula frequência pra cada cliente
         var clients = [];
         var now = new Date();
 
         for (var name in clientMap) {
             var c = clientMap[name];
-            if (c.dates.length < 2) continue; // Precisa de pelo menos 2 cotações
+            if (c.dates.length < 2) continue;
 
-            // Ordena por data
             c.dates.sort(function(a, b) { return a - b; });
 
-            // Calcula gaps
             var gaps = [];
             for (var i = 1; i < c.dates.length; i++) {
                 var gap = (c.dates[i] - c.dates[i-1]) / (1000 * 60 * 60 * 24);
-                if (gap > 0 && gap < 180) gaps.push(gap); // Ignora gaps > 6 meses
+                if (gap > 0 && gap < 180) gaps.push(gap);
             }
 
             if (gaps.length === 0) continue;
 
-            // Remove outliers (> 3x mediana)
             gaps.sort(function(a, b) { return a - b; });
             var median = gaps[Math.floor(gaps.length / 2)];
             var filtered = gaps.filter(function(g) { return g <= median * 3; });
             if (filtered.length === 0) filtered = gaps;
 
-            // Média
             var avgGap = filtered.reduce(function(s, g) { return s + g; }, 0) / filtered.length;
 
-            // Dias desde última cotação
             var lastDate = c.dates[c.dates.length - 1];
+            var firstDate = c.dates[0];
             var daysSince = (now - lastDate) / (1000 * 60 * 60 * 24);
+
+            // Cotações por mês
+            var spanMonths = Math.max(1, (lastDate - firstDate) / (1000 * 60 * 60 * 24 * 30.4));
+            var quotesPerMonth = c.totalQuotes / spanMonths;
 
             // Status
             var status = 'ok';
@@ -169,6 +179,7 @@
                 totalQuotes: c.totalQuotes,
                 approved: c.approved,
                 avgGapDays: Math.round(avgGap * 10) / 10,
+                quotesPerMonth: Math.round(quotesPerMonth * 10) / 10,
                 daysSinceLast: Math.round(daysSince * 10) / 10,
                 lastDate: lastDate,
                 ratio: ratio,
@@ -178,17 +189,16 @@
             });
         }
 
-        // Ordena: atrasados primeiro, depois por ratio decrescente
-        clients.sort(function(a, b) {
-            var sa = a.status === 'atrasado' ? 0 : a.status === 'atencao' ? 1 : 2;
-            var sb = b.status === 'atrasado' ? 0 : b.status === 'atencao' ? 1 : 2;
-            if (sa !== sb) return sa - sb;
-            return b.ratio - a.ratio;
-        });
+        // Cache
+        _cachedClients = clients;
+        _cacheTime = Date.now();
+        console.log(TAG, 'Dados processados:', clients.length, 'clientes (cache atualizado)');
 
+        // Sort padrão
+        sortClients(clients);
         renderPanel(clients);
 
-        // Auto-notifica atrasados
+        // Auto-notifica
         autoNotify(clients.filter(function(c) { return c.status === 'atrasado'; }));
     }
 
@@ -207,13 +217,43 @@
         return clean;
     }
 
+    // ===== SORT =====
+    function sortClients(clients) {
+        var col = _sortCol;
+        var dir = _sortDir;
+        clients.sort(function(a, b) {
+            var va = a[col], vb = b[col];
+            if (typeof va === 'string') {
+                va = va.toLowerCase(); vb = (vb || '').toLowerCase();
+                return va < vb ? -dir : va > vb ? dir : 0;
+            }
+            if (va instanceof Date) {
+                va = va.getTime(); vb = vb ? vb.getTime() : 0;
+            }
+            return ((va || 0) - (vb || 0)) * dir;
+        });
+    }
+
+    function onHeaderClick(col) {
+        if (_sortCol === col) {
+            _sortDir *= -1; // Inverte direção
+        } else {
+            _sortCol = col;
+            _sortDir = -1;
+        }
+        if (_cachedClients) {
+            sortClients(_cachedClients);
+            renderPanel(_cachedClients);
+        }
+    }
+
     // ===== RENDER =====
     function renderPanel(clients) {
         var atrasados = clients.filter(function(c) { return c.status === 'atrasado'; }).length;
         var atencao = clients.filter(function(c) { return c.status === 'atencao'; }).length;
         var ok = clients.filter(function(c) { return c.status === 'ok'; }).length;
 
-        // Update badge
+        // Badge
         var badge = document.getElementById('freq-badge');
         if (atrasados > 0) {
             badge.textContent = atrasados;
@@ -223,6 +263,12 @@
             badge.className = 'freq-badge ok';
         }
 
+        // Arrow helper
+        function arrow(col) {
+            if (_sortCol !== col) return '';
+            return _sortDir === 1 ? ' ▲' : ' ▼';
+        }
+
         var html = [];
 
         // Stats
@@ -230,17 +276,24 @@
         html.push('  <div class="freq-stat"><div class="freq-stat-value red">' + atrasados + '</div><div class="freq-stat-label">Atrasados</div></div>');
         html.push('  <div class="freq-stat"><div class="freq-stat-value yellow">' + atencao + '</div><div class="freq-stat-label">Atenção</div></div>');
         html.push('  <div class="freq-stat"><div class="freq-stat-value green">' + ok + '</div><div class="freq-stat-label">Em dia</div></div>');
-        html.push('  <div class="freq-stat"><div class="freq-stat-value">' + clients.length + '</div><div class="freq-stat-label">Total</div></div>');
+        html.push('  <div class="freq-stat"><div class="freq-stat-value">' + clients.length + '</div><div class="freq-stat-label">Clientes</div></div>');
         html.push('</div>');
 
-        // Tabela
+        // Tabela com headers clicáveis
         html.push('<table class="freq-table">');
         html.push('<thead><tr>');
-        html.push('  <th>Cliente</th><th>Vendedor</th><th>Freq. Média</th><th>Última Cotação</th><th>Dias sem cotar</th><th>Status</th><th></th>');
+        html.push('  <th class="freq-th-sort" data-col="name">Cliente' + arrow('name') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="vendedor">Vendedor' + arrow('vendedor') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="totalQuotes">Total Cot.' + arrow('totalQuotes') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="quotesPerMonth">Cot./Mês' + arrow('quotesPerMonth') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="avgGapDays">Freq. Média' + arrow('avgGapDays') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="lastDate">Última Cot.' + arrow('lastDate') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="daysSinceLast">Dias s/ cotar' + arrow('daysSinceLast') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="status">Status' + arrow('status') + '</th>');
+        html.push('  <th></th>');
         html.push('</tr></thead><tbody>');
 
-        var max = Math.min(clients.length, 50); // Max 50 na view
-        for (var i = 0; i < max; i++) {
+        for (var i = 0; i < clients.length; i++) {
             var c = clients[i];
             var rowClass = c.status === 'atrasado' ? 'risk-high' : c.status === 'atencao' ? 'risk-medium' : 'risk-ok';
             var statusLabel = c.status === 'atrasado' ? 'Atrasado' : c.status === 'atencao' ? 'Atenção' : 'OK';
@@ -248,31 +301,38 @@
             var lastDateStr = c.lastDate ? c.lastDate.toLocaleDateString('pt-BR') : '—';
 
             html.push('<tr class="' + rowClass + '" data-client="' + encodeURIComponent(JSON.stringify(c)) + '">');
-            html.push('  <td title="' + c.originalName + '"><strong>' + c.name.substring(0, 28) + '</strong></td>');
+            html.push('  <td title="' + c.originalName + '"><strong>' + c.name.substring(0, 30) + '</strong></td>');
             html.push('  <td>' + (c.vendedor || '—').split(' ')[0] + '</td>');
+            html.push('  <td style="text-align:center">' + c.totalQuotes + '</td>');
+            html.push('  <td style="text-align:center"><strong>' + c.quotesPerMonth + '</strong></td>');
             html.push('  <td>' + c.avgGapDays + ' dias</td>');
             html.push('  <td>' + lastDateStr + '</td>');
             html.push('  <td><strong>' + Math.round(c.daysSinceLast) + '</strong> dias</td>');
             html.push('  <td><span class="freq-status ' + statusClass + '">' + statusLabel + '</span></td>');
 
             if (c.status === 'atrasado' || c.status === 'atencao') {
-                html.push('  <td><button class="freq-email-btn" data-idx="' + i + '">📧 Email</button></td>');
+                html.push('  <td><button class="freq-email-btn" data-idx="' + i + '">📧</button></td>');
             } else {
                 html.push('  <td></td>');
             }
-
             html.push('</tr>');
         }
 
         html.push('</tbody></table>');
-
-        // Container de email (escondido)
         html.push('<div id="freq-email-zone"></div>');
 
         var content = document.getElementById('atom-freq-content');
         content.innerHTML = html.join('\n');
 
-        // Bind nos botões de email
+        // Bind sort headers
+        content.querySelectorAll('.freq-th-sort').forEach(function(th) {
+            th.style.cursor = 'pointer';
+            th.addEventListener('click', function() {
+                onHeaderClick(th.getAttribute('data-col'));
+            });
+        });
+
+        // Bind email buttons
         content.querySelectorAll('.freq-email-btn').forEach(function(btn) {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -282,7 +342,6 @@
             });
         });
 
-        // Salva dados pra referência
         window._freqClients = clients;
     }
 
@@ -291,7 +350,6 @@
         var zone = document.getElementById('freq-email-zone');
         zone.innerHTML = '<div class="freq-loading"><div class="freq-spinner"></div>Gemini gerando email para ' + client.name + '...</div>';
 
-        // Manda pro Gemini gerar
         chrome.runtime.sendMessage({
             action: 'generateChurnEmail',
             client: {
@@ -313,7 +371,7 @@
             var draft = response.data;
             var html = [
                 '<div class="freq-email-draft">',
-                '  <h4>📧 Email para: ' + client.originalName + '</h4>',
+                '  <h4>Email para: ' + client.originalName + '</h4>',
                 '  <div style="color:#64748b;font-size:10px;margin-bottom:8px;">Assunto: ' + (draft.subject || 'Acompanhamento de cotação') + '</div>',
                 '  <textarea id="freq-email-body">' + (draft.body || '') + '</textarea>',
                 '  <div class="freq-email-actions">',
@@ -325,7 +383,6 @@
 
             zone.innerHTML = html;
 
-            // Bind
             document.getElementById('freq-send-email').addEventListener('click', function() {
                 sendViaOutlook(draft.subject || 'Acompanhamento de cotação', document.getElementById('freq-email-body').value, client);
             });
@@ -337,15 +394,12 @@
 
     // ===== ENVIO VIA OUTLOOK WEB =====
     function sendViaOutlook(subject, body, client) {
-        // Abre uma nova aba do Outlook Web com compose pré-preenchido
         var encodedSubject = encodeURIComponent(subject);
         var encodedBody = encodeURIComponent(body);
-        // Outlook Web deeplink pra compose
         var composeUrl = 'https://outlook.office.com/mail/deeplink/compose?subject=' + encodedSubject + '&body=' + encodedBody;
 
         window.open(composeUrl, '_blank');
 
-        // Salva que enviamos alerta pra esse cliente (cooldown)
         var cooldownKey = 'freq_alert_' + client.name.replace(/\s+/g, '_');
         var data = {};
         data[cooldownKey] = { sentAt: new Date().toISOString(), client: client.name };
@@ -358,7 +412,6 @@
     function autoNotify(atrasados) {
         if (atrasados.length === 0) return;
 
-        // Verifica cooldown
         var keys = atrasados.map(function(c) { return 'freq_notify_' + c.name.replace(/\s+/g, '_'); });
         chrome.storage.local.get(keys, function(data) {
             var now = new Date();
@@ -369,25 +422,17 @@
                 var last = data[key];
                 if (last && last.sentAt) {
                     var diff = (now - new Date(last.sentAt)) / (1000 * 60 * 60 * 24);
-                    if (diff < COOLDOWN_DAYS) return; // Cooldown ativo
+                    if (diff < COOLDOWN_DAYS) return;
                 }
                 toNotify.push(c);
             });
 
             if (toNotify.length === 0) return;
 
-            // Monta resumo e envia pro master
             var lines = toNotify.map(function(c) {
                 return c.name + ': cota a cada ' + c.avgGapDays + ' dias, está há ' + Math.round(c.daysSinceLast) + ' dias sem cotar';
             });
 
-            var subject = '⚠ Atom Frequência: ' + toNotify.length + ' cliente(s) atrasado(s)';
-            var body = 'Olá José,\n\nOs seguintes clientes estão com frequência de cotação abaixo do esperado:\n\n' + lines.join('\n') + '\n\nAcesse o Skychart > Ofertas para mais detalhes.\n\nAtom Agent';
-
-            // Abre compose no Outlook em background
-            var composeUrl = 'https://outlook.office.com/mail/deeplink/compose?to=' + encodeURIComponent(ALERT_EMAIL) + '&subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-
-            // Não abre automaticamente — salva pra notificação Chrome
             chrome.runtime.sendMessage({
                 action: 'healthCheckAlert',
                 data: {
@@ -401,7 +446,6 @@
                 }
             });
 
-            // Marca cooldown
             toNotify.forEach(function(c) {
                 var key = 'freq_notify_' + c.name.replace(/\s+/g, '_');
                 var obj = {};
@@ -409,7 +453,7 @@
                 chrome.storage.local.set(obj);
             });
 
-            console.log(TAG, 'Notificação enviada pro Master:', toNotify.length, 'clientes atrasados');
+            console.log(TAG, toNotify.length, 'clientes atrasados notificados');
         });
     }
 
@@ -417,6 +461,15 @@
     function init() {
         if (!isOfertaPage()) return;
         createPanel();
+        // Pre-load data em background pra abrir instantâneo
+        if (!_cachedClients) {
+            chrome.runtime.sendMessage({ action: 'fetchFrequencyData' }, function(response) {
+                if (response && response.success) {
+                    processData(response.data);
+                    console.log(TAG, 'Dados pré-carregados em background');
+                }
+            });
+        }
         console.log(TAG, 'Agente inicializado em /app/oferta');
     }
 
@@ -432,13 +485,13 @@
         });
     }
 
-    // Observer: detecta navegação SPA
     var lastUrl = location.href;
     var urlCheckInterval = setInterval(function() {
         if (!isContextValid()) { clearInterval(urlCheckInterval); return; }
         if (location.href !== lastUrl) {
             lastUrl = location.href;
             panelCreated = false;
+            _cachedClients = null;
             var old = document.getElementById('atom-freq-panel');
             if (old) old.remove();
             if (isOfertaPage()) init();

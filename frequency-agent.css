@@ -119,6 +119,14 @@
     position: sticky;
     top: 0;
     background: rgba(15,23,42,0.98);
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+    white-space: nowrap;
+}
+
+.freq-table th:hover {
+    color: #a5b4fc;
 }
 
 .freq-table td {
