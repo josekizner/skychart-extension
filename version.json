@@ -1,5 +1,5 @@
 {
-  "version": "2.2.0",
+  "version": "2.3.0",
   "date": "2026-03-13",
-  "changelog": "Check agent: cotacao vs custos. Cambio: formatBR, banco 98424, vision verify DOM fallback. Auto-update."
+  "changelog": "Check agent financeiro: fix botao no lugar certo (APP-FATURA-IDENTIFICACAO), fix parser PDF pula Tipo de Cobranca, retry loop pra Arquivos accordion."
 }

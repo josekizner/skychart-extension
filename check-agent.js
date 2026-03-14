@@ -51,18 +51,31 @@
         }
 
         if (modulo === 'financeiro') {
-            // No financeiro, busca botões "Atualizar" ou "Excluir" perto da tabela Itens
-            // Ou busca a tabela Itens com colunas Custo/Total
-            var allBtns = document.querySelectorAll('button');
-            var anchorBtn = null;
-            for (var j = 0; j < allBtns.length; j++) {
-                var btxt = (allBtns[j].textContent || '').trim().toLowerCase();
-                if (btxt === 'atualizar' || btxt === 'excluir' || btxt.indexOf('chequeio') >= 0) {
-                    // Verifica se esse botão está perto de uma tabela com "Custo"
-                    anchorBtn = allBtns[j];
+            // Financeiro: busca Atualizar/Excluir DENTRO de APP-FATURA-IDENTIFICACAO
+            // (não pegar o Atualizar da Cobrança que é outro componente)
+            var faturaIdent = document.querySelector('APP-FATURA-IDENTIFICACAO, app-fatura-identificacao');
+            if (faturaIdent) {
+                var identBtns = faturaIdent.querySelectorAll('button');
+                var anchorBtn = null;
+                for (var j = 0; j < identBtns.length; j++) {
+                    var btxt = (identBtns[j].textContent || '').trim().toLowerCase();
+                    if (btxt === 'excluir') {
+                        anchorBtn = identBtns[j];
+                        break;
+                    }
                 }
+                // Fallback: pega Atualizar se não achou Excluir
+                if (!anchorBtn) {
+                    for (var j2 = 0; j2 < identBtns.length; j2++) {
+                        var btxt2 = (identBtns[j2].textContent || '').trim().toLowerCase();
+                        if (btxt2 === 'atualizar') {
+                            anchorBtn = identBtns[j2];
+                            break;
+                        }
+                    }
+                }
+                if (anchorBtn) injectCheckButton(anchorBtn);
             }
-            if (anchorBtn) injectCheckButton(anchorBtn);
         }
     });
 
@@ -288,22 +301,27 @@
         }
 
         archivosTab.click();
-        await delay(2000);
+        await delay(1500);
 
-        // Busca row com "Cotação Cliente" na tabela de Tipos de Arquivo
-        var allRows = document.querySelectorAll('tr');
+        // Busca row com "Cotação Cliente" — retry loop (accordion pode demorar pra carregar)
         var targetRow = null;
-        for (var r = 0; r < allRows.length; r++) {
-            var rowText = allRows[r].textContent || '';
-            if (rowText.indexOf('Cotação Cliente') >= 0 || rowText.indexOf('Cotacao Cliente') >= 0) {
-                targetRow = allRows[r];
-                console.log(TAG, 'Cotação Cliente encontrada na row', r);
-                break;
+        for (var attempt = 0; attempt < 10; attempt++) {
+            var allRows = document.querySelectorAll('tr');
+            for (var r = 0; r < allRows.length; r++) {
+                var rowText = allRows[r].textContent || '';
+                if (rowText.indexOf('Cotação Cliente') >= 0 || rowText.indexOf('Cotacao Cliente') >= 0) {
+                    targetRow = allRows[r];
+                    console.log(TAG, 'Cotação Cliente encontrada na row', r, '(tentativa', attempt + 1 + ')');
+                    break;
+                }
             }
+            if (targetRow) break;
+            console.log(TAG, 'Cotação Cliente não encontrada, tentativa', attempt + 1, '/ 10...');
+            await delay(1000);
         }
 
         if (!targetRow) {
-            console.log(TAG, 'Nenhuma row com "Cotação Cliente"');
+            console.log(TAG, 'Cotação Cliente não encontrada após 10 tentativas');
             return null;
         }
 
@@ -355,11 +373,13 @@
             }
         }
 
-        // Volta pra aba Custos
-        var custosTab = findAccordionHeader('Custos');
-        if (custosTab) {
-            custosTab.click();
-            await delay(800);
+        // Volta pra aba Custos (só no operacional — no financeiro Itens não é accordion)
+        if (modulo === 'operacional') {
+            var custosTab = findAccordionHeader('Custos');
+            if (custosTab) {
+                custosTab.click();
+                await delay(800);
+            }
         }
 
         // Fetch o PDF diretamente (content script tem os cookies!)
@@ -449,6 +469,8 @@
             var moeda = line;
             
             // Olha PRA TRÁS pra achar o nome da taxa (máx 5 linhas)
+            // Pattern do PDF: [Taxa] → [Tipo de Cobrança] → [Moeda] → [números]
+            // Precisamos pular o "Tipo de Cobrança" (Por Kg ou dm, Por AWB, Fixo, % do...)
             var taxaName = '';
             for (var back = m - 1; back >= Math.max(0, m - 6); back--) {
                 var candidate = lines[back];
@@ -460,6 +482,11 @@
                 if (candidate === '-' || candidate.length < 3) continue;
                 if (skipWords.indexOf(candLower) >= 0) continue;
                 if (candLower.indexOf('total ') >= 0) continue;
+
+                // Pula "Tipo de Cobrança" — padrões conhecidos do PDF
+                if (candLower.match(/^por\s/)) continue;          // "Por Kg ou dm", "Por AWB", "Por Container"...
+                if (candLower === 'fixo') continue;                // "Fixo"
+                if (candLower.match(/^%/)) continue;               // "% do Custo de Frete + ..."
                 
                 taxaName = candidate;
                 break;
