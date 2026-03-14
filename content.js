@@ -43,6 +43,26 @@ try {
                 });
             }, 2000);
         }
+
+        // Navegacao SPA: booking agent pede pra ir pra operacional
+        if (msg.action === 'navigateToBooking') {
+            console.log('[Atom Booking] Navegando pra operacional via SPA hash...');
+            window.location.hash = '#/app/operacional';
+
+            setTimeout(function() {
+                chrome.storage.local.get('pendingBooking', function(data) {
+                    if (!data.pendingBooking) {
+                        console.log('[Atom Booking] Sem booking pendente');
+                        return;
+                    }
+                    var booking = data.pendingBooking;
+                    console.log('[Atom Booking] Booking pendente encontrado:', booking);
+                    chrome.storage.local.remove('pendingBooking');
+
+                    processBookingFromEmail(booking);
+                });
+            }, 2000);
+        }
     });
 
     // ========================================================================
@@ -253,6 +273,309 @@ try {
                 console.log('[Atom Oferta] Campo Modalidade nao encontrado');
             }
         });
+    }
+
+    // ========================================================================
+    // BOOKING AGENT — Processa booking vindo do Outlook
+    // ========================================================================
+
+    async function processBookingFromEmail(booking) {
+        console.log('[Atom Booking] Processando booking:', booking.processo);
+        showToast('Booking Agent: Buscando processo ' + booking.processo + '...', 'info', 5000);
+
+        // ===== 1. Ctrl+Space → abre busca flutuante =====
+        document.dispatchEvent(new KeyboardEvent('keydown', {
+            key: ' ', code: 'Space', keyCode: 32, ctrlKey: true, bubbles: true
+        }));
+        await delay(800);
+
+        // ===== 2. Digita o numero do processo na busca =====
+        var searchInput = document.querySelector('#floating-search');
+        if (!searchInput) {
+            // Retry: tenta novamente o Ctrl+Space
+            document.dispatchEvent(new KeyboardEvent('keydown', {
+                key: ' ', code: 'Space', keyCode: 32, ctrlKey: true, bubbles: true
+            }));
+            await delay(1500);
+            searchInput = document.querySelector('#floating-search');
+        }
+
+        if (!searchInput) {
+            showToast('Erro: Campo de busca nao abriu. Pressione Ctrl+Space manualmente.', 'error', 8000);
+            return;
+        }
+
+        searchInput.focus();
+        searchInput.value = '';
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await delay(300);
+
+        // Digita char-by-char para ativar o autocomplete Angular
+        var processo = booking.processo || '';
+        for (var ci = 0; ci < processo.length; ci++) {
+            searchInput.value += processo[ci];
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: processo[ci], bubbles: true }));
+            searchInput.dispatchEvent(new KeyboardEvent('keyup', { key: processo[ci], bubbles: true }));
+            await delay(80);
+        }
+
+        showToast('Buscando processo ' + processo + '...', 'info', 3000);
+        await delay(2000);
+
+        // ===== 3. Seleciona o resultado do dropdown =====
+        var matchFound = false;
+        var dropdownItems = document.querySelectorAll('.autocomplete-list li, .pesquisa-overlay li, span.match');
+        for (var di = 0; di < dropdownItems.length; di++) {
+            var itemText = dropdownItems[di].textContent || '';
+            if (itemText.indexOf(processo) >= 0) {
+                console.log('[Atom Booking] Match encontrado:', itemText);
+                dropdownItems[di].click();
+
+                // Se é um span.match, clica no pai (li)
+                var parentLi = dropdownItems[di].closest('li');
+                if (parentLi) parentLi.click();
+
+                matchFound = true;
+                break;
+            }
+        }
+
+        if (!matchFound) {
+            showToast('Processo ' + processo + ' nao encontrado no dropdown. Selecione manualmente.', 'warning', 8000);
+            return;
+        }
+
+        showToast('Processo encontrado! Abrindo...', 'success', 3000);
+        await delay(3000);
+
+        // ===== 4. Abre a aba Embarque =====
+        var embarqueOpened = false;
+        var allAccHeaders = document.querySelectorAll('.ui-accordion-header, a[role="tab"], .ui-accordion-header-text');
+        for (var ah = 0; ah < allAccHeaders.length; ah++) {
+            var headerText = allAccHeaders[ah].textContent || '';
+            if (headerText.indexOf('Embarque') >= 0) {
+                console.log('[Atom Booking] Encontrou aba Embarque:', headerText);
+                allAccHeaders[ah].click();
+                embarqueOpened = true;
+                break;
+            }
+        }
+
+        if (!embarqueOpened) {
+            showToast('Aba Embarque nao encontrada. Abra manualmente.', 'warning', 8000);
+        }
+
+        await delay(2000);
+
+        // ===== 5. Preenche os campos do Embarque =====
+        showToast('Preenchendo campos do embarque...', 'info', 5000);
+
+        // 5a. Booking (Reserva)
+        var bookingInput = document.querySelector('#formularioEmbarque-dsReserva');
+        if (bookingInput && booking.booking_number) {
+            console.log('[Atom Booking] Preenchendo booking:', booking.booking_number);
+            bookingInput.focus();
+            bookingInput.value = booking.booking_number;
+            bookingInput.dispatchEvent(new Event('input', { bubbles: true }));
+            bookingInput.dispatchEvent(new Event('change', { bubbles: true }));
+            bookingInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
+            bookingInput.dispatchEvent(new Event('blur', { bubbles: true }));
+            if (typeof SkAgent !== 'undefined') SkAgent.highlight(bookingInput);
+            console.log('[Atom Booking] Booking preenchido OK');
+        }
+        await delay(600);
+
+        // 5b. Navio (autocomplete — charByChar)
+        if (booking.navio && typeof SkAgent !== 'undefined' && SkAgent.engine) {
+            var navioInput = null;
+
+            // Tenta achar autocomplete de navio na seção Embarque
+            var viagemRef = document.querySelector('#formularioEmbarque-dsViagem');
+            if (viagemRef) {
+                var embarqueSection = viagemRef.closest('.ui-accordion-content, form, .ui-panel-content');
+                if (embarqueSection) {
+                    var acInputs = embarqueSection.querySelectorAll('input.ui-autocomplete-input');
+                    if (acInputs.length > 0) navioInput = acInputs[0];
+                }
+            }
+
+            if (navioInput) {
+                console.log('[Atom Booking] Preenchendo navio:', booking.navio);
+                var r1 = await SkAgent.engine.charByChar(navioInput, booking.navio, { selectFirst: true, tabAfter: true });
+                if (r1.ok) {
+                    console.log('[Atom Booking] Navio preenchido OK');
+                } else {
+                    console.log('[Atom Booking] Navio falhou:', r1.reason);
+                }
+            }
+            await delay(600);
+        }
+
+        // 5c. Viagem
+        if (booking.viagem) {
+            var viagemInput = document.querySelector('#formularioEmbarque-dsViagem');
+            if (viagemInput) {
+                console.log('[Atom Booking] Preenchendo viagem:', booking.viagem);
+                viagemInput.focus();
+                viagemInput.click();
+                if (typeof SkAgent !== 'undefined') {
+                    SkAgent.engine.nativeSet(viagemInput, booking.viagem);
+                } else {
+                    viagemInput.value = booking.viagem;
+                    viagemInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                viagemInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true }));
+                viagemInput.dispatchEvent(new Event('blur', { bubbles: true }));
+                if (typeof SkAgent !== 'undefined') SkAgent.highlight(viagemInput);
+                console.log('[Atom Booking] Viagem preenchida OK');
+            }
+            await delay(600);
+        }
+
+        // 5d. ETD (Previsao Embarque)
+        if (booking.etd) {
+            var etdInput = document.querySelector('#formularioEmbarque-dtPrevisaoEmbarque');
+            if (etdInput) {
+                console.log('[Atom Booking] Preenchendo ETD:', booking.etd);
+                if (typeof SkAgent !== 'undefined' && SkAgent.engine) {
+                    await SkAgent.engine.charByChar(etdInput, booking.etd, { selectFirst: false, tabAfter: true });
+                } else {
+                    etdInput.focus();
+                    etdInput.value = booking.etd;
+                    etdInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    etdInput.dispatchEvent(new Event('blur', { bubbles: true }));
+                }
+                console.log('[Atom Booking] ETD preenchido OK');
+            }
+            await delay(600);
+        }
+
+        // 5e. ETA (Previsao Atracacao)
+        if (booking.eta) {
+            var etaInput = document.querySelector('#formularioEmbarque-dtPrevisaoAtracacao');
+            if (etaInput) {
+                console.log('[Atom Booking] Preenchendo ETA:', booking.eta);
+                if (typeof SkAgent !== 'undefined' && SkAgent.engine) {
+                    await SkAgent.engine.charByChar(etaInput, booking.eta, { selectFirst: false, tabAfter: true });
+                } else {
+                    etaInput.focus();
+                    etaInput.value = booking.eta;
+                    etaInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    etaInput.dispatchEvent(new Event('blur', { bubbles: true }));
+                }
+                console.log('[Atom Booking] ETA preenchido OK');
+            }
+            await delay(600);
+        }
+
+        showToast('Campos preenchidos! Iniciando cross-check Maersk...', 'success', 5000);
+
+        // ===== 6. Cross-check Maersk =====
+        if (booking.booking_number && booking.armador && booking.armador.toLowerCase().indexOf('maersk') >= 0) {
+            crossCheckMaersk(booking);
+        } else if (booking.booking_number) {
+            // Armador nao é Maersk — apenas confirma preenchimento
+            showPersistentToast(
+                '✓ Booking preenchido com sucesso!',
+                'Processo: ' + booking.processo + ' | Booking: ' + booking.booking_number,
+                'success'
+            );
+        }
+    }
+
+    // Cross-check Maersk: abre tracking e compara dados
+    function crossCheckMaersk(booking) {
+        console.log('[Atom Booking] Iniciando cross-check Maersk para:', booking.booking_number);
+        showToast('Cross-check: Consultando Maersk tracking...', 'info', 8000);
+
+        // Abre Maersk tracking em background
+        chrome.runtime.sendMessage({
+            action: 'openMaerskTracking',
+            bookingNumber: booking.booking_number
+        });
+
+        // Escuta resultado do tracking
+        var crossCheckHandler = function(msg) {
+            if (msg.action !== 'trackingDataReady') return;
+            chrome.runtime.onMessage.removeListener(crossCheckHandler);
+
+            if (msg.error || !msg.data || !msg.data.events || msg.data.events.length === 0) {
+                showPersistentToast(
+                    '⚠ Cross-check Maersk: Sem dados de tracking',
+                    'Booking ' + booking.booking_number + ' — dados de tracking nao disponiveis no site da Maersk.',
+                    'warning'
+                );
+                return;
+            }
+
+            var maersk = msg.data;
+            var divergencias = [];
+
+            // Compara navio
+            if (booking.navio && maersk.vessel) {
+                if (booking.navio.toUpperCase().indexOf(maersk.vessel.toUpperCase()) < 0 &&
+                    maersk.vessel.toUpperCase().indexOf(booking.navio.toUpperCase()) < 0) {
+                    divergencias.push('Navio: Email="' + booking.navio + '" vs Maersk="' + maersk.vessel + '"');
+                }
+            }
+
+            // Compara viagem
+            if (booking.viagem && maersk.voyage) {
+                if (booking.viagem.toUpperCase() !== maersk.voyage.toUpperCase()) {
+                    divergencias.push('Viagem: Email="' + booking.viagem + '" vs Maersk="' + maersk.voyage + '"');
+                }
+            }
+
+            if (divergencias.length === 0) {
+                showPersistentToast(
+                    '✓ Cross-check Maersk: TUDO OK!',
+                    'Navio: ' + (maersk.vessel || booking.navio || '—') + ' | Viagem: ' + (maersk.voyage || booking.viagem || '—') +
+                    ' | ETD: ' + (maersk.departureDate || '—') + ' | ETA: ' + (maersk.arrivalDate || '—'),
+                    'success'
+                );
+            } else {
+                showPersistentToast(
+                    '✗ Cross-check Maersk: DIVERGÊNCIAS!',
+                    divergencias.join(' | '),
+                    'error'
+                );
+            }
+        };
+
+        chrome.runtime.onMessage.addListener(crossCheckHandler);
+
+        // Timeout: se não responder em 45s
+        setTimeout(function() {
+            chrome.runtime.onMessage.removeListener(crossCheckHandler);
+        }, 45000);
+    }
+
+    // Toast persistente (fica até o usuário fechar)
+    function showPersistentToast(title, message, type) {
+        var colors = {
+            success: { bg: 'rgba(34,197,94,0.15)', border: 'rgba(34,197,94,0.4)', text: '#86efac', icon: '✓' },
+            warning: { bg: 'rgba(234,179,8,0.15)', border: 'rgba(234,179,8,0.4)', text: '#fde68a', icon: '⚠' },
+            error: { bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.4)', text: '#fca5a5', icon: '✗' }
+        };
+        var c = colors[type] || colors.success;
+
+        var toastDiv = document.createElement('div');
+        toastDiv.style.cssText = 'position:fixed;top:20px;right:20px;z-index:999999;max-width:450px;padding:16px 20px;' +
+            'background:' + c.bg + ';border:1px solid ' + c.border + ';border-radius:10px;' +
+            'box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:Segoe UI,sans-serif;cursor:pointer;' +
+            'backdrop-filter:blur(12px);animation:fadeIn 0.3s ease;';
+
+        toastDiv.innerHTML = '<div style="color:' + c.text + ';font-weight:700;font-size:13px;margin-bottom:6px;">' + title + '</div>' +
+            '<div style="color:#e2e8f0;font-size:11px;line-height:1.5;">' + message + '</div>' +
+            '<div style="color:#64748b;font-size:9px;margin-top:8px;">Clique para fechar</div>';
+
+        toastDiv.addEventListener('click', function() { toastDiv.remove(); });
+        document.body.appendChild(toastDiv);
+    }
+
+    function delay(ms) {
+        return new Promise(function(resolve) { setTimeout(resolve, ms); });
     }
 
     // Preenche input simples (nao-autocomplete)

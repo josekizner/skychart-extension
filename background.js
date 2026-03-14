@@ -87,6 +87,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  // Booking Agent: cross-check Maersk (abre em background)
+  if (request.action === "openMaerskTracking") {
+    const booking = request.bookingNumber;
+    const skychartTabId = sender.tab.id;
+
+    console.log("[Booking Cross-check] Abrindo Maersk tracking em background:", booking);
+
+    const trackingUrl = 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
+    chrome.tabs.create({ url: trackingUrl, active: false }, (tab) => {
+      pendingTrackingTabs[tab.id] = skychartTabId;
+      console.log("[Booking Cross-check] Tab aberta em background:", tab.id, "-> Skychart tab:", skychartTabId);
+    });
+
+    sendResponse({ success: true });
+    return true;
+  }
+
   // HMM Schedule: abre site e busca sailings
   if (request.action === "open_hmm_schedule") {
     const from = request.from;
@@ -535,7 +552,6 @@ Os valores estão corretos? Responda APENAS com JSON:
   if (request.action === "openSkychartOferta") {
     chrome.tabs.query({ url: "https://app2.skychart.com.br/*" }, function(tabs) {
       if (tabs && tabs.length > 0) {
-        // Usa tab existente — navega via hash (SPA)
         var tab = tabs[0];
         chrome.tabs.update(tab.id, { active: true }, function() {
           chrome.tabs.sendMessage(tab.id, {
@@ -544,12 +560,65 @@ Os valores estão corretos? Responda APENAS com JSON:
         });
         console.log("[Email Agent] Usando tab Skychart existente:", tab.id);
       } else {
-        // Sem tab Skychart aberta — abre nova
         chrome.tabs.create({
           url: "https://app2.skychart.com.br/skyline-mond-83474/#/app/oferta",
           active: true
         });
         console.log("[Email Agent] Abrindo nova tab Skychart");
+      }
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  // OUTLOOK: Analisa email de booking via Gemini
+  if (request.action === "analyzeBookingEmail") {
+    var bookingEmailText = "ASSUNTO: " + (request.subject || "") + "\n\nDE: " + (request.from || "") + "\n\nCORPO:\n" + (request.body || "");
+    
+    console.log("[Email Agent] Analisando booking...");
+
+    var bookingPrompt = BOOKING_PROMPT + "\n\nEMAIL:\n" + bookingEmailText;
+
+    fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: bookingPrompt }] }],
+        generationConfig: { temperature: 0.1 }
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      var text = result.candidates[0].content.parts[0].text;
+      text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      var data = JSON.parse(text);
+      console.log("[Email Agent] Booking extraido:", data);
+      sendResponse({ success: true, data: data });
+    })
+    .catch(function(err) {
+      console.error("[Email Agent] Erro Gemini booking:", err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true;
+  }
+
+  // OUTLOOK: Abre Skychart na tela operacional (booking)
+  if (request.action === "openSkychartBooking") {
+    chrome.tabs.query({ url: "https://app2.skychart.com.br/*" }, function(tabs) {
+      if (tabs && tabs.length > 0) {
+        var tab = tabs[0];
+        chrome.tabs.update(tab.id, { active: true }, function() {
+          chrome.tabs.sendMessage(tab.id, {
+            action: "navigateToBooking"
+          });
+        });
+        console.log("[Email Agent] Usando tab Skychart existente para booking:", tab.id);
+      } else {
+        chrome.tabs.create({
+          url: "https://app2.skychart.com.br/skyline-mond-83474/#/app/operacional",
+          active: true
+        });
+        console.log("[Email Agent] Abrindo nova tab Skychart operacional");
       }
       sendResponse({ success: true });
     });
@@ -977,6 +1046,38 @@ REGRAS PARA modal_tipo (MUITO IMPORTANTE - deduzir pelo contexto):
 - Valores validos para modal_tipo: "Importacao Maritima", "Importacao Aerea", "Importacao Rodoviaria", "Exportacao Maritima", "Exportacao Aerea", "Exportacao Rodoviaria", "Cabotagem", "Rodoviario Nacional", "Armazenagem"
 - Use EXATAMENTE um desses valores, com acento.
 
+- Retorne APENAS o JSON, nada mais.
+`;
+
+const BOOKING_PROMPT = `
+Voce e um extrator de dados especializado em confirmações de booking de frete maritimo.
+Analise o email abaixo e extraia os dados do booking. Retorne APENAS JSON puro (sem markdown, sem \`\`\`).
+
+{
+  "processo": "numero do processo (sempre começa com IM, ex: IM00230/26). Procure no assunto e corpo do email",
+  "booking_number": "codigo do booking/reserva (ex: SQM266242862, 961503629). E um codigo alfanumerico longo",
+  "armador": "nome do armador/carrier (Maersk, MSC, Hapag-Lloyd, CMA CGM, etc). Se mencionar MSK = Maersk",
+  "navio": "nome do navio se mencionado no email (ex: MAERSK ELBA). Pode nao estar presente",
+  "viagem": "numero da viagem se mencionado (ex: 611W). Pode nao estar presente",
+  "origem": "porto de origem (ex: QINGDAO, SHANGHAI, NINGBO)",
+  "destino": "porto de destino (ex: ITAPOA, NAVEGANTES, SANTOS)",
+  "container_tipo": "tipo de container (40HQ, 40HC, 20DV, etc)",
+  "container_qtd": "quantidade de containers",
+  "etd": "previsao de embarque/ETD no formato DD/MM/YYYY. Se vier como '21/MAR' converta para 21/03/2026. Use o ano correto do email",
+  "eta": "previsao de chegada/ETA no formato DD/MM/YYYY se mencionada",
+  "free_time": "dias de free time (ex: '21 DAYS' = '21 dias')",
+  "rate": "valor do frete com moeda (ex: USD 2600/40HQ)",
+  "observacoes": "notas adicionais relevantes"
+}
+
+REGRAS:
+- O PROCESSO (IM) geralmente aparece no assunto do email. Formato: IM + 5 digitos + /ano (ex: IM00230/26).
+- O BOOKING NUMBER e o codigo de reserva do armador. E alfanumerico, geralmente 9+ caracteres.
+- Se o armador nao for mencionado explicitamente, deduza: MSK/MAERSK = Maersk, MSC = MSC, ONE = Ocean Network Express.
+- Se ETD vier como dia/mes abreviado (ex: 21/MAR), converta para DD/MM/YYYY usando o ano do email.
+- FREE TIME pode aparecer como "FREE TIME 21 DAYS" ou "FT: 21D" ou similar.
+- O email pode conter muitos forwards e respostas. Foque nos dados mais recentes/relevantes.
+- Se um campo nao estiver presente no email, retorne string vazia "".
 - Retorne APENAS o JSON, nada mais.
 `;
 

@@ -24,6 +24,10 @@
             '      <span class="key">S</span>',
             '      <span class="label">Cotacao</span>',
             '    </div>',
+            '    <div class="atom-shortcut" data-action="booking" title="Processar como booking">',
+            '      <span class="key">W</span>',
+            '      <span class="label">Booking</span>',
+            '    </div>',
             '  </div>',
             '  <span class="atom-status" id="atom-email-status">Pronto</span>',
             '</div>'
@@ -37,6 +41,7 @@
             btn.addEventListener('click', function() {
                 var action = btn.getAttribute('data-action');
                 if (action === 'quote') processQuotation();
+                if (action === 'booking') processBooking();
             });
         });
 
@@ -474,6 +479,119 @@
     }
 
     // ==========================================
+    // PROCESSAMENTO DE BOOKING
+    // ==========================================
+
+    function processBooking() {
+        var email = getSelectedEmailContent();
+
+        if (!email.body || email.body.length < 20) {
+            showToast('Selecione um email de booking antes de pressionar W');
+            return;
+        }
+
+        setStatus('Lendo booking...', true);
+        console.log('[Atom Email] Booking email capturado:', email.subject);
+
+        var panel = document.getElementById('atom-outlook-panel');
+        panel.classList.add('expanded');
+        restorePanelSize(panel);
+
+        showPreview('<div class="atom-loading"><div class="atom-spinner"></div>Analisando booking via Gemini...</div>');
+
+        chrome.runtime.sendMessage({
+            action: 'analyzeBookingEmail',
+            subject: email.subject,
+            from: email.from,
+            body: email.body
+        }, function(response) {
+            if (response && response.success && response.data) {
+                console.log('[Atom Email] Booking extraido:', response.data);
+                showBookingPreview(response.data);
+                setStatus('Booking extraido', true);
+            } else {
+                var error = response ? response.error : 'Erro desconhecido';
+                showPreview('<div style="color:#ef4444;padding:20px;">Erro: ' + error + '</div>');
+                setStatus('Erro na analise', false);
+            }
+        });
+    }
+
+    function showBookingPreview(data) {
+        var html = [
+            '<div id="atom-outlook-preview">',
+            '  <h3>Booking Extraido</h3>',
+            '  <div class="atom-data-grid">'
+        ];
+
+        var fields = [
+            ['Processo', data.processo, true],
+            ['Booking', data.booking_number, true],
+            ['Armador', data.armador, true],
+            ['Navio', data.navio, false],
+            ['Viagem', data.viagem, false],
+            ['Origem', data.origem, true],
+            ['Destino', data.destino, true],
+            ['Container', (data.container_qtd || '') + ' x ' + (data.container_tipo || ''), false],
+            ['ETD', data.etd, true],
+            ['ETA', data.eta, false],
+            ['Free Time', data.free_time, true],
+            ['Rate', data.rate, false]
+        ];
+
+        fields.forEach(function(f) {
+            if (f[1]) {
+                html.push('    <span class="data-label">' + f[0] + '</span>');
+                html.push('    <span class="data-value' + (f[2] ? ' highlight' : '') + '">' + f[1] + '</span>');
+            }
+        });
+
+        html.push('  </div>');
+        html.push('</div>');
+
+        html.push('<div id="atom-outlook-actions">');
+        html.push('  <button class="atom-btn atom-btn-primary" id="atom-confirm-booking">Preencher Embarque</button>');
+        html.push('  <button class="atom-btn atom-btn-secondary" id="atom-cancel-booking">Cancelar</button>');
+        html.push('</div>');
+
+        var panel = document.getElementById('atom-outlook-panel');
+        var oldPreview = panel.querySelector('#atom-outlook-preview');
+        if (oldPreview) oldPreview.remove();
+        var oldActions = panel.querySelector('#atom-outlook-actions');
+        if (oldActions) oldActions.remove();
+        var oldRules = panel.querySelector('#atom-client-rules');
+        if (oldRules) oldRules.remove();
+
+        panel.insertAdjacentHTML('beforeend', html.join('\n'));
+
+        document.getElementById('atom-confirm-booking').addEventListener('click', function() {
+            confirmBooking(data);
+        });
+
+        document.getElementById('atom-cancel-booking').addEventListener('click', function() {
+            collapsePanel();
+        });
+    }
+
+    function confirmBooking(data) {
+        setStatus('Abrindo Skychart...', true);
+
+        chrome.storage.local.set({
+            pendingBooking: data
+        }, function() {
+            console.log('[Atom Email] Booking salvo, abrindo Skychart operacional...');
+
+            chrome.runtime.sendMessage({
+                action: 'openSkychartBooking',
+                data: data
+            });
+
+            showToast('Abrindo Skychart - Operacional...');
+            collapsePanel();
+        });
+    }
+
+    // ==========================================
     // UTILIDADES
     // ==========================================
 
@@ -527,6 +645,14 @@
                 e.stopPropagation();
                 console.log('[Atom Email] Atalho S pressionado - Cotacao');
                 processQuotation();
+            }
+
+            // W = Booking
+            if (e.key === 'w' || e.key === 'W') {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[Atom Email] Atalho W pressionado - Booking');
+                processBooking();
             }
         }, true); // capture phase pra pegar antes do Outlook
 
