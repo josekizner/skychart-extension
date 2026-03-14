@@ -315,9 +315,9 @@
 
         // Stats clicáveis
         html.push('<div class="freq-stats">');
-        html.push('  <div class="freq-stat freq-stat-click' + activeClass('atrasado') + '" data-filter="atrasado"><div class="freq-stat-value red">' + atrasados + '</div><div class="freq-stat-label">Atrasados</div></div>');
-        html.push('  <div class="freq-stat freq-stat-click' + activeClass('atencao') + '" data-filter="atencao"><div class="freq-stat-value yellow">' + atencao + '</div><div class="freq-stat-label">Atenção</div></div>');
-        html.push('  <div class="freq-stat freq-stat-click' + activeClass('ok') + '" data-filter="ok"><div class="freq-stat-value green">' + ok + '</div><div class="freq-stat-label">Em dia</div></div>');
+        html.push('  <div class="freq-stat freq-stat-click' + activeClass('atrasado') + '" data-filter="atrasado"><div class="freq-stat-value">' + atrasados + '</div><div class="freq-stat-label red">● Atrasados</div></div>');
+        html.push('  <div class="freq-stat freq-stat-click' + activeClass('atencao') + '" data-filter="atencao"><div class="freq-stat-value">' + atencao + '</div><div class="freq-stat-label yellow">● Atenção</div></div>');
+        html.push('  <div class="freq-stat freq-stat-click' + activeClass('ok') + '" data-filter="ok"><div class="freq-stat-value">' + ok + '</div><div class="freq-stat-label green">● Em dia</div></div>');
         html.push('  <div class="freq-stat freq-stat-click' + activeClass(null) + '" data-filter="all"><div class="freq-stat-value">' + clients.length + '</div><div class="freq-stat-label">Clientes</div></div>');
         html.push('</div>');
 

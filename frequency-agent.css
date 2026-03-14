@@ -163,10 +163,6 @@
     line-height: 1.2;
 }
 
-.freq-stat-value.red { color: #f87171; }
-.freq-stat-value.yellow { color: #fbbf24; }
-.freq-stat-value.green { color: #22c55e; }
-
 .freq-stat-label {
     font-size: 9px;
     color: #64748b;
@@ -174,6 +170,10 @@
     letter-spacing: 0.5px;
     margin-top: 2px;
 }
+
+.freq-stat-label.red { color: #f87171; }
+.freq-stat-label.yellow { color: #fbbf24; }
+.freq-stat-label.green { color: #22c55e; }
 
 /* Tabela de clientes */
 .freq-table {
