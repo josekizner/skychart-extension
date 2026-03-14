@@ -728,10 +728,13 @@
             }
         }
 
-        var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+        var html = '<div id="sk-check-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
         html += '<h3 style="margin:0;font-size:16px;color:#fff;">Chequeio: Oferta vs Sistema</h3>';
-        html += '<button onclick="this.closest(\'#sk-check-panel\').remove()" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;line-height:1;">✕</button>';
-        html += '</div>';
+        html += '<div style="display:flex;gap:6px;">';
+        html += '<button id="sk-check-minimize" style="background:none;border:none;color:#888;font-size:16px;cursor:pointer;line-height:1;padding:2px 4px;" title="Minimizar">▬</button>';
+        html += '<button onclick="this.closest(\'#sk-check-panel\').remove()" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;line-height:1;padding:2px 4px;" title="Fechar">✕</button>';
+        html += '</div></div>';
+        html += '<div id="sk-check-body">';
 
         // Resumo badges
         html += '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">';
@@ -847,9 +850,32 @@
         }
 
         html += '</table></div>';
+        html += '</div>'; // close sk-check-body
 
         panel.innerHTML = html;
         document.body.appendChild(panel);
+
+        // Minimize toggle
+        var minBtn = document.getElementById('sk-check-minimize');
+        if (minBtn) {
+            minBtn.addEventListener('click', function() {
+                var body = document.getElementById('sk-check-body');
+                var p = document.getElementById('sk-check-panel');
+                if (body.style.display === 'none') {
+                    body.style.display = '';
+                    p.style.width = '620px';
+                    p.style.maxHeight = '550px';
+                    minBtn.textContent = '▬';
+                    minBtn.title = 'Minimizar';
+                } else {
+                    body.style.display = 'none';
+                    p.style.width = '300px';
+                    p.style.maxHeight = '';
+                    minBtn.textContent = '▣';
+                    minBtn.title = 'Expandir';
+                }
+            });
+        }
     }
 
     function formatNumBR(num) {
