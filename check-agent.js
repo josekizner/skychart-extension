@@ -17,6 +17,10 @@
     });
     // ===== OBSERVER: Detecta quando a aba Custos é aberta =====
     var observer = new MutationObserver(function() {
+        // Se botão foi removido do DOM (Angular re-renderiza), reseta flag
+        if (checkBtnInjected && !document.getElementById('sk-check-btn')) {
+            checkBtnInjected = false;
+        }
         if (checkBtnInjected) return;
         
         // Verifica se estamos na página operacional
@@ -26,12 +30,12 @@
         var custosHeader = findAccordionHeader('Custos');
         if (!custosHeader) return;
 
-        // Procura os botões existentes (Atualizar debito, Recalcular custos)
+        // Procura os botões existentes (Atualizar debito, Recalcular custos, Chequeio)
         var actionBtns = document.querySelectorAll('button');
         var recalcBtn = null;
         for (var i = 0; i < actionBtns.length; i++) {
             var txt = (actionBtns[i].textContent || '').trim().toLowerCase();
-            if (txt.indexOf('recalcular') >= 0 || txt.indexOf('atualizar deb') >= 0) {
+            if (txt.indexOf('recalcular') >= 0 || txt.indexOf('atualizar deb') >= 0 || txt.indexOf('chequeio') >= 0) {
                 recalcBtn = actionBtns[i];
             }
         }
@@ -152,10 +156,15 @@
             var colText = (ths[ci].textContent || '').trim().toLowerCase();
             if (colText.indexOf('taxa') >= 0 && colMap.taxa === undefined) colMap.taxa = ci;
             if (colText.indexOf('tipo de cobran') >= 0 && colMap.tipoCobranca === undefined) colMap.tipoCobranca = ci;
-            if (colMap.moeda === undefined && colText.indexOf('moeda') >= 0 && colText.indexOf('compra') < 0 && colText.indexOf('venda') < 0) colMap.moeda = ci;
+            // Moeda VENDA é a que queremos (não moeda compra)
+            if (colText.indexOf('moeda venda') >= 0 || colText === 'moeda venda') colMap.moedaVenda = ci;
+            if (colMap.moeda === undefined && colText === 'moeda') colMap.moeda = ci;
             if (colText.indexOf('total venda') >= 0) colMap.totalVenda = ci;
             if (colText === 'venda' && colMap.totalVenda === undefined && colMap.venda === undefined) colMap.venda = ci;
         }
+
+        // Prioriza moeda venda sobre moeda genérica
+        if (colMap.moedaVenda !== undefined) colMap.moeda = colMap.moedaVenda;
 
         if (colMap.totalVenda === undefined && colMap.venda !== undefined) {
             colMap.totalVenda = colMap.venda;
@@ -355,101 +364,100 @@
     }
 
     // ===== PARSEIA PDF DE COTAÇÃO =====
+    // Abordagem: scan por moedas (USD/BRL) standalone, pega taxa olhando pra trás e total olhando pra frente
     function parseCotacaoPDF(text) {
         var items = [];
 
-        // Primeiro tenta formato pipe-delimited do Gemini: TAXA|MOEDA|VALOR
-        var lines = text.split('\n');
-        for (var p = 0; p < lines.length; p++) {
-            var parts = lines[p].trim().split('|');
+        // Primeiro tenta formato pipe-delimited (ex: Gemini)
+        var allLines = text.split('\n');
+        for (var p = 0; p < allLines.length; p++) {
+            var parts = allLines[p].trim().split('|');
             if (parts.length >= 3) {
                 var taxa = parts[0].trim();
                 var moeda = parts[1].trim();
                 var valor = parts[2].trim();
                 if (taxa && (moeda === 'USD' || moeda === 'BRL' || moeda === '%') && valor.match(/[\d.,]/)) {
-                    items.push({
-                        taxa: taxa,
-                        moeda: moeda,
-                        valor: valor,
-                        valorNum: parseNumBR(valor)
-                    });
+                    items.push({ taxa: taxa, moeda: moeda, valor: valor, valorNum: parseNumBR(valor) });
                 }
             }
         }
-
         if (items.length > 0) {
-            console.log(TAG, 'Parseado via formato pipe:', items.length, 'itens');
+            console.log(TAG, 'Parseado via pipe:', items.length, 'itens');
             return items;
         }
 
-        // Fallback: parser de seções do PDF bruto
-        var sections = text.split(/CUSTOS\s+(?:DE\s+FRETE|NO\s+DESTINO|NA\s+ORIGEM)/i);
+        // Abordagem: pega todas as linhas, procura cada ocorrência de USD/BRL standalone
+        // Pra cada uma, olha pra trás pra achar o nome da taxa, e pra frente pra achar os números
+        var lines = allLines.map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
+        
+        // Palavras que NÃO são nomes de taxa
+        var skipWords = ['taxa', 'tipo de cobrança', 'tipo de cobranca', 'equipamento', 'moeda', 
+                         'mínimo', 'minimo', 'valor unitário', 'valor unitario', 'total',
+                         'por container', 'por bl', 'por ton', '-', 'custos de frete', 
+                         'custos no destino', 'custos na origem', 'informações adicionais',
+                         'volume', 'equip/embalagem', 'commodity', 'observações', 'observacoes'];
 
-        // Se não encontrou seções, tenta parsear o texto todo
-        if (sections.length <= 1) {
-            // Parse genérico: procura padrões taxa + moeda + valor
-            var lines = text.split('\n');
-            items = parseGenericLines(lines);
-            return items;
-        }
+        console.log(TAG, 'PDF linhas totais:', lines.length);
 
-        // Parse cada seção (pula a primeira que é header)
-        for (var s = 1; s < sections.length; s++) {
-            var sectionText = sections[s];
-            var sectionEnd = sectionText.indexOf('Total custo');
-            if (sectionEnd > 0) sectionText = sectionText.substring(0, sectionEnd);
+        for (var m = 0; m < lines.length; m++) {
+            var line = lines[m];
 
-            var lines = sectionText.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
+            // Pula linhas que começam com "Total" (totais, não taxas)
+            if (line.match(/^Total/i)) continue;
 
-            // Pula header da seção (Taxa, Tipo de Cobrança, etc.)
-            var startIdx = 0;
-            for (var i = 0; i < lines.length; i++) {
-                if (lines[i] === 'Total' || lines[i] === 'Valor Unitário' || lines[i] === 'Valor unitário') {
-                    startIdx = i + 1;
-                    break;
-                }
-            }
+            // Procura moeda standalone
+            if (line !== 'USD' && line !== 'BRL' && line !== '%') continue;
 
-            // Parse em blocos: cada item de custo tem ~7 linhas
-            // Taxa, Tipo de Cobrança, Equipamento, Moeda, Mínimo, Valor Unitário, Total
-            var idx = startIdx;
-            while (idx < lines.length) {
-                var taxaName = lines[idx];
+            var moeda = line;
+            
+            // Olha PRA TRÁS pra achar o nome da taxa (máx 5 linhas)
+            var taxaName = '';
+            for (var back = m - 1; back >= Math.max(0, m - 6); back--) {
+                var candidate = lines[back];
+                var candLower = candidate.toLowerCase();
                 
-                // Se parece com nome de taxa (não é número, não é moeda curta)
-                if (taxaName && !taxaName.match(/^\d/) && taxaName.length > 2 && 
-                    taxaName !== 'BRL' && taxaName !== 'USD' && taxaName !== '%' &&
-                    taxaName !== '-' && taxaName !== 'Por Container' && taxaName !== 'Por BL') {
-                    
-                    // Procura moeda e valor total nos próximos ~6 linhas
-                    var moeda = '';
-                    var total = '';
-                    var blockEnd = Math.min(idx + 8, lines.length);
-                    
-                    for (var j = idx + 1; j < blockEnd; j++) {
-                        if (lines[j] === 'USD' || lines[j] === 'BRL' || lines[j] === '%') {
-                            moeda = lines[j];
-                        }
-                        // O último número é o Total
-                        if (lines[j].match(/^\d[\d.,]*$/)) {
-                            total = lines[j];
-                        }
-                    }
-
-                    if (moeda && total) {
-                        items.push({
-                            taxa: taxaName,
-                            moeda: moeda,
-                            valor: total,
-                            valorNum: parseNumBR(total)
-                        });
-                        // Avança pro próximo bloco
-                        idx = idx + 4; // pula pelo menos 4 linhas
-                        continue;
-                    }
-                }
-                idx++;
+                // Pula números, moedas, palavras de header, linhas curtas
+                if (candidate.match(/^[\d.,]+$/) || candidate.match(/^\d/)) continue;
+                if (candidate === 'USD' || candidate === 'BRL' || candidate === '%') continue;
+                if (candidate === '-' || candidate.length < 3) continue;
+                if (skipWords.indexOf(candLower) >= 0) continue;
+                if (candLower.indexOf('total ') >= 0) continue;
+                
+                taxaName = candidate;
+                break;
             }
+
+            if (!taxaName) { continue; }
+
+            // Olha PRA FRENTE pra achar números (mín, unitário, total)
+            // O total é o ÚLTIMO número da sequência
+            var numbers = [];
+            for (var fwd = m + 1; fwd < Math.min(m + 5, lines.length); fwd++) {
+                if (lines[fwd].match(/^[\d][\d.,]*$/)) {
+                    numbers.push(lines[fwd]);
+                } else if (lines[fwd] === 'USD' || lines[fwd] === 'BRL' || lines[fwd] === '%') {
+                    break; // Próxima moeda = próximo item
+                } else if (!lines[fwd].match(/^[\d.,%-]+$/) && lines[fwd].length > 2) {
+                    break; // Outro texto = próximo item
+                }
+            }
+
+            var total = numbers.length > 0 ? numbers[numbers.length - 1] : '';
+
+            if (total) {
+                items.push({
+                    taxa: taxaName,
+                    moeda: moeda,
+                    valor: total,
+                    valorNum: parseNumBR(total)
+                });
+                console.log(TAG, '  PDF item:', taxaName, '|', moeda, '|', total);
+            }
+        }
+
+        // Fallback genérico se nada foi encontrado
+        if (items.length === 0) {
+            items = parseGenericLines(allLines);
         }
 
         return items;
