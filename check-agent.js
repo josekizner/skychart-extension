@@ -496,8 +496,8 @@
             var moeda = line;
             
             // Olha PRA TRÁS pra achar o nome da taxa (máx 5 linhas)
-            // Pattern do PDF: [Taxa] → [Tipo de Cobrança] → [Moeda] → [números]
-            // Precisamos pular o "Tipo de Cobrança" (Por Kg ou dm, Por AWB, Fixo, % do...)
+            // Pattern PDF normal: [Taxa] → [Tipo de Cobrança] → [Moeda] → [números]
+            // Pattern PDF LCL:    [Taxa] → [Tipo de Cobrança] → [Equipamento] → [Moeda] → [números]
             var taxaName = '';
             for (var back = m - 1; back >= Math.max(0, m - 6); back--) {
                 var candidate = lines[back];
@@ -511,9 +511,13 @@
                 if (candLower.indexOf('total ') >= 0) continue;
 
                 // Pula "Tipo de Cobrança" — padrões conhecidos do PDF
-                if (candLower.match(/^por\s/)) continue;          // "Por Kg ou dm", "Por AWB", "Por Container"...
+                if (candLower.match(/^por\s/)) continue;          // "Por Kg ou dm", "Por AWB", "Por BL", "Por ton ou m³"...
                 if (candLower === 'fixo') continue;                // "Fixo"
                 if (candLower.match(/^%/)) continue;               // "% do Custo de Frete + ..."
+
+                // Pula "Equipamento" — coluna extra em cotações LCL
+                if (candLower === 'lcl' || candLower === 'fcl') continue;
+                if (candLower === 'carga solta') continue;
                 
                 taxaName = candidate;
                 break;
