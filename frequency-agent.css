@@ -94,9 +94,11 @@
 #atom-freq-panel.expanded {
     bottom: 8px;
     left: 8px;
-    right: 8px;
+    right: auto;
     transform: none;
-    max-height: 65vh;
+    width: 680px;
+    max-width: calc(100vw - 20px);
+    max-height: 55vh;
 }
 
 #atom-freq-panel.expanded #atom-freq-bar {
@@ -110,9 +112,9 @@
     border: 1px solid rgba(99, 102, 241, 0.3);
     border-top: 1px solid rgba(99, 102, 241, 0.15);
     border-radius: 0 0 10px 10px;
-    max-height: 58vh;
+    max-height: 48vh;
     overflow-y: auto;
-    padding: 10px 12px;
+    padding: 6px 8px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
@@ -123,17 +125,17 @@
 /* Stats row — clicáveis */
 .freq-stats {
     display: flex;
-    gap: 8px;
-    padding: 6px 0 10px;
+    gap: 6px;
+    padding: 4px 0 6px;
     border-bottom: 1px solid rgba(99, 102, 241, 0.15);
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 .freq-stat {
     text-align: center;
     flex: 1;
-    padding: 8px 4px;
-    border-radius: 8px;
+    padding: 4px 2px;
+    border-radius: 6px;
     transition: all 0.2s ease;
 }
 
@@ -153,9 +155,10 @@
 }
 
 .freq-stat-value {
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 700;
     color: #fff;
+    line-height: 1.2;
 }
 
 .freq-stat-value.red { color: #f87171; }
@@ -173,6 +176,7 @@
 /* Tabela de clientes */
 .freq-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 11px;
 }
@@ -200,9 +204,12 @@
 }
 
 .freq-table td {
-    padding: 5px 8px;
+    padding: 3px 6px;
     color: #e2e8f0;
     border-bottom: 1px solid rgba(255,255,255,0.04);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .freq-table tr:hover td {
