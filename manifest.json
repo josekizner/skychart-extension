@@ -38,7 +38,8 @@
         "vision-agent.js",
         "agentic-loop.js",
         "check-agent.js",
-        "content.js"
+        "content.js",
+        "health-check.js"
       ],
       "css": [
         "content.css"
