@@ -332,11 +332,14 @@
         // Tabela com headers clicáveis
         html.push('<table class="freq-table">');
         html.push('<thead><tr>');
-        html.push('  <th class="freq-th-sort" data-col="name">Cliente' + arrow('name') + '</th>');
+        html.push('  <th class="freq-th-sort freq-col-client" data-col="name">Cliente' + arrow('name') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="vendedor">Vendedor' + arrow('vendedor') + '</th>');
-        html.push('  <th class="freq-th-sort" data-col="quotesPerMonth">Méd./Mês' + arrow('quotesPerMonth') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="totalQuotes">Total' + arrow('totalQuotes') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="quotesPerMonth">Cot./Mês' + arrow('quotesPerMonth') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="quotesThisMonth">Este Mês' + arrow('quotesThisMonth') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="avgGapDays">Freq. Média' + arrow('avgGapDays') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="avgValuePerMonth">Vol./Mês' + arrow('avgValuePerMonth') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="lastDate">Última Cot.' + arrow('lastDate') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="daysSinceLast">Dias s/ cotar' + arrow('daysSinceLast') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="status">Status' + arrow('status') + '</th>');
         html.push('  <th></th>');
@@ -348,14 +351,18 @@
             var statusLabel = c.status === 'atrasado' ? 'Atrasado' : c.status === 'atencao' ? 'Atenção' : 'OK';
             var statusClass = c.status;
             var trendIcon = c.monthTrend === 'up' ? '<span style="color:#22c55e">▲</span>' : '<span style="color:#f87171">▼</span>';
+            var lastDateStr = c.lastDate ? c.lastDate.toLocaleDateString('pt-BR') : '—';
             var volumeTitle = 'Aprovadas: ' + c.approved + ' | Reprovadas: ' + c.rejected + ' | Abertas: ' + c.openQuotes + ' | Total: ' + fmtBRL(c.totalValue);
 
             html.push('<tr class="' + rowClass + '" data-client="' + encodeURIComponent(JSON.stringify(c)) + '">');
-            html.push('  <td title="' + c.originalName + '"><strong>' + c.name + '</strong></td>');
+            html.push('  <td class="freq-col-client" title="' + c.originalName + '">' + c.name + '</td>');
             html.push('  <td>' + (c.vendedor || '—').split(' ')[0] + '</td>');
-            html.push('  <td style="text-align:center">' + c.quotesPerMonth + '</td>');
+            html.push('  <td style="text-align:center">' + c.totalQuotes + '</td>');
+            html.push('  <td style="text-align:center"><strong>' + c.quotesPerMonth + '</strong></td>');
             html.push('  <td style="text-align:center"><strong>' + c.quotesThisMonth + '</strong> ' + trendIcon + '</td>');
+            html.push('  <td>' + c.avgGapDays + ' dias</td>');
             html.push('  <td title="' + volumeTitle + '">' + fmtBRL(c.avgValuePerMonth) + '</td>');
+            html.push('  <td>' + lastDateStr + '</td>');
             html.push('  <td><strong>' + Math.round(c.daysSinceLast) + '</strong> dias</td>');
             html.push('  <td><span class="freq-status ' + statusClass + '">' + statusLabel + '</span></td>');
 

@@ -182,6 +182,13 @@
     font-size: 11px;
 }
 
+.freq-col-client {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .freq-table th {
     text-align: left;
     padding: 6px 8px;
