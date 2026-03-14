@@ -109,6 +109,10 @@
     // ===== CALCULO DE FREQUÊNCIA =====
     function processData(quotes) {
         var clientMap = {};
+        var now = new Date();
+        var thisMonth = now.getMonth();
+        var thisYear = now.getFullYear();
+
         quotes.forEach(function(q) {
             if (!q.DS_CLIENTE) return;
             var name = cleanName(q.DS_CLIENTE);
@@ -121,6 +125,10 @@
                     insideSales: q.DS_RESPONSAVEL_INSIDE_SALES || '',
                     totalQuotes: 0,
                     approved: 0,
+                    rejected: 0,
+                    openQuotes: 0,
+                    totalValue: 0,
+                    quotesThisMonth: 0,
                     lastOrigin: q.DS_ORIGEM_CARGA || '',
                     lastDest: q.DS_DESTINO || ''
                 };
@@ -129,9 +137,18 @@
             c.totalQuotes++;
             if (q.DT_ABERTURA) {
                 var d = new Date(q.DT_ABERTURA);
-                if (!isNaN(d.getTime())) c.dates.push(d);
+                if (!isNaN(d.getTime())) {
+                    c.dates.push(d);
+                    if (d.getMonth() === thisMonth && d.getFullYear() === thisYear) c.quotesThisMonth++;
+                }
             }
-            if (q.DS_ANALISE && q.DS_ANALISE.indexOf('Aprovada') >= 0) c.approved++;
+            // Status da cotação
+            var analise = (q.DS_ANALISE || '').toLowerCase();
+            if (analise.indexOf('aprovad') >= 0) c.approved++;
+            else if (analise.indexOf('reprovad') >= 0 || analise.indexOf('recusad') >= 0 || analise.indexOf('perdid') >= 0) c.rejected++;
+            else c.openQuotes++;
+            // Valor
+            if (q.VL_MC) c.totalValue += parseFloat(q.VL_MC) || 0;
             if (q.DS_RESPONSAVEL_VENDEDOR) c.vendedor = q.DS_RESPONSAVEL_VENDEDOR;
             if (q.DS_RESPONSAVEL_INSIDE_SALES) c.insideSales = q.DS_RESPONSAVEL_INSIDE_SALES;
         });
@@ -167,6 +184,10 @@
             // Cotações por mês
             var spanMonths = Math.max(1, (lastDate - firstDate) / (1000 * 60 * 60 * 24 * 30.4));
             var quotesPerMonth = c.totalQuotes / spanMonths;
+            var avgValuePerMonth = c.totalValue / spanMonths;
+
+            // Trend: cotações este mês vs média
+            var monthTrend = c.quotesThisMonth >= quotesPerMonth ? 'up' : 'down';
 
             // Status
             var status = 'ok';
@@ -181,8 +202,14 @@
                 insideSales: c.insideSales,
                 totalQuotes: c.totalQuotes,
                 approved: c.approved,
+                rejected: c.rejected,
+                openQuotes: c.openQuotes,
                 avgGapDays: Math.round(avgGap * 10) / 10,
                 quotesPerMonth: Math.round(quotesPerMonth * 10) / 10,
+                quotesThisMonth: c.quotesThisMonth,
+                monthTrend: monthTrend,
+                avgValuePerMonth: Math.round(avgValuePerMonth),
+                totalValue: Math.round(c.totalValue),
                 daysSinceLast: Math.round(daysSince * 10) / 10,
                 lastDate: lastDate,
                 ratio: ratio,
@@ -294,15 +321,22 @@
         html.push('  <div class="freq-stat freq-stat-click' + activeClass(null) + '" data-filter="all"><div class="freq-stat-value">' + clients.length + '</div><div class="freq-stat-label">Clientes</div></div>');
         html.push('</div>');
 
+        // Helper formata BRL
+        function fmtBRL(v) {
+            if (!v) return '—';
+            if (v >= 1000000) return 'R$ ' + (v / 1000000).toFixed(1) + 'M';
+            if (v >= 1000) return 'R$ ' + (v / 1000).toFixed(1) + 'K';
+            return 'R$ ' + v;
+        }
+
         // Tabela com headers clicáveis
         html.push('<table class="freq-table">');
         html.push('<thead><tr>');
         html.push('  <th class="freq-th-sort" data-col="name">Cliente' + arrow('name') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="vendedor">Vendedor' + arrow('vendedor') + '</th>');
-        html.push('  <th class="freq-th-sort" data-col="totalQuotes">Total Cot.' + arrow('totalQuotes') + '</th>');
-        html.push('  <th class="freq-th-sort" data-col="quotesPerMonth">Cot./Mês' + arrow('quotesPerMonth') + '</th>');
-        html.push('  <th class="freq-th-sort" data-col="avgGapDays">Freq. Média' + arrow('avgGapDays') + '</th>');
-        html.push('  <th class="freq-th-sort" data-col="lastDate">Última Cot.' + arrow('lastDate') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="quotesPerMonth">Méd./Mês' + arrow('quotesPerMonth') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="quotesThisMonth">Este Mês' + arrow('quotesThisMonth') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="avgValuePerMonth">Vol./Mês' + arrow('avgValuePerMonth') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="daysSinceLast">Dias s/ cotar' + arrow('daysSinceLast') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="status">Status' + arrow('status') + '</th>');
         html.push('  <th></th>');
@@ -313,20 +347,20 @@
             var rowClass = c.status === 'atrasado' ? 'risk-high' : c.status === 'atencao' ? 'risk-medium' : 'risk-ok';
             var statusLabel = c.status === 'atrasado' ? 'Atrasado' : c.status === 'atencao' ? 'Atenção' : 'OK';
             var statusClass = c.status;
-            var lastDateStr = c.lastDate ? c.lastDate.toLocaleDateString('pt-BR') : '—';
+            var trendIcon = c.monthTrend === 'up' ? '<span style="color:#22c55e">▲</span>' : '<span style="color:#f87171">▼</span>';
+            var volumeTitle = 'Aprovadas: ' + c.approved + ' | Reprovadas: ' + c.rejected + ' | Abertas: ' + c.openQuotes + ' | Total: ' + fmtBRL(c.totalValue);
 
             html.push('<tr class="' + rowClass + '" data-client="' + encodeURIComponent(JSON.stringify(c)) + '">');
-            html.push('  <td title="' + c.originalName + '"><strong>' + c.name.substring(0, 30) + '</strong></td>');
+            html.push('  <td title="' + c.originalName + '"><strong>' + c.name + '</strong></td>');
             html.push('  <td>' + (c.vendedor || '—').split(' ')[0] + '</td>');
-            html.push('  <td style="text-align:center">' + c.totalQuotes + '</td>');
-            html.push('  <td style="text-align:center"><strong>' + c.quotesPerMonth + '</strong></td>');
-            html.push('  <td>' + c.avgGapDays + ' dias</td>');
-            html.push('  <td>' + lastDateStr + '</td>');
+            html.push('  <td style="text-align:center">' + c.quotesPerMonth + '</td>');
+            html.push('  <td style="text-align:center"><strong>' + c.quotesThisMonth + '</strong> ' + trendIcon + '</td>');
+            html.push('  <td title="' + volumeTitle + '">' + fmtBRL(c.avgValuePerMonth) + '</td>');
             html.push('  <td><strong>' + Math.round(c.daysSinceLast) + '</strong> dias</td>');
             html.push('  <td><span class="freq-status ' + statusClass + '">' + statusLabel + '</span></td>');
 
             if (c.status === 'atrasado' || c.status === 'atencao') {
-                html.push('  <td><button class="freq-email-btn" data-idx="' + i + '">📧</button></td>');
+                html.push('  <td><button class="freq-email-btn" data-idx="' + i + '">Notificar</button></td>');
             } else {
                 html.push('  <td></td>');
             }
@@ -334,10 +368,12 @@
         }
 
         html.push('</tbody></table>');
-        html.push('<div id="freq-email-zone"></div>');
+
+        // Email zone ANTES da tabela (visível)
+        var fullHtml = '<div id="freq-email-zone"></div>' + html.join('\n');
 
         var content = document.getElementById('atom-freq-content');
-        content.innerHTML = html.join('\n');
+        content.innerHTML = fullHtml;
 
         // Bind filter cards
         content.querySelectorAll('.freq-stat-click').forEach(function(card) {
@@ -359,8 +395,10 @@
         content.querySelectorAll('.freq-email-btn').forEach(function(btn) {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
+                e.preventDefault();
                 var row = btn.closest('tr');
                 var clientData = JSON.parse(decodeURIComponent(row.getAttribute('data-client')));
+                console.log(TAG, 'Notificar clicado para:', clientData.name);
                 openEmailDraft(clientData);
             });
         });
@@ -372,6 +410,7 @@
     function openEmailDraft(client) {
         var zone = document.getElementById('freq-email-zone');
         zone.innerHTML = '<div class="freq-loading"><div class="freq-spinner"></div>Gemini gerando email para ' + client.name + '...</div>';
+        zone.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
         chrome.runtime.sendMessage({
             action: 'generateChurnEmail',
