@@ -128,6 +128,7 @@
                     rejected: 0,
                     openQuotes: 0,
                     totalValue: 0,
+                    approvedValue: 0,
                     quotesThisMonth: 0,
                     lastOrigin: q.DS_ORIGEM_CARGA || '',
                     lastDest: q.DS_DESTINO || ''
@@ -148,7 +149,9 @@
             else if (analise.indexOf('reprovad') >= 0 || analise.indexOf('recusad') >= 0 || analise.indexOf('perdid') >= 0) c.rejected++;
             else c.openQuotes++;
             // Valor
-            if (q.VL_MC) c.totalValue += parseFloat(q.VL_MC) || 0;
+            var val = parseFloat(q.VL_MC) || 0;
+            if (val) c.totalValue += val;
+            if (analise.indexOf('aprovad') >= 0 && val) c.approvedValue += val;
             if (q.DS_RESPONSAVEL_VENDEDOR) c.vendedor = q.DS_RESPONSAVEL_VENDEDOR;
             if (q.DS_RESPONSAVEL_INSIDE_SALES) c.insideSales = q.DS_RESPONSAVEL_INSIDE_SALES;
         });
@@ -185,6 +188,7 @@
             var spanMonths = Math.max(1, (lastDate - firstDate) / (1000 * 60 * 60 * 24 * 30.4));
             var quotesPerMonth = c.totalQuotes / spanMonths;
             var avgValuePerMonth = c.totalValue / spanMonths;
+            var avgApprovedValuePerMonth = c.approvedValue / spanMonths;
 
             // Trend: cotações este mês vs média
             var monthTrend = c.quotesThisMonth >= quotesPerMonth ? 'up' : 'down';
@@ -210,6 +214,7 @@
                 monthTrend: monthTrend,
                 avgValuePerMonth: Math.round(avgValuePerMonth),
                 totalValue: Math.round(c.totalValue),
+                avgApprovedValuePerMonth: Math.round(avgApprovedValuePerMonth),
                 daysSinceLast: Math.round(daysSince * 10) / 10,
                 lastDate: lastDate,
                 ratio: ratio,
@@ -339,6 +344,7 @@
         html.push('  <th class="freq-th-sort" data-col="quotesThisMonth">Este Mês' + arrow('quotesThisMonth') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="avgGapDays">Freq. Média' + arrow('avgGapDays') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="avgValuePerMonth">Vol./Mês' + arrow('avgValuePerMonth') + '</th>');
+        html.push('  <th class="freq-th-sort" data-col="avgApprovedValuePerMonth">Aprov./Mês' + arrow('avgApprovedValuePerMonth') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="lastDate">Última Cot.' + arrow('lastDate') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="daysSinceLast">Dias s/ cotar' + arrow('daysSinceLast') + '</th>');
         html.push('  <th class="freq-th-sort" data-col="status">Status' + arrow('status') + '</th>');
@@ -362,6 +368,7 @@
             html.push('  <td style="text-align:center"><strong>' + c.quotesThisMonth + '</strong> ' + trendIcon + '</td>');
             html.push('  <td>' + c.avgGapDays + ' dias</td>');
             html.push('  <td title="' + volumeTitle + '">' + fmtBRL(c.avgValuePerMonth) + '</td>');
+            html.push('  <td style="color:#a5b4fc">' + fmtBRL(c.avgApprovedValuePerMonth) + '</td>');
             html.push('  <td>' + lastDateStr + '</td>');
             html.push('  <td><strong>' + Math.round(c.daysSinceLast) + '</strong> dias</td>');
             html.push('  <td><span class="freq-status ' + statusClass + '">' + statusLabel + '</span></td>');
