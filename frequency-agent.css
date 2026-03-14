@@ -1,52 +1,54 @@
 /* ================================================
    FREQUENCY AGENT — Estilo do painel de frequência
+   Design: matching Atom Agent (dark purple, white text)
    ================================================ */
 
 #atom-freq-panel {
     position: fixed;
-    bottom: 0;
+    bottom: 8px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 2147483640;
-    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 99999;
+    font-family: 'Segoe UI', Inter, system-ui, sans-serif;
+    transition: all 0.3s ease;
 }
 
 /* Barra compacta */
 #atom-freq-bar {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 16px;
-    background: linear-gradient(135deg, rgba(15,23,42,0.97), rgba(30,41,59,0.97));
-    border: 1px solid rgba(99,102,241,0.4);
-    border-bottom: none;
-    border-radius: 12px 12px 0 0;
-    backdrop-filter: blur(12px);
+    gap: 10px;
+    padding: 0 14px;
+    height: 38px;
+    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     cursor: pointer;
     user-select: none;
 }
 
 #atom-freq-bar:hover {
-    border-color: rgba(99,102,241,0.7);
+    border-color: rgba(99, 102, 241, 0.5);
 }
 
 .freq-logo {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     background: linear-gradient(135deg, #6366f1, #8b5cf6);
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #fff;
-    font-weight: 800;
-    font-size: 11px;
+    font-weight: 700;
+    font-size: 12px;
+    flex-shrink: 0;
 }
 
 .freq-title {
     color: #e2e8f0;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.5px;
 }
@@ -64,7 +66,8 @@
 }
 
 .freq-badge.ok {
-    background: #10b981;
+    background: rgba(34,197,94,0.25);
+    color: #22c55e;
     animation: none;
 }
 
@@ -73,31 +76,98 @@
     50% { opacity: 0.6; }
 }
 
+/* Minimize */
+.freq-minimize {
+    margin-left: auto;
+    color: #64748b;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+    transition: color 0.2s;
+}
+
+.freq-minimize:hover {
+    color: #e2e8f0;
+}
+
 /* Painel expandido */
 #atom-freq-panel.expanded {
-    bottom: 0;
-    left: 10px;
-    right: 10px;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
     transform: none;
-    max-height: 60vh;
+    max-height: 65vh;
 }
 
 #atom-freq-panel.expanded #atom-freq-bar {
-    border-radius: 12px 12px 0 0;
+    border-radius: 10px 10px 0 0;
+    border-bottom: none;
 }
 
 #atom-freq-content {
     display: none;
-    background: linear-gradient(180deg, rgba(15,23,42,0.98), rgba(10,16,30,0.99));
-    border: 1px solid rgba(99,102,241,0.3);
-    border-top: none;
-    max-height: 55vh;
+    background: linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-top: 1px solid rgba(99, 102, 241, 0.15);
+    border-radius: 0 0 10px 10px;
+    max-height: 58vh;
     overflow-y: auto;
-    padding: 12px;
+    padding: 10px 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 #atom-freq-panel.expanded #atom-freq-content {
     display: block;
+}
+
+/* Stats row — clicáveis */
+.freq-stats {
+    display: flex;
+    gap: 8px;
+    padding: 6px 0 10px;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+    margin-bottom: 8px;
+}
+
+.freq-stat {
+    text-align: center;
+    flex: 1;
+    padding: 8px 4px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.freq-stat-click {
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.freq-stat-click:hover {
+    background: rgba(99, 102, 241, 0.1);
+    border-color: rgba(99, 102, 241, 0.2);
+}
+
+.freq-stat-active {
+    background: rgba(99, 102, 241, 0.15) !important;
+    border-color: rgba(99, 102, 241, 0.4) !important;
+}
+
+.freq-stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.freq-stat-value.red { color: #f87171; }
+.freq-stat-value.yellow { color: #fbbf24; }
+.freq-stat-value.green { color: #22c55e; }
+
+.freq-stat-label {
+    font-size: 9px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
 }
 
 /* Tabela de clientes */
@@ -110,15 +180,15 @@
 .freq-table th {
     text-align: left;
     padding: 6px 8px;
-    color: #94a3b8;
+    color: #64748b;
     font-weight: 600;
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    border-bottom: 1px solid rgba(99,102,241,0.2);
+    border-bottom: 1px solid rgba(99, 102, 241, 0.15);
     position: sticky;
     top: 0;
-    background: rgba(15,23,42,0.98);
+    background: #0f0f1a;
     cursor: pointer;
     user-select: none;
     transition: color 0.2s;
@@ -130,69 +200,86 @@
 }
 
 .freq-table td {
-    padding: 6px 8px;
+    padding: 5px 8px;
     color: #e2e8f0;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 
 .freq-table tr:hover td {
-    background: rgba(99,102,241,0.08);
+    background: rgba(99, 102, 241, 0.08);
 }
 
-.freq-table tr.risk-high td { color: #fca5a5; }
-.freq-table tr.risk-medium td { color: #fde68a; }
-.freq-table tr.risk-ok td { color: #bbf7d0; }
+.freq-table tr.risk-high td { color: #fff; }
+.freq-table tr.risk-medium td { color: #e2e8f0; }
+.freq-table tr.risk-ok td { color: #94a3b8; }
 
 /* Status badges */
 .freq-status {
     display: inline-block;
     padding: 2px 8px;
-    border-radius: 8px;
+    border-radius: 6px;
     font-size: 10px;
     font-weight: 600;
 }
 
-.freq-status.atrasado { background: rgba(239,68,68,0.2); color: #fca5a5; }
-.freq-status.atencao { background: rgba(234,179,8,0.2); color: #fde68a; }
-.freq-status.ok { background: rgba(16,185,129,0.2); color: #bbf7d0; }
+.freq-status.atrasado {
+    background: rgba(239,68,68,0.2);
+    color: #fca5a5;
+    border: 1px solid rgba(239,68,68,0.3);
+}
+
+.freq-status.atencao {
+    background: rgba(234,179,8,0.15);
+    color: #fde68a;
+    border: 1px solid rgba(234,179,8,0.25);
+}
+
+.freq-status.ok {
+    background: rgba(34,197,94,0.15);
+    color: #86efac;
+    border: 1px solid rgba(34,197,94,0.2);
+}
 
 /* Botão de email */
 .freq-email-btn {
-    background: rgba(99,102,241,0.2);
-    border: 1px solid rgba(99,102,241,0.4);
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.3);
     color: #a5b4fc;
     padding: 3px 8px;
     border-radius: 6px;
     font-size: 10px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
 }
 
 .freq-email-btn:hover {
-    background: rgba(99,102,241,0.4);
+    background: rgba(99, 102, 241, 0.3);
+    border-color: rgba(99, 102, 241, 0.5);
     color: #fff;
+    transform: translateY(-1px);
 }
 
 /* Sub-painel de email */
 .freq-email-draft {
     margin: 12px 0;
     padding: 12px;
-    background: rgba(30,41,59,0.8);
-    border: 1px solid rgba(99,102,241,0.2);
+    background: rgba(15, 15, 26, 0.95);
+    border: 1px solid rgba(99, 102, 241, 0.2);
     border-radius: 8px;
 }
 
 .freq-email-draft h4 {
-    color: #a5b4fc;
+    color: #e2e8f0;
     margin: 0 0 8px;
     font-size: 12px;
+    font-weight: 600;
 }
 
 .freq-email-draft textarea {
     width: 100%;
     min-height: 120px;
-    background: rgba(15,23,42,0.8);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(10, 10, 20, 0.8);
+    border: 1px solid rgba(99, 102, 241, 0.2);
     border-radius: 6px;
     color: #e2e8f0;
     font-family: inherit;
@@ -203,7 +290,7 @@
 
 .freq-email-draft textarea:focus {
     outline: none;
-    border-color: rgba(99,102,241,0.5);
+    border-color: rgba(99, 102, 241, 0.5);
 }
 
 .freq-email-actions {
@@ -221,94 +308,54 @@
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
+    font-family: inherit;
 }
 
 .freq-btn-send:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
 }
 
 .freq-btn-cancel {
-    background: rgba(255,255,255,0.05);
-    color: #94a3b8;
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(99, 102, 241, 0.15);
+    color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.3);
     padding: 6px 16px;
     border-radius: 6px;
     font-size: 11px;
     cursor: pointer;
+    font-family: inherit;
+}
+
+.freq-btn-cancel:hover {
+    background: rgba(99, 102, 241, 0.25);
 }
 
 /* Loading */
 .freq-loading {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 20px;
-    color: #94a3b8;
+    color: #a5b4fc;
     font-size: 12px;
 }
 
 .freq-spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid rgba(99,102,241,0.3);
-    border-top: 2px solid #6366f1;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(99, 102, 241, 0.2);
+    border-top-color: #6366f1;
     border-radius: 50%;
-    animation: freqSpin 0.8s linear infinite;
+    animation: freqSpin 0.6s linear infinite;
 }
 
 @keyframes freqSpin {
     to { transform: rotate(360deg); }
 }
 
-/* Minimize btn */
-.freq-minimize {
-    margin-left: auto;
-    color: #64748b;
-    font-size: 16px;
-    cursor: pointer;
-    padding: 0 4px;
-    transition: color 0.2s;
-}
-
-.freq-minimize:hover {
-    color: #e2e8f0;
-}
-
 /* Scrollbar */
 #atom-freq-content::-webkit-scrollbar { width: 4px; }
 #atom-freq-content::-webkit-scrollbar-track { background: transparent; }
 #atom-freq-content::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 4px; }
-
-/* Stats row */
-.freq-stats {
-    display: flex;
-    gap: 12px;
-    padding: 8px 0 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    margin-bottom: 8px;
-}
-
-.freq-stat {
-    text-align: center;
-    flex: 1;
-}
-
-.freq-stat-value {
-    font-size: 18px;
-    font-weight: 700;
-    color: #e2e8f0;
-}
-
-.freq-stat-value.red { color: #f87171; }
-.freq-stat-value.yellow { color: #fbbf24; }
-.freq-stat-value.green { color: #34d399; }
-
-.freq-stat-label {
-    font-size: 9px;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 2px;
-}

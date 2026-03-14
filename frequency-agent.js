@@ -20,6 +20,9 @@
     var _sortCol = 'daysSinceLast';
     var _sortDir = -1; // -1 = desc, 1 = asc
 
+    // ===== FILTER STATE =====
+    var _filterStatus = null; // null = todos, 'atrasado', 'atencao', 'ok'
+
     function isContextValid() {
         try { return !!chrome.runtime && !!chrome.runtime.id; } catch(e) { return false; }
     }
@@ -247,11 +250,20 @@
         }
     }
 
+    // ===== FILTER =====
+    function onFilterClick(status) {
+        _filterStatus = (_filterStatus === status) ? null : status;
+        if (_cachedClients) renderPanel(_cachedClients);
+    }
+
     // ===== RENDER =====
     function renderPanel(clients) {
         var atrasados = clients.filter(function(c) { return c.status === 'atrasado'; }).length;
         var atencao = clients.filter(function(c) { return c.status === 'atencao'; }).length;
         var ok = clients.filter(function(c) { return c.status === 'ok'; }).length;
+
+        // Filtra se necessário
+        var filtered = _filterStatus ? clients.filter(function(c) { return c.status === _filterStatus; }) : clients;
 
         // Badge
         var badge = document.getElementById('freq-badge');
@@ -263,20 +275,23 @@
             badge.className = 'freq-badge ok';
         }
 
-        // Arrow helper
         function arrow(col) {
             if (_sortCol !== col) return '';
             return _sortDir === 1 ? ' ▲' : ' ▼';
         }
 
+        function activeClass(status) {
+            return _filterStatus === status ? ' freq-stat-active' : '';
+        }
+
         var html = [];
 
-        // Stats
+        // Stats clicáveis
         html.push('<div class="freq-stats">');
-        html.push('  <div class="freq-stat"><div class="freq-stat-value red">' + atrasados + '</div><div class="freq-stat-label">Atrasados</div></div>');
-        html.push('  <div class="freq-stat"><div class="freq-stat-value yellow">' + atencao + '</div><div class="freq-stat-label">Atenção</div></div>');
-        html.push('  <div class="freq-stat"><div class="freq-stat-value green">' + ok + '</div><div class="freq-stat-label">Em dia</div></div>');
-        html.push('  <div class="freq-stat"><div class="freq-stat-value">' + clients.length + '</div><div class="freq-stat-label">Clientes</div></div>');
+        html.push('  <div class="freq-stat freq-stat-click' + activeClass('atrasado') + '" data-filter="atrasado"><div class="freq-stat-value red">' + atrasados + '</div><div class="freq-stat-label">Atrasados</div></div>');
+        html.push('  <div class="freq-stat freq-stat-click' + activeClass('atencao') + '" data-filter="atencao"><div class="freq-stat-value yellow">' + atencao + '</div><div class="freq-stat-label">Atenção</div></div>');
+        html.push('  <div class="freq-stat freq-stat-click' + activeClass('ok') + '" data-filter="ok"><div class="freq-stat-value green">' + ok + '</div><div class="freq-stat-label">Em dia</div></div>');
+        html.push('  <div class="freq-stat freq-stat-click' + activeClass(null) + '" data-filter="all"><div class="freq-stat-value">' + clients.length + '</div><div class="freq-stat-label">Clientes</div></div>');
         html.push('</div>');
 
         // Tabela com headers clicáveis
@@ -293,8 +308,8 @@
         html.push('  <th></th>');
         html.push('</tr></thead><tbody>');
 
-        for (var i = 0; i < clients.length; i++) {
-            var c = clients[i];
+        for (var i = 0; i < filtered.length; i++) {
+            var c = filtered[i];
             var rowClass = c.status === 'atrasado' ? 'risk-high' : c.status === 'atencao' ? 'risk-medium' : 'risk-ok';
             var statusLabel = c.status === 'atrasado' ? 'Atrasado' : c.status === 'atencao' ? 'Atenção' : 'OK';
             var statusClass = c.status;
@@ -323,6 +338,14 @@
 
         var content = document.getElementById('atom-freq-content');
         content.innerHTML = html.join('\n');
+
+        // Bind filter cards
+        content.querySelectorAll('.freq-stat-click').forEach(function(card) {
+            card.addEventListener('click', function() {
+                var f = card.getAttribute('data-filter');
+                onFilterClick(f === 'all' ? null : f);
+            });
+        });
 
         // Bind sort headers
         content.querySelectorAll('.freq-th-sort').forEach(function(th) {
