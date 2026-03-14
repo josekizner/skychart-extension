@@ -97,6 +97,8 @@
     .agent-icon.frete { background: rgba(245,158,11,0.15); }
     .agent-icon.tracking { background: rgba(168,85,247,0.15); }
     .agent-icon.cotacao { background: rgba(236,72,153,0.15); }
+    .agent-icon.chequeio-op { background: rgba(6,182,212,0.15); }
+    .agent-icon.chequeio-fin { background: rgba(34,197,94,0.15); }
     .agent-name { font-size: 11px; font-weight: 600; color: #cbd5e1; }
     .agent-desc { font-size: 9px; color: #64748b; margin-top: 1px; }
     .settings { padding: 0 20px 14px; }
@@ -238,6 +240,14 @@
         <div class="agent-icon cotacao">Q</div>
         <div><div class="agent-name">Cotação</div><div class="agent-desc">Outlook & ofertas</div></div>
       </div>
+      <div class="agent-card" data-agent="chequeio-op">
+        <div class="agent-icon chequeio-op">V</div>
+        <div><div class="agent-name">Chequeio Op</div><div class="agent-desc">Oferta vs Custos</div></div>
+      </div>
+      <div class="agent-card" data-agent="chequeio-fin">
+        <div class="agent-icon chequeio-fin">V</div>
+        <div><div class="agent-name">Chequeio Fin</div><div class="agent-desc">Oferta vs Itens</div></div>
+      </div>
     </div>
   </div>
 
@@ -253,7 +263,7 @@
     </div>
   </div>
 
-  <div class="footer">Mond Shipping &bull; <span>v2.2</span></div>
+  <div class="footer">Mond Shipping &bull; <span>v2.3</span></div>
 
   <!-- Admin Overlay Modal -->
   <div class="admin-overlay" id="admin-overlay">
@@ -282,6 +292,8 @@
           <div class="agent-check"><input type="checkbox" value="frete"> Frete <span class="tag">Todos</span></div>
           <div class="agent-check"><input type="checkbox" value="tracking"> Tracking <span class="tag">Operacional</span></div>
           <div class="agent-check"><input type="checkbox" value="cotacao"> Cotação <span class="tag">Comercial</span></div>
+          <div class="agent-check"><input type="checkbox" value="chequeio-op"> Chequeio Op <span class="tag">Operacional</span></div>
+          <div class="agent-check"><input type="checkbox" value="chequeio-fin"> Chequeio Fin <span class="tag">Financeiro</span></div>
         </div>
         <button class="btn-save" id="admin-save">Salvar Permissões</button>
         <div class="saved-msg" id="admin-saved">Permissões salvas!</div>

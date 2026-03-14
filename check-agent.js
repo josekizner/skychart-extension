@@ -24,6 +24,30 @@
     });
 
     // ===== OBSERVER: Detecta quando Custos/Itens é aberto =====
+    // Cache de permissões (atualiza a cada 10s ou no primeiro check)
+    var _allowedAgents = null;
+    var _lastPermCheck = 0;
+
+    function checkPermission(modulo, callback) {
+        var now = Date.now();
+        if (_allowedAgents && (now - _lastPermCheck) < 10000) {
+            var needed = modulo === 'operacional' ? 'chequeio-op' : 'chequeio-fin';
+            callback(_allowedAgents.indexOf(needed) >= 0);
+            return;
+        }
+        chrome.storage.local.get(['enabledAgents', 'userProfile'], function(d) {
+            // Master ou sem perfil definido = tudo liberado
+            if (!d.userProfile || d.userProfile === 'master' || !d.enabledAgents) {
+                _allowedAgents = ['chequeio-op', 'chequeio-fin'];
+            } else {
+                _allowedAgents = d.enabledAgents || [];
+            }
+            _lastPermCheck = Date.now();
+            var needed = modulo === 'operacional' ? 'chequeio-op' : 'chequeio-fin';
+            callback(_allowedAgents.indexOf(needed) >= 0);
+        });
+    }
+
     var observer = new MutationObserver(function() {
         // Se botão foi removido do DOM (Angular re-renderiza), reseta flag
         if (checkBtnInjected && !document.getElementById('sk-check-btn')) {
@@ -34,49 +58,52 @@
         var modulo = getModulo();
         if (!modulo) return;
 
-        if (modulo === 'operacional') {
-            // Procura o accordion de Custos expandido
-            var custosHeader = findAccordionHeader('Custos');
-            if (!custosHeader) return;
+        // Verifica permissão do perfil antes de injetar
+        checkPermission(modulo, function(allowed) {
+            if (!allowed) return;
 
-            var actionBtns = document.querySelectorAll('button');
-            var anchorBtn = null;
-            for (var i = 0; i < actionBtns.length; i++) {
-                var txt = (actionBtns[i].textContent || '').trim().toLowerCase();
-                if (txt.indexOf('recalcular') >= 0 || txt.indexOf('atualizar deb') >= 0 || txt.indexOf('chequeio') >= 0) {
-                    anchorBtn = actionBtns[i];
-                }
-            }
-            if (anchorBtn) injectCheckButton(anchorBtn);
-        }
+            if (modulo === 'operacional') {
+                // Procura o accordion de Custos expandido
+                var custosHeader = findAccordionHeader('Custos');
+                if (!custosHeader) return;
 
-        if (modulo === 'financeiro') {
-            // Financeiro: busca Atualizar/Excluir DENTRO de APP-FATURA-IDENTIFICACAO
-            // (não pegar o Atualizar da Cobrança que é outro componente)
-            var faturaIdent = document.querySelector('APP-FATURA-IDENTIFICACAO, app-fatura-identificacao');
-            if (faturaIdent) {
-                var identBtns = faturaIdent.querySelectorAll('button');
+                var actionBtns = document.querySelectorAll('button');
                 var anchorBtn = null;
-                for (var j = 0; j < identBtns.length; j++) {
-                    var btxt = (identBtns[j].textContent || '').trim().toLowerCase();
-                    if (btxt === 'excluir') {
-                        anchorBtn = identBtns[j];
-                        break;
-                    }
-                }
-                // Fallback: pega Atualizar se não achou Excluir
-                if (!anchorBtn) {
-                    for (var j2 = 0; j2 < identBtns.length; j2++) {
-                        var btxt2 = (identBtns[j2].textContent || '').trim().toLowerCase();
-                        if (btxt2 === 'atualizar') {
-                            anchorBtn = identBtns[j2];
-                            break;
-                        }
+                for (var i = 0; i < actionBtns.length; i++) {
+                    var txt = (actionBtns[i].textContent || '').trim().toLowerCase();
+                    if (txt.indexOf('recalcular') >= 0 || txt.indexOf('atualizar deb') >= 0 || txt.indexOf('chequeio') >= 0) {
+                        anchorBtn = actionBtns[i];
                     }
                 }
                 if (anchorBtn) injectCheckButton(anchorBtn);
             }
-        }
+
+            if (modulo === 'financeiro') {
+                // Financeiro: busca Atualizar/Excluir DENTRO de APP-FATURA-IDENTIFICACAO
+                var faturaIdent = document.querySelector('APP-FATURA-IDENTIFICACAO, app-fatura-identificacao');
+                if (faturaIdent) {
+                    var identBtns = faturaIdent.querySelectorAll('button');
+                    var anchorBtn = null;
+                    for (var j = 0; j < identBtns.length; j++) {
+                        var btxt = (identBtns[j].textContent || '').trim().toLowerCase();
+                        if (btxt === 'excluir') {
+                            anchorBtn = identBtns[j];
+                            break;
+                        }
+                    }
+                    if (!anchorBtn) {
+                        for (var j2 = 0; j2 < identBtns.length; j2++) {
+                            var btxt2 = (identBtns[j2].textContent || '').trim().toLowerCase();
+                            if (btxt2 === 'atualizar') {
+                                anchorBtn = identBtns[j2];
+                                break;
+                            }
+                        }
+                    }
+                    if (anchorBtn) injectCheckButton(anchorBtn);
+                }
+            }
+        });
     });
 
     observer.observe(document.body, { childList: true, subtree: true });

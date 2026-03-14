@@ -1,7 +1,7 @@
 var PROFILES = {
-  master: ['cambio','serasa','frete','tracking','cotacao'],
-  financeiro: ['cambio','serasa'],
-  operacional: ['tracking','frete'],
+  master: ['cambio','serasa','frete','tracking','cotacao','chequeio-op','chequeio-fin'],
+  financeiro: ['cambio','serasa','chequeio-fin'],
+  operacional: ['tracking','frete','chequeio-op'],
   comercial: ['cotacao','frete']
 };
 var LABELS = { master:'Master', financeiro:'Financeiro', operacional:'Operacional', comercial:'Comercial', custom:'Personalizado' };
@@ -56,7 +56,7 @@ function applyPermissions(agents, profile) {
       cards[i].classList.remove('hidden'); n++;
     } else { cards[i].classList.add('hidden'); }
   }
-  document.getElementById('status-text').textContent = n === 5 ? 'Todos os agentes ativos' : n + ' agentes ativos';
+  document.getElementById('status-text').textContent = n === 7 ? 'Todos os agentes ativos' : n + ' agentes ativos';
   document.getElementById('profile-name').textContent = LABELS[profile] || profile;
   var gearBtn = document.getElementById('gear-btn');
   var configSection = document.querySelector('.settings-card');
