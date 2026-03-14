@@ -656,6 +656,12 @@
         b = normalize(b);
 
         if (a === b) return 1;
+        // PDF extraction pode quebrar palavras ("W arehouse" vs "warehouse")
+        // Compara removendo TODOS os espaços
+        var aNoSpace = a.replace(/\s/g, '');
+        var bNoSpace = b.replace(/\s/g, '');
+        if (aNoSpace === bNoSpace) return 1;
+        if (aNoSpace.indexOf(bNoSpace) >= 0 || bNoSpace.indexOf(aNoSpace) >= 0) return 0.9;
         if (a.indexOf(b) >= 0 || b.indexOf(a) >= 0) return 0.9;
 
         // Compara palavras
