@@ -96,9 +96,11 @@
     left: 8px;
     right: auto;
     transform: none;
-    width: 680px;
+    width: 850px;
     max-width: calc(100vw - 20px);
     max-height: 55vh;
+    resize: horizontal;
+    overflow: auto;
 }
 
 #atom-freq-panel.expanded #atom-freq-bar {
@@ -176,7 +178,6 @@
 /* Tabela de clientes */
 .freq-table {
     width: 100%;
-    table-layout: fixed;
     border-collapse: collapse;
     font-size: 11px;
 }
@@ -204,11 +205,9 @@
 }
 
 .freq-table td {
-    padding: 3px 6px;
+    padding: 4px 8px;
     color: #e2e8f0;
     border-bottom: 1px solid rgba(255,255,255,0.04);
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
