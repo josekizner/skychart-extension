@@ -487,6 +487,12 @@
         for (var m = 0; m < lines.length; m++) {
             var line = lines[m];
 
+            // Para de parsear quando encontrar "Opção 2" ou posterior (só usa Opção 1)
+            if (line.match(/^Opção\s*[2-9]/i) || line.match(/^Opcao\s*[2-9]/i) || line.match(/^Op[çc][ãa]o\s*[2-9]/i)) {
+                console.log(TAG, 'Parando parse na', line, '(linha', m + ')');
+                break;
+            }
+
             // Pula linhas que começam com "Total" (totais, não taxas)
             if (line.match(/^Total/i)) continue;
 
