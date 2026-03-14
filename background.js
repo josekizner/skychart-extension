@@ -752,6 +752,44 @@ Os valores estão corretos? Responda APENAS com JSON:
     });
     return true;
   }
+
+  // HEALTH CHECK: Recebe alertas de problemas detectados
+  if (request.action === "healthCheckAlert") {
+    const d = request.data || {};
+    console.log("[Health] Alerta recebido:", d.modulo, d.failures);
+
+    // 1. Chrome Notification (aparece no sistema, mesmo com aba minimizada)
+    chrome.notifications.create('health-' + Date.now(), {
+      type: 'basic',
+      iconUrl: 'icon128.png',
+      title: '⚠ Atom Health Check — ' + (d.modulo || 'Geral'),
+      message: (d.failures || []).join('\n') + '\n\nPerfil: ' + (d.profile || '?') + ' | ' + (d.timestamp || ''),
+      priority: 2
+    }, function() {
+      if (chrome.runtime.lastError) console.log('[Health] Notification error:', chrome.runtime.lastError.message);
+    });
+
+    // 2. Broadcast pra todas as tabs Skychart (Master vê independente de onde veio)
+    chrome.tabs.query({ url: 'https://app2.skychart.com.br/*' }, function(tabs) {
+      (tabs || []).forEach(function(tab) {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'healthCheckBroadcast',
+          data: d
+        }).catch(function() {});
+      });
+    });
+
+    // 3. Salva histórico de alertas
+    chrome.storage.local.get(['healthAlertLog'], function(store) {
+      var log = store.healthAlertLog || [];
+      log.push(d);
+      if (log.length > 50) log = log.slice(-50); // Max 50 registros
+      chrome.storage.local.set({ healthAlertLog: log });
+    });
+
+    sendResponse({ success: true });
+    return true;
+  }
 });
 
 const VISION_ANALYZE_PROMPT = `

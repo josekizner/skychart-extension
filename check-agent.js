@@ -8,6 +8,11 @@
     var TAG = '[Check Agent]';
     var checkBtnInjected = false;
 
+    // Guard: detecta se a extensão foi recarregada (evita "Extension context invalidated")
+    function isContextValid() {
+        try { return !!chrome.runtime && !!chrome.runtime.id; } catch(e) { return false; }
+    }
+
     // Detecta qual módulo estamos
     function getModulo() {
         if (location.href.indexOf('/app/operacional') >= 0) return 'operacional';
@@ -16,12 +21,14 @@
     }
 
     // Listener: background manda clicar o download (padrão Serasa)
-    chrome.runtime.onMessage.addListener(function(request) {
-        if (request.action === 'clickCheckDownload' && window._checkDlBtn) {
-            console.log(TAG, 'Background pediu clique no download');
-            window._checkDlBtn.click();
-        }
-    });
+    try {
+        chrome.runtime.onMessage.addListener(function(request) {
+            if (request.action === 'clickCheckDownload' && window._checkDlBtn) {
+                console.log(TAG, 'Background pediu clique no download');
+                window._checkDlBtn.click();
+            }
+        });
+    } catch(e) { console.log(TAG, 'Context invalidated (listener), ignorando.'); }
 
     // ===== OBSERVER: Detecta quando Custos/Itens é aberto =====
     // Cache de permissões (atualiza a cada 10s ou no primeiro check)
@@ -29,26 +36,35 @@
     var _lastPermCheck = 0;
 
     function checkPermission(modulo, callback) {
+        if (!isContextValid()) return; // Extension foi recarregada
         var now = Date.now();
         if (_allowedAgents && (now - _lastPermCheck) < 10000) {
             var needed = modulo === 'operacional' ? 'chequeio-op' : 'chequeio-fin';
             callback(_allowedAgents.indexOf(needed) >= 0);
             return;
         }
-        chrome.storage.local.get(['enabledAgents', 'userProfile'], function(d) {
-            // Master ou sem perfil definido = tudo liberado
-            if (!d.userProfile || d.userProfile === 'master' || !d.enabledAgents) {
-                _allowedAgents = ['chequeio-op', 'chequeio-fin'];
-            } else {
-                _allowedAgents = d.enabledAgents || [];
-            }
-            _lastPermCheck = Date.now();
-            var needed = modulo === 'operacional' ? 'chequeio-op' : 'chequeio-fin';
-            callback(_allowedAgents.indexOf(needed) >= 0);
-        });
+        try {
+            chrome.storage.local.get(['enabledAgents', 'userProfile'], function(d) {
+                // Master ou sem perfil definido = tudo liberado
+                if (!d.userProfile || d.userProfile === 'master' || !d.enabledAgents) {
+                    _allowedAgents = ['chequeio-op', 'chequeio-fin'];
+                } else {
+                    _allowedAgents = d.enabledAgents || [];
+                }
+                _lastPermCheck = Date.now();
+                var needed = modulo === 'operacional' ? 'chequeio-op' : 'chequeio-fin';
+                callback(_allowedAgents.indexOf(needed) >= 0);
+            });
+        } catch(e) { console.log(TAG, 'Context invalidated (storage), ignorando.'); }
     }
 
     var observer = new MutationObserver(function() {
+        // Guard: se extensão recarregou, para de observar
+        if (!isContextValid()) {
+            observer.disconnect();
+            console.log(TAG, 'Context invalidated, observer desconectado.');
+            return;
+        }
         // Se botão foi removido do DOM (Angular re-renderiza), reseta flag
         if (checkBtnInjected && !document.getElementById('sk-check-btn')) {
             checkBtnInjected = false;
