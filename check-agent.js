@@ -1,12 +1,19 @@
 // ============================================================
-// CHECK AGENT — Cotação vs Custos
-// Compara oferta PDF com aba Custos do Skychart operacional
+// CHECK AGENT — Cotação vs Custos/Itens
+// Compara oferta PDF com aba Custos (operacional) ou Itens (financeiro)
 // ============================================================
 (function() {
     'use strict';
 
     var TAG = '[Check Agent]';
     var checkBtnInjected = false;
+
+    // Detecta qual módulo estamos
+    function getModulo() {
+        if (location.href.indexOf('/app/operacional') >= 0) return 'operacional';
+        if (location.href.indexOf('/app/financeiro') >= 0) return 'financeiro';
+        return null;
+    }
 
     // Listener: background manda clicar o download (padrão Serasa)
     chrome.runtime.onMessage.addListener(function(request) {
@@ -15,7 +22,8 @@
             window._checkDlBtn.click();
         }
     });
-    // ===== OBSERVER: Detecta quando a aba Custos é aberta =====
+
+    // ===== OBSERVER: Detecta quando Custos/Itens é aberto =====
     var observer = new MutationObserver(function() {
         // Se botão foi removido do DOM (Angular re-renderiza), reseta flag
         if (checkBtnInjected && !document.getElementById('sk-check-btn')) {
@@ -23,25 +31,38 @@
         }
         if (checkBtnInjected) return;
         
-        // Verifica se estamos na página operacional
-        if (location.href.indexOf('/app/operacional') < 0) return;
-        
-        // Procura o accordion de Custos expandido
-        var custosHeader = findAccordionHeader('Custos');
-        if (!custosHeader) return;
+        var modulo = getModulo();
+        if (!modulo) return;
 
-        // Procura os botões existentes (Atualizar debito, Recalcular custos, Chequeio)
-        var actionBtns = document.querySelectorAll('button');
-        var recalcBtn = null;
-        for (var i = 0; i < actionBtns.length; i++) {
-            var txt = (actionBtns[i].textContent || '').trim().toLowerCase();
-            if (txt.indexOf('recalcular') >= 0 || txt.indexOf('atualizar deb') >= 0 || txt.indexOf('chequeio') >= 0) {
-                recalcBtn = actionBtns[i];
+        if (modulo === 'operacional') {
+            // Procura o accordion de Custos expandido
+            var custosHeader = findAccordionHeader('Custos');
+            if (!custosHeader) return;
+
+            var actionBtns = document.querySelectorAll('button');
+            var anchorBtn = null;
+            for (var i = 0; i < actionBtns.length; i++) {
+                var txt = (actionBtns[i].textContent || '').trim().toLowerCase();
+                if (txt.indexOf('recalcular') >= 0 || txt.indexOf('atualizar deb') >= 0 || txt.indexOf('chequeio') >= 0) {
+                    anchorBtn = actionBtns[i];
+                }
             }
+            if (anchorBtn) injectCheckButton(anchorBtn);
         }
 
-        if (recalcBtn) {
-            injectCheckButton(recalcBtn);
+        if (modulo === 'financeiro') {
+            // No financeiro, busca botões "Atualizar" ou "Excluir" perto da tabela Itens
+            // Ou busca a tabela Itens com colunas Custo/Total
+            var allBtns = document.querySelectorAll('button');
+            var anchorBtn = null;
+            for (var j = 0; j < allBtns.length; j++) {
+                var btxt = (allBtns[j].textContent || '').trim().toLowerCase();
+                if (btxt === 'atualizar' || btxt === 'excluir' || btxt.indexOf('chequeio') >= 0) {
+                    // Verifica se esse botão está perto de uma tabela com "Custo"
+                    anchorBtn = allBtns[j];
+                }
+            }
+            if (anchorBtn) injectCheckButton(anchorBtn);
         }
     });
 
@@ -73,24 +94,25 @@
 
     // ===== FLUXO PRINCIPAL =====
     async function runCheck() {
-        console.log(TAG, '=== INICIANDO CHEQUEIO ===');
-        showLoadingPanel('Lendo custos...');
+        var modulo = getModulo();
+        console.log(TAG, '=== INICIANDO CHEQUEIO (' + modulo + ') ===');
+        showLoadingPanel('Lendo ' + (modulo === 'financeiro' ? 'itens' : 'custos') + '...');
 
-        // 1. Lê tabela de Custos
-        var custos = readCustosTable();
-        console.log(TAG, 'Custos lidos:', custos.length, 'linhas');
+        // 1. Lê tabela de Custos/Itens
+        var custos = readCustosTable(modulo);
+        console.log(TAG, 'Itens lidos:', custos.length, 'linhas');
         custos.forEach(function(c) {
-            console.log(TAG, '  Custo:', c.taxa, '|', c.moeda, '|', c.totalVenda);
+            console.log(TAG, '  Item:', c.taxa, '|', c.moeda, '|', c.totalVenda);
         });
 
         if (custos.length === 0) {
-            showResultsPanel([{ status: 'error', message: 'Nenhum custo encontrado na tabela' }]);
+            showResultsPanel([{ status: 'error', message: 'Nenhum item encontrado na tabela' }]);
             return;
         }
 
         // 2. Vai pra aba Arquivos e busca Cotação Cliente
         updateLoadingPanel('Buscando cotação na aba Arquivos...');
-        var pdfText = await findAndDownloadCotacao();
+        var pdfText = await findAndDownloadCotacao(modulo);
 
         if (!pdfText) {
             showResultsPanel([{ status: 'error', message: 'Cotação Cliente não encontrada na aba Arquivos' }]);
@@ -114,76 +136,86 @@
         console.log(TAG, '=== CHEQUEIO FINALIZADO ===');
     }
 
-    // ===== LÊ TABELA DE CUSTOS =====
-    function readCustosTable() {
+    // ===== LÊ TABELA DE CUSTOS (operacional) OU ITENS (financeiro) =====
+    function readCustosTable(modulo) {
         var items = [];
         
         // PrimeNG datatable usa DUAS tabelas separadas:
         // Header: ui-datatable-scrollable-header-box > table (THs)
         // Body:   ui-datatable-scrollable-table-wrapper > table (TDs)
         
-        // 1. Encontra a tabela HEADER que tem "Taxa" e "Venda" nos THs
         var headerTable = null;
         var allTables = document.querySelectorAll('table');
 
         for (var t = 0; t < allTables.length; t++) {
             var headers = allTables[t].querySelectorAll('th');
-            if (headers.length < 10) continue; // Custos tem muitas colunas (~34)
+            if (headers.length < 5) continue;
             
-            var hasTaxa = false;
-            var hasVenda = false;
+            var colNames = [];
             for (var h = 0; h < headers.length; h++) {
-                var htxt = (headers[h].textContent || '').trim().toLowerCase();
-                if (htxt.indexOf('taxa') >= 0) hasTaxa = true;
-                if (htxt.indexOf('venda') >= 0) hasVenda = true;
+                colNames.push((headers[h].textContent || '').trim().toLowerCase());
             }
-            if (hasTaxa && hasVenda) {
-                headerTable = allTables[t];
-                console.log(TAG, 'Header table encontrada! THs:', headers.length);
-                break;
+            var colStr = colNames.join('|');
+
+            if (modulo === 'financeiro') {
+                // Financeiro: procura "custo" + "total" nos THs
+                if (colStr.indexOf('custo') >= 0 && colStr.indexOf('total') >= 0 && colStr.indexOf('moeda') >= 0) {
+                    headerTable = allTables[t];
+                    console.log(TAG, 'Header table (financeiro) encontrada! THs:', headers.length);
+                    break;
+                }
+            } else {
+                // Operacional: procura "taxa" + "venda" nos THs (>10 cols)
+                if (headers.length >= 10 && colStr.indexOf('taxa') >= 0 && colStr.indexOf('venda') >= 0) {
+                    headerTable = allTables[t];
+                    console.log(TAG, 'Header table (operacional) encontrada! THs:', headers.length);
+                    break;
+                }
             }
         }
 
         if (!headerTable) {
-            console.log(TAG, 'Header table de custos não encontrada');
+            console.log(TAG, 'Header table não encontrada');
             return items;
         }
 
-        // 2. Mapeia colunas do header
+        // Mapeia colunas
         var ths = headerTable.querySelectorAll('th');
         var colMap = {};
         for (var ci = 0; ci < ths.length; ci++) {
             var colText = (ths[ci].textContent || '').trim().toLowerCase();
-            if (colText.indexOf('taxa') >= 0 && colMap.taxa === undefined) colMap.taxa = ci;
-            if (colText.indexOf('tipo de cobran') >= 0 && colMap.tipoCobranca === undefined) colMap.tipoCobranca = ci;
-            // Moeda VENDA é a que queremos (não moeda compra)
-            if (colText.indexOf('moeda venda') >= 0 || colText === 'moeda venda') colMap.moedaVenda = ci;
-            if (colMap.moeda === undefined && colText === 'moeda') colMap.moeda = ci;
-            if (colText.indexOf('total venda') >= 0) colMap.totalVenda = ci;
-            if (colText === 'venda' && colMap.totalVenda === undefined && colMap.venda === undefined) colMap.venda = ci;
+
+            if (modulo === 'financeiro') {
+                // Financeiro: Custo = taxa, moeda = moeda, Total = totalVenda
+                if (colText === 'custo' && colMap.taxa === undefined) colMap.taxa = ci;
+                if (colText === 'moeda' && colMap.moeda === undefined) colMap.moeda = ci;
+                if (colText === 'total' && colMap.totalVenda === undefined) colMap.totalVenda = ci;
+            } else {
+                // Operacional: mesma lógica de antes
+                if (colText.indexOf('taxa') >= 0 && colMap.taxa === undefined) colMap.taxa = ci;
+                if (colText.indexOf('tipo de cobran') >= 0 && colMap.tipoCobranca === undefined) colMap.tipoCobranca = ci;
+                if (colText.indexOf('moeda venda') >= 0) colMap.moedaVenda = ci;
+                if (colMap.moeda === undefined && colText === 'moeda') colMap.moeda = ci;
+                if (colText.indexOf('total venda') >= 0) colMap.totalVenda = ci;
+                if (colText === 'venda' && colMap.totalVenda === undefined && colMap.venda === undefined) colMap.venda = ci;
+            }
         }
 
-        // Prioriza moeda venda sobre moeda genérica
+        // Operacional: prioriza moeda venda
         if (colMap.moedaVenda !== undefined) colMap.moeda = colMap.moedaVenda;
-
-        if (colMap.totalVenda === undefined && colMap.venda !== undefined) {
-            colMap.totalVenda = colMap.venda;
-        }
+        if (colMap.totalVenda === undefined && colMap.venda !== undefined) colMap.totalVenda = colMap.venda;
 
         console.log(TAG, 'Colunas mapeadas:', JSON.stringify(colMap));
 
-        // 3. Encontra a tabela BODY (irmã do header)
-        // Sobe até o container do datatable e busca a table-wrapper
+        // Encontra a tabela BODY (irmã do header)
         var bodyTable = null;
         var headerBox = headerTable.closest('.ui-datatable-scrollable-header-box, .ui-datatable-scrollable-header');
         
         if (headerBox) {
-            // Sobe mais um nível para encontrar o wrapper irmão
             var datatableContainer = headerBox.parentElement;
             if (datatableContainer) datatableContainer = datatableContainer.parentElement;
             if (!datatableContainer) datatableContainer = headerBox.parentElement;
             
-            // Busca a table dentro de ui-datatable-scrollable-table-wrapper
             var bodyWrapper = datatableContainer ? datatableContainer.querySelector('.ui-datatable-scrollable-table-wrapper') : null;
             if (bodyWrapper) {
                 bodyTable = bodyWrapper.querySelector('table');
@@ -191,7 +223,7 @@
         }
         
         if (!bodyTable) {
-            // Fallback: busca a próxima tabela com TDs após a header table
+            // Fallback: próxima tabela com TDs
             var foundHeader = false;
             for (var t2 = 0; t2 < allTables.length; t2++) {
                 if (allTables[t2] === headerTable) { foundHeader = true; continue; }
@@ -203,11 +235,18 @@
         }
 
         if (!bodyTable) {
-            console.log(TAG, 'Body table de custos não encontrada');
+            // Fallback 2: tabela não-split (THs e TDs na mesma table)
+            if (headerTable.querySelectorAll('td').length > 0) {
+                bodyTable = headerTable;
+            }
+        }
+
+        if (!bodyTable) {
+            console.log(TAG, 'Body table não encontrada');
             return items;
         }
 
-        // 4. Lê as rows de dados
+        // Lê rows de dados
         var dataRows = bodyTable.querySelectorAll('tr');
         console.log(TAG, 'Body table: TRs:', dataRows.length, 'TDs:', bodyTable.querySelectorAll('td').length);
 
@@ -223,9 +262,8 @@
                 totalVenda = cells[colMap.totalVenda].textContent.trim();
             }
 
-            // Pula linhas sem taxa
             if (!taxa || taxa.length < 2) continue;
-            if (taxa.toLowerCase() === 'taxa') continue;
+            if (taxa.toLowerCase() === 'taxa' || taxa.toLowerCase() === 'custo') continue;
 
             items.push({
                 taxa: taxa,
@@ -241,7 +279,7 @@
     }
 
     // ===== BUSCA E BAIXA COTAÇÃO (padrão Serasa: captureNewTabUrl + fetch + pdfjsLib) =====
-    async function findAndDownloadCotacao() {
+    async function findAndDownloadCotacao(modulo) {
         // Clica na aba Arquivos
         var archivosTab = findAccordionHeader('Arquivos');
         if (!archivosTab) {
