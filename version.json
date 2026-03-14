@@ -1,5 +1,5 @@
 {
-  "version": "2.3.0",
-  "date": "2026-03-13",
-  "changelog": "Check agent financeiro: fix botao no lugar certo (APP-FATURA-IDENTIFICACAO), fix parser PDF pula Tipo de Cobranca, retry loop pra Arquivos accordion."
+  "version": "2.4.0",
+  "date": "2026-03-14",
+  "changelog": "Novo agente: Frequência — monitora recência de cotação por cliente, detecta churn, gera emails via Gemini, envia pelo Outlook Web."
 }

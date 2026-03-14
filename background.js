@@ -5,10 +5,10 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemi
 
 // ===== PERFIL / PERMISSOES =====
 const PROFILES = {
-  master: ['cambio','serasa','frete','tracking','cotacao'],
+  master: ['cambio','serasa','frete','tracking','cotacao','frequencia'],
   financeiro: ['cambio','serasa'],
   operacional: ['tracking','frete'],
-  comercial: ['cotacao','frete']
+  comercial: ['cotacao','frete','frequencia']
 };
 
 function loadProfileFromConfig() {
@@ -29,7 +29,7 @@ chrome.runtime.onInstalled.addListener(loadProfileFromConfig);
 chrome.runtime.onStartup.addListener(loadProfileFromConfig);
 
 // ===== AUTO-UPDATE COM AUTO-RELOAD =====
-const CURRENT_VERSION = "2.2.0";
+const CURRENT_VERSION = "2.4.0";
 const UPDATE_CHECK_URL = "https://raw.githubusercontent.com/josekizner/skychart-extension/main/version.json";
 const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
@@ -788,6 +788,89 @@ Os valores estão corretos? Responda APENAS com JSON:
     });
 
     sendResponse({ success: true });
+    return true;
+  }
+
+  // ===== FREQUENCY AGENT: Busca dados da API comercial =====
+  if (request.action === "fetchFrequencyData") {
+    const COMMERCIAL_URL = 'https://server-mond.tail46f98e.ts.net/api/comercial';
+    const COMMERCIAL_TOKEN = 'b2e7c1f4-8a2d-4e3b-9c6a-7f1e2d5a9b3c';
+
+    fetch(COMMERCIAL_URL, {
+      headers: {
+        'Authorization': `Bearer ${COMMERCIAL_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(r => {
+      if (!r.ok) throw new Error('API returned ' + r.status);
+      return r.json();
+    })
+    .then(result => {
+      const data = Array.isArray(result) ? result : (result.data || []);
+      console.log('[Freq] Dados comerciais:', data.length, 'cotações');
+      sendResponse({ success: true, data: data });
+    })
+    .catch(err => {
+      console.error('[Freq] Erro ao buscar dados:', err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true;
+  }
+
+  // ===== FREQUENCY AGENT: Gera email de churn via Gemini =====
+  if (request.action === "generateChurnEmail") {
+    const c = request.client || {};
+    const prompt = `Você é um inside sales de uma empresa de logística internacional (Mond Shipping).
+Gere um email curto e profissional em português para um cliente que está com frequência de cotação abaixo do esperado.
+
+DADOS DO CLIENTE:
+- Nome: ${c.name}
+- Frequência média de cotação: a cada ${c.avgGapDays} dias
+- Dias sem cotar: ${c.daysSinceLast} dias
+- Vendedor responsável: ${c.vendedor}
+- Origem principal: ${c.origin}
+- Destino principal: ${c.dest}
+- Total de cotações históricas: ${c.totalQuotes}
+- Cotações aprovadas: ${c.approved}
+
+REGRAS:
+- Seja sutil e consultivo, NÃO pressione
+- Mencione que tem novas condições de mercado
+- Ofereça uma cotação atualizada
+- Tom profissional mas próximo
+- Máximo 5 parágrafos curtos
+- NÃO use emojis
+
+Retorne APENAS JSON puro (sem markdown):
+{
+  "subject": "assunto do email",
+  "body": "corpo do email"
+}`;
+
+    fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+      })
+    })
+    .then(r => r.json())
+    .then(result => {
+      let text = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      try {
+        const data = JSON.parse(text);
+        sendResponse({ success: true, data: data });
+      } catch(e) {
+        sendResponse({ success: true, data: { subject: 'Acompanhamento de cotação — Mond Shipping', body: text } });
+      }
+    })
+    .catch(err => {
+      console.error('[Freq] Erro Gemini:', err);
+      sendResponse({ success: false, error: err.message });
+    });
     return true;
   }
 });

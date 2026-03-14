@@ -39,11 +39,13 @@
         "vision-agent.js",
         "agentic-loop.js",
         "check-agent.js",
+        "frequency-agent.js",
         "content.js",
         "health-check.js"
       ],
       "css": [
-        "content.css"
+        "content.css",
+        "frequency-agent.css"
       ]
     },
     {
