@@ -3182,7 +3182,11 @@ try {
     var _freightAnalyzing = false;
     var _freightPreloaded = false;
 
+    // Guard: extensão ainda válida?
+    function _isCtxOk() { try { return !!chrome.runtime && !!chrome.runtime.id; } catch(e) { return false; } }
+
     function scanForFreight() {
+        if (!_isCtxOk()) return; // Extension recarregada
         if (location.href.indexOf('/app/operacional') < 0) {
             var freightPanel = document.getElementById('sk-freight-panel');
             if (freightPanel) freightPanel.remove();
@@ -3193,7 +3197,7 @@ try {
         // Pré-carrega dados na primeira vez (cache)
         if (!_freightPreloaded) {
             _freightPreloaded = true;
-            chrome.runtime.sendMessage({ action: 'analyzeFreight', processoId: '__preload__' }, function() {});
+            try { chrome.runtime.sendMessage({ action: 'analyzeFreight', processoId: '__preload__' }, function() {}); } catch(e) {}
         }
 
         // Procura o header "Identificação: IMXXXXX/XX"
@@ -3221,7 +3225,7 @@ try {
 
         SkDebug.log('Frete', 'INFO', ' Analisando ' + processoId + '...');
 
-        chrome.runtime.sendMessage(
+        try { chrome.runtime.sendMessage(
             { action: 'analyzeFreight', processoId: processoId },
             function(response) {
                 _freightAnalyzing = false;
@@ -3245,6 +3249,7 @@ try {
                 injectFreightPanel(result);
             }
         );
+        } catch(e) { _freightAnalyzing = false; }
     }
 
     function injectFreightPanel(data) {
@@ -3375,7 +3380,10 @@ try {
     }
 
     var scanTimeout = null;
-    var observer = new MutationObserver(function () { if (scanTimeout) clearTimeout(scanTimeout); scanTimeout = setTimeout(scanTable, 500); });
+    var observer = new MutationObserver(function () {
+        if (!_isCtxOk()) { observer.disconnect(); return; }
+        if (scanTimeout) clearTimeout(scanTimeout); scanTimeout = setTimeout(scanTable, 500);
+    });
     observer.observe(document.body, { childList: true, subtree: true });
     setTimeout(scanTable, 1000);
 
