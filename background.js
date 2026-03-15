@@ -1087,7 +1087,7 @@ Analise o email abaixo e extraia os dados do booking. Retorne APENAS JSON puro (
 
 {
   "processo": "numero do processo (sempre começa com IM, ex: IM00230/26). Procure no assunto e corpo do email",
-  "booking_number": "codigo do booking/reserva (ex: SQM266242862, 961503629). E um codigo alfanumerico longo",
+  "booking_number": "codigo do booking/reserva (ex: 263769577, SQM266242862). SEMPRE pegar o do CORPO do email, nao do assunto. Se houver varios, pegar o ULTIMO mencionado no corpo. Pode aparecer apos 'SC:', 'BKG:', 'BOOKING:' etc",
   "armador": "nome do armador/carrier (Maersk, MSC, Hapag-Lloyd, CMA CGM, etc). Se mencionar MSK = Maersk",
   "navio": "nome do navio se mencionado no email (ex: MAERSK ELBA). Pode nao estar presente",
   "viagem": "numero da viagem se mencionado (ex: 611W). Pode nao estar presente",
@@ -1108,7 +1108,8 @@ REGRAS:
 - Se o armador nao for mencionado explicitamente, deduza: MSK/MAERSK = Maersk, MSC = MSC, ONE = Ocean Network Express.
 - Se ETD vier como dia/mes abreviado (ex: 21/MAR), converta para DD/MM/YYYY usando o ano do email.
 - FREE TIME pode aparecer como "FREE TIME 21 DAYS" ou "FT: 21D" ou similar.
-- O email pode conter muitos forwards e respostas. Foque nos dados mais recentes/relevantes.
+- O email pode conter muitos forwards e respostas. Foque nos dados mais recentes (ULTIMO email do corpo).
+- BOOKING NUMBER: PRIORIZE SEMPRE o numero que aparece no CORPO do email, NAO no assunto. O assunto pode ter bookings antigos de forwards anteriores. Se o corpo tiver 'SC: 263769577' ou 'BKG: 12345', use esse.
 - Se um campo nao estiver presente no email, retorne string vazia "".
 - Retorne APENAS o JSON, nada mais.
 `;
