@@ -96,8 +96,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     const trackingUrl = 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
     chrome.tabs.create({ url: trackingUrl, active: true }, (tab) => {
-      pendingTrackingTabs[tab.id] = skychartTabId;
-      // Salva tab ID pra auto-fechar depois
+      pendingTrackingTabs[tab.id] = { skychartTab: skychartTabId, crossCheck: true };
       chrome.storage.local.set({ crossCheckMaerskTab: tab.id, crossCheckSkychartTab: skychartTabId });
       console.log("[Booking Cross-check] Tab visível:", tab.id, "-> Skychart tab:", skychartTabId);
     });
@@ -265,24 +264,36 @@ Os valores estão corretos? Responda APENAS com JSON:
   }
   if (request.action === "maerskTrackingData") {
     const maerskTabId = sender.tab.id;
-    const skychartTabId = pendingTrackingTabs[maerskTabId];
+    const pending = pendingTrackingTabs[maerskTabId];
 
-    console.log("[Tracking] Dados recebidos do Maersk, enviando pra Skychart tab:", skychartTabId);
+    // Verifica se é cross-check do booking ou tracking normal
+    const isCrossCheck = pending && typeof pending === 'object' && pending.crossCheck;
+    const skychartTabId = isCrossCheck ? pending.skychartTab : pending;
+
+    console.log("[Tracking] Dados recebidos do Maersk", isCrossCheck ? '(cross-check)' : '(tracking)', "-> Skychart tab:", skychartTabId);
 
     if (skychartTabId) {
-      // Volta pra aba do Skychart pra usuario supervisionar
-      chrome.tabs.update(skychartTabId, { active: true }).catch(() => { });
-
-      chrome.tabs.sendMessage(skychartTabId, {
-        action: 'trackingDataReady',
-        data: request.data,
-        error: request.error || null
-      }).catch(err => console.error("[Tracking] Erro enviando dados:", err));
-
-      // Fecha a aba da Maersk após 3 segundos
-      setTimeout(() => {
-        chrome.tabs.remove(maerskTabId).catch(() => { });
-      }, 3000);
+      if (isCrossCheck) {
+        // Cross-check: envia como bookingCrossCheckData (não aciona fillTrackingFields)
+        chrome.tabs.sendMessage(skychartTabId, {
+          action: 'bookingCrossCheckData',
+          data: request.data,
+          error: request.error || null
+        }).catch(err => console.error("[CrossCheck] Erro enviando dados:", err));
+        // NÃO fecha a aba aqui — o content.js controla (fecha após 2s)
+      } else {
+        // Tracking normal: volta pra Skychart e preenche campos
+        chrome.tabs.update(skychartTabId, { active: true }).catch(() => { });
+        chrome.tabs.sendMessage(skychartTabId, {
+          action: 'trackingDataReady',
+          data: request.data,
+          error: request.error || null
+        }).catch(err => console.error("[Tracking] Erro enviando dados:", err));
+        // Fecha a aba da Maersk após 3 segundos
+        setTimeout(() => {
+          chrome.tabs.remove(maerskTabId).catch(() => { });
+        }, 3000);
+      }
 
       delete pendingTrackingTabs[maerskTabId];
     }

@@ -21,12 +21,7 @@ try {
             showToast(' Nova versão ' + msg.newVersion + ' disponível! Peça ao admin para atualizar. ' + (msg.changelog || ''), 'warning', 15000);
         }
         if (msg.action === 'trackingDataReady') {
-            // Se é cross-check do booking agent, NÃO preencher campos (só comparar)
-            if (window._atomBookingCrossCheck) {
-                console.log('[Tracking] Ignorando fillTrackingFields — cross-check booking ativo');
-            } else {
-                handleTrackingData(msg.data, msg.error);
-            }
+            handleTrackingData(msg.data, msg.error);
         }
         // Navegacao SPA: email agent pede pra ir pra oferta
         if (msg.action === 'navigateToOferta') {
@@ -476,18 +471,15 @@ try {
         console.log('[Atom Booking] Iniciando cross-check Maersk para:', booking.booking_number);
         showToast('Cross-check: Abrindo Maersk tracking...', 'info', 8000);
 
-        // Flag pra tracking agent não preencher campos (só cross-check)
-        window._atomBookingCrossCheck = true;
-
         // Abre Maersk tracking visível
         chrome.runtime.sendMessage({
             action: 'openMaerskTracking',
             bookingNumber: booking.booking_number
         });
 
-        // Escuta resultado do tracking
+        // Escuta resultado do cross-check (canal separado do tracking)
         var crossCheckHandler = function(msg) {
-            if (msg.action !== 'trackingDataReady') return;
+            if (msg.action !== 'bookingCrossCheckData') return;
             chrome.runtime.onMessage.removeListener(crossCheckHandler);
 
             var crossResult = null;
@@ -573,7 +565,6 @@ try {
             }
 
             // Auto-fechar Maersk → voltar ao Skychart → ENTÃO mostrar popup
-            window._atomBookingCrossCheck = false;
             chrome.storage.local.get(['crossCheckMaerskTab', 'crossCheckSkychartTab'], function(tabs) {
                 if (tabs.crossCheckMaerskTab) {
                     setTimeout(function() {
