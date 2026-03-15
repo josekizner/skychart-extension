@@ -99,10 +99,59 @@
         }
     }
 
+    // ===== GROUP BY PROCESS =====
+    function groupByProcess(items) {
+        var map = {};
+        var order = [];
+        items.forEach(function(c) {
+            var key = c.processo || '?';
+            if (!map[key]) {
+                map[key] = {
+                    processo: key,
+                    cliente: c.cliente,
+                    armador: c.armador,
+                    booking: c.booking,
+                    atracacao: c.atracacao,
+                    freeTime: c.freeTime,
+                    freeTimeEnd: c.freeTimeEnd,
+                    containers: [],
+                    worstStatus: 'ok',
+                    worstDays: 0
+                };
+                order.push(key);
+            }
+            map[key].containers.push(c);
+
+            // Track worst status
+            var rank = { expirado: 0, alerta: 1, ok: 2, finalizado: 3 };
+            if (rank[c.status] < rank[map[key].worstStatus]) {
+                map[key].worstStatus = c.status;
+            }
+            if (c.status === 'expirado' && c.diasAtrasados > map[key].worstDays) {
+                map[key].worstDays = c.diasAtrasados;
+            }
+            if (c.status === 'alerta' && map[key].worstStatus === 'alerta') {
+                map[key].worstDays = Math.min(map[key].worstDays || 999, c.diasRestantes);
+            }
+        });
+
+        // Sort: expirados first, then alerta, then ok
+        order.sort(function(a, b) {
+            var ra = { expirado: 0, alerta: 1, ok: 2, finalizado: 3 };
+            var sa = ra[map[a].worstStatus], sb = ra[map[b].worstStatus];
+            if (sa !== sb) return sa - sb;
+            if (map[a].worstStatus === 'expirado') return map[b].worstDays - map[a].worstDays;
+            return (map[a].worstDays || 0) - (map[b].worstDays || 0);
+        });
+
+        return order.map(function(k) { return map[k]; });
+    }
+
     // ===== RENDER TABLE =====
     function renderTable(data) {
         var content = document.getElementById('dm-content');
 
+        // Count by container status
         var expirados = data.filter(function(p) { return p.status === 'expirado'; });
         var alerta = data.filter(function(p) { return p.status === 'alerta'; });
         var ok = data.filter(function(p) { return p.status === 'ok'; });
@@ -110,7 +159,7 @@
 
         var html = [];
 
-        // Summary
+        // Summary (container counts)
         html.push('<div class="dm-summary">');
         html.push('<span class="dm-tag red">' + expirados.length + ' Expirados</span>');
         html.push('<span class="dm-tag yellow">' + alerta.length + ' Alerta</span>');
@@ -125,9 +174,9 @@
         html.push('<button class="dm-filter-btn" data-filter="ok">OK</button>');
         html.push('</div>');
 
-        // Table
-        var items = expirados.concat(alerta); // default "em risco"
-        html.push(buildTable(items));
+        // Default: em risco
+        var riskItems = expirados.concat(alerta);
+        html.push(buildTable(riskItems));
 
         content.innerHTML = html.join('');
 
@@ -155,57 +204,68 @@
     }
 
     function buildTableInner(items) {
-        if (items.length === 0) return '<div style="padding:10px;color:#86efac;font-size:11px;">Nenhum processo neste filtro.</div>';
+        var groups = groupByProcess(items);
+        if (groups.length === 0) return '<div style="padding:10px;color:#86efac;font-size:11px;">Nenhum processo neste filtro.</div>';
 
         var h = [];
         h.push('<table class="dm-table">');
         h.push('<thead><tr>');
+        h.push('<th></th>');
         h.push('<th>Processo</th>');
         h.push('<th>Cliente</th>');
-        h.push('<th>Container</th>');
+        h.push('<th>Armador</th>');
+        h.push('<th>Cntrs</th>');
         h.push('<th>Atracação</th>');
         h.push('<th>FT</th>');
         h.push('<th>Vencimento</th>');
         h.push('<th>Status</th>');
         h.push('</tr></thead><tbody>');
 
-        items.forEach(function(p, i) {
-            var cls = 'dm-row ' + p.status;
+        groups.forEach(function(g, i) {
             var statusText, statusCls;
-            if (p.status === 'expirado') {
-                statusText = '-' + p.diasAtrasados + 'd';
+            if (g.worstStatus === 'expirado') {
+                statusText = '-' + g.worstDays + 'd';
                 statusCls = 'dm-status red';
-            } else if (p.status === 'alerta') {
-                statusText = p.diasRestantes + 'd';
+            } else if (g.worstStatus === 'alerta') {
+                statusText = g.worstDays + 'd';
                 statusCls = 'dm-status yellow';
             } else {
-                statusText = p.diasRestantes + 'd';
+                statusText = 'OK';
                 statusCls = 'dm-status green';
             }
 
-            h.push('<tr class="' + cls + '" data-idx="' + i + '">');
-            h.push('<td class="dm-proc">' + (p.processo || '?') + '</td>');
-            h.push('<td class="dm-cli">' + (p.cliente || '?') + '</td>');
-            h.push('<td class="dm-cnt">' + (p.container || '—') + '</td>');
-            h.push('<td>' + (p.atracacao || '—') + '</td>');
-            h.push('<td>' + (p.freeTime || 0) + 'd</td>');
-            h.push('<td>' + (p.freeTimeEnd || '—') + '</td>');
+            var nContainers = g.containers.length;
+
+            h.push('<tr class="dm-row ' + g.worstStatus + '" data-gidx="' + i + '">');
+            h.push('<td class="dm-arrow">▶</td>');
+            h.push('<td class="dm-proc">' + g.processo + '</td>');
+            h.push('<td class="dm-cli">' + (g.cliente || '?') + '</td>');
+            h.push('<td>' + (g.armador || '—') + '</td>');
+            h.push('<td style="text-align:center;">' + nContainers + '</td>');
+            h.push('<td>' + (g.atracacao || '—') + '</td>');
+            h.push('<td>' + (g.freeTime || 0) + 'd</td>');
+            h.push('<td>' + (g.freeTimeEnd || '—') + '</td>');
             h.push('<td><span class="' + statusCls + '">' + statusText + '</span></td>');
             h.push('</tr>');
 
-            // Detail row (hidden)
-            h.push('<tr class="dm-detail" id="dm-detail-' + i + '" style="display:none;">');
-            h.push('<td colspan="7">');
-            h.push('<div class="dm-detail-inner">');
-            h.push('<span>Armador: <b>' + (p.armador || '—') + '</b></span>');
-            h.push('<span>Booking: <b>' + (p.booking || '—') + '</b></span>');
-            h.push('<span>Free Time: <b>' + (p.freeTime || 0) + ' dias</b></span>');
-            h.push('<span>Atracação: <b>' + (p.atracacao || '—') + '</b></span>');
-            h.push('<span>Vencimento: <b>' + (p.freeTimeEnd || '—') + '</b></span>');
-            if (p.status === 'expirado') {
-                h.push('<span class="dm-alert">Expirado há ' + p.diasAtrasados + ' dias!</span>');
-            }
-            h.push('</div></td></tr>');
+            // Expandable container rows (hidden)
+            h.push('<tr class="dm-detail" id="dm-group-' + i + '" style="display:none;">');
+            h.push('<td colspan="9">');
+            h.push('<div class="dm-cntr-wrap">');
+            h.push('<table class="dm-cntr-table">');
+            h.push('<tr><th>Container</th><th>Free Time</th><th>Vencimento</th><th>Status</th><th>Dias</th></tr>');
+            g.containers.forEach(function(c) {
+                var cStatusCls = c.status === 'expirado' ? 'dm-status red' : (c.status === 'alerta' ? 'dm-status yellow' : 'dm-status green');
+                var cDays = c.status === 'expirado' ? '-' + c.diasAtrasados + 'd' : c.diasRestantes + 'd';
+                h.push('<tr>');
+                h.push('<td class="dm-cnt">' + (c.container || '—') + '</td>');
+                h.push('<td>' + (c.freeTime || 0) + 'd</td>');
+                h.push('<td>' + (c.freeTimeEnd || '—') + '</td>');
+                h.push('<td><span class="' + cStatusCls + '">' + cDays + '</span></td>');
+                h.push('<td style="color:' + (c.status === 'expirado' ? '#ef4444' : (c.status === 'alerta' ? '#f59e0b' : '#22c55e')) + ';font-weight:700;">' + cDays + '</td>');
+                h.push('</tr>');
+            });
+            h.push('</table></div></td></tr>');
         });
 
         h.push('</tbody></table>');
@@ -215,12 +275,14 @@
     function bindRowClicks(content) {
         content.querySelectorAll('.dm-row').forEach(function(row) {
             row.addEventListener('click', function() {
-                var idx = row.getAttribute('data-idx');
-                var detail = document.getElementById('dm-detail-' + idx);
+                var idx = row.getAttribute('data-gidx');
+                var detail = document.getElementById('dm-group-' + idx);
                 if (detail) {
                     var visible = detail.style.display !== 'none';
                     detail.style.display = visible ? 'none' : 'table-row';
                     row.classList.toggle('selected', !visible);
+                    var arrow = row.querySelector('.dm-arrow');
+                    if (arrow) arrow.textContent = visible ? '▶' : '▼';
                 }
             });
         });
@@ -298,13 +360,16 @@
             '.dm-status.green { background: rgba(34,197,94,0.15); color: #22c55e; }',
             '',
             '.dm-detail td { padding: 0 !important; border: none !important; }',
-            '.dm-detail-inner {',
-            '  display: flex; gap: 12px; flex-wrap: wrap; padding: 6px 10px;',
-            '  background: rgba(239,68,68,0.04); border-left: 3px solid rgba(239,68,68,0.3);',
-            '  font-size: 10px; color: #94a3b8;',
+            '.dm-arrow { width: 16px; text-align: center; color: #64748b; font-size: 8px; transition: all 0.15s; }',
+            '.dm-row.selected .dm-arrow { color: #fca5a5; }',
+            '',
+            '.dm-cntr-wrap {',
+            '  padding: 4px 8px 8px 24px;',
+            '  background: rgba(239,68,68,0.03); border-left: 3px solid rgba(239,68,68,0.25);',
             '}',
-            '.dm-detail-inner b { color: #e2e8f0; }',
-            '.dm-alert { color: #ef4444; font-weight: 600; }',
+            '.dm-cntr-table { width: 100%; border-collapse: collapse; font-size: 9px; }',
+            '.dm-cntr-table th { padding: 3px 6px; color: #64748b; text-align: left; font-size: 8px; text-transform: uppercase; letter-spacing: 0.3px; }',
+            '.dm-cntr-table td { padding: 3px 6px; color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.03); }',
             '',
             '.dm-loading { padding: 12px; color: #fca5a5; font-size: 11px; display: flex; align-items: center; gap: 8px; }',
             '.dm-spinner {',
