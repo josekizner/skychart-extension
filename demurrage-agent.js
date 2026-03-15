@@ -113,6 +113,10 @@
     }
 
     // ===== RENDER TABLE =====
+    var _currentItems = []; // track current filtered set for sorting
+    var _sortCol = ''; 
+    var _sortDir = 'asc';
+
     function renderTable(data) {
         var content = document.getElementById('dm-content');
 
@@ -141,7 +145,9 @@
 
         // Default: em risco
         var riskItems = expirados.concat(alerta);
-        html.push(buildTable(riskItems));
+        _currentItems = riskItems.slice();
+        _sortCol = '';
+        html.push(buildTable(_currentItems));
 
         content.innerHTML = html.join('');
 
@@ -151,17 +157,36 @@
                 content.querySelectorAll('.dm-filter-btn').forEach(function(b) { b.classList.remove('active'); });
                 btn.classList.add('active');
                 var f = btn.getAttribute('data-filter');
-                var filtered;
-                if (f === 'risk') filtered = expirados.concat(alerta);
-                else if (f === 'ok') filtered = ok;
-                else filtered = data.filter(function(p) { return p.status !== 'finalizado'; });
+                if (f === 'risk') _currentItems = expirados.concat(alerta);
+                else if (f === 'ok') _currentItems = ok.slice();
+                else _currentItems = data.filter(function(p) { return p.status !== 'finalizado'; });
+                _sortCol = '';
+                _sortDir = 'asc';
                 var tableDiv = content.querySelector('.dm-table-wrap');
-                if (tableDiv) tableDiv.innerHTML = buildTableInner(filtered);
+                if (tableDiv) tableDiv.innerHTML = buildTableInner(_currentItems);
                 bindRowClicks(content);
+                bindSortHeaders(content);
             });
         });
 
         bindRowClicks(content);
+        bindSortHeaders(content);
+    }
+
+    function sortItems(items, col, dir) {
+        return items.slice().sort(function(a, b) {
+            var va = a[col], vb = b[col];
+            if (va == null) va = '';
+            if (vb == null) vb = '';
+            if (typeof va === 'number' && typeof vb === 'number') {
+                return dir === 'asc' ? va - vb : vb - va;
+            }
+            va = ('' + va).toLowerCase();
+            vb = ('' + vb).toLowerCase();
+            if (va < vb) return dir === 'asc' ? -1 : 1;
+            if (va > vb) return dir === 'asc' ? 1 : -1;
+            return 0;
+        });
     }
 
     function buildTable(items) {
@@ -171,18 +196,30 @@
     function buildTableInner(items) {
         if (items.length === 0) return '<div style="padding:10px;color:#86efac;font-size:11px;">Nenhum processo neste filtro.</div>';
 
+        var cols = [
+            { key: '', label: '', sortable: false },
+            { key: 'processo', label: 'Processo', sortable: true },
+            { key: 'cliente', label: 'Cliente', sortable: true },
+            { key: 'armador', label: 'Armador', sortable: true },
+            { key: 'qtdContainers', label: 'Cntrs', sortable: true },
+            { key: 'atracacao', label: 'Atracação', sortable: true },
+            { key: 'freeTime', label: 'FT', sortable: true },
+            { key: 'freeTimeEnd', label: 'Vencimento', sortable: true },
+            { key: 'diasRestantes', label: 'Status', sortable: true }
+        ];
+
         var h = [];
         h.push('<table class="dm-table">');
         h.push('<thead><tr>');
-        h.push('<th></th>');
-        h.push('<th>Processo</th>');
-        h.push('<th>Cliente</th>');
-        h.push('<th>Armador</th>');
-        h.push('<th>Cntrs</th>');
-        h.push('<th>Atracação</th>');
-        h.push('<th>FT</th>');
-        h.push('<th>Vencimento</th>');
-        h.push('<th>Status</th>');
+        cols.forEach(function(c) {
+            if (c.sortable) {
+                var indicator = '';
+                if (_sortCol === c.key) indicator = _sortDir === 'asc' ? ' ▲' : ' ▼';
+                h.push('<th class="dm-sortable" data-sort="' + c.key + '">' + c.label + indicator + '</th>');
+            } else {
+                h.push('<th>' + c.label + '</th>');
+            }
+        });
         h.push('</tr></thead><tbody>');
 
         items.forEach(function(p, i) {
@@ -198,15 +235,18 @@
                 statusCls = 'dm-status green';
             }
 
+            var ftDisplay = p.freeTime > 0 ? p.freeTime + 'd' : '—';
+            var ftEndDisplay = p.freeTime > 0 ? (p.freeTimeEnd || '—') : '—';
+
             h.push('<tr class="dm-row ' + p.status + '" data-idx="' + i + '">');
             h.push('<td class="dm-arrow">▶</td>');
             h.push('<td class="dm-proc">' + (p.processo || '?') + '</td>');
             h.push('<td class="dm-cli">' + (p.cliente || '?') + '</td>');
             h.push('<td>' + (p.armador || '—') + '</td>');
-            h.push('<td style="text-align:center;">' + (p.qtdContainers || 1) + '</td>');
+            h.push('<td style="text-align:center;">' + (p.qtdContainers || '—') + '</td>');
             h.push('<td>' + (p.atracacao || '—') + '</td>');
-            h.push('<td>' + (p.freeTime || 0) + 'd</td>');
-            h.push('<td>' + (p.freeTimeEnd || '—') + '</td>');
+            h.push('<td>' + ftDisplay + '</td>');
+            h.push('<td>' + ftEndDisplay + '</td>');
             h.push('<td><span class="' + statusCls + '">' + statusText + '</span></td>');
             h.push('</tr>');
 
@@ -217,7 +257,6 @@
             h.push('<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">');
             h.push('<span>Booking: <b style="color:#e2e8f0;">' + (p.booking || '—') + '</b></span>');
             h.push('</div>');
-            // Show container IDs
             if (p.container && p.container !== '—') {
                 var cntrs = p.container.split(', ');
                 h.push('<div style="font-size:9px;color:#64748b;margin-top:2px;">Containers:</div>');
@@ -249,6 +288,26 @@
                     var arrow = row.querySelector('.dm-arrow');
                     if (arrow) arrow.textContent = visible ? '▶' : '▼';
                 }
+            });
+        });
+    }
+
+    function bindSortHeaders(content) {
+        content.querySelectorAll('.dm-sortable').forEach(function(th) {
+            th.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var col = th.getAttribute('data-sort');
+                if (_sortCol === col) {
+                    _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    _sortCol = col;
+                    _sortDir = 'asc';
+                }
+                _currentItems = sortItems(_currentItems, col, _sortDir);
+                var tableDiv = content.querySelector('.dm-table-wrap');
+                if (tableDiv) tableDiv.innerHTML = buildTableInner(_currentItems);
+                bindRowClicks(content);
+                bindSortHeaders(content);
             });
         });
     }
@@ -308,9 +367,18 @@
             '.dm-filter-btn.active { background: rgba(239,68,68,0.15); color: #fca5a5; border-color: rgba(239,68,68,0.4); }',
             '.dm-filter-btn:hover { background: rgba(239,68,68,0.1); }',
             '',
-            '.dm-table-wrap { max-height: 320px; overflow-y: auto; padding: 0 6px 8px; }',
+            '.dm-table-wrap { max-height: 320px; overflow-y: auto; padding: 0 6px 8px; scrollbar-width: thin; scrollbar-color: rgba(239,68,68,0.2) transparent; }',
+            '.dm-table-wrap::-webkit-scrollbar { width: 4px; }',
+            '.dm-table-wrap::-webkit-scrollbar-track { background: transparent; }',
+            '.dm-table-wrap::-webkit-scrollbar-thumb { background: rgba(239,68,68,0.25); border-radius: 4px; }',
+            '#atom-demurrage-bar.expanded { scrollbar-width: thin; scrollbar-color: rgba(239,68,68,0.2) transparent; }',
+            '#atom-demurrage-bar.expanded::-webkit-scrollbar { width: 4px; }',
+            '#atom-demurrage-bar.expanded::-webkit-scrollbar-track { background: transparent; }',
+            '#atom-demurrage-bar.expanded::-webkit-scrollbar-thumb { background: rgba(239,68,68,0.25); border-radius: 4px; }',
             '.dm-table { width: 100%; border-collapse: collapse; font-size: 10px; }',
             '.dm-table th { padding: 5px 6px; color: #64748b; text-align: left; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; position: sticky; top: 0; background: #1a0a0a; }',
+            '.dm-sortable { cursor: pointer; user-select: none; transition: color 0.15s; }',
+            '.dm-sortable:hover { color: #fca5a5; }',
             '.dm-row { cursor: pointer; transition: background 0.15s; }',
             '.dm-row:hover { background: rgba(239,68,68,0.06); }',
             '.dm-row.selected { background: rgba(239,68,68,0.1); }',
