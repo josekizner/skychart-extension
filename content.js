@@ -610,9 +610,20 @@ try {
                 if (tabs.crossCheckMaerskTab) {
                     setTimeout(function() {
                         chrome.runtime.sendMessage({ action: 'closeMaerskAndReturn', maerskTab: tabs.crossCheckMaerskTab, skychartTab: tabs.crossCheckSkychartTab });
-                        // Popup aparece 1s depois de voltar pro Skychart
+                        // Atualizar final pra salvar ETA + popup
                         setTimeout(function() {
-                            showPersistentToast(crossResult.title, crossResult.html, crossResult.type);
+                            var finalBtn = null;
+                            var spans = document.querySelectorAll('span.ui-button-text.ui-clickable');
+                            for (var fb = 0; fb < spans.length; fb++) {
+                                if (spans[fb].textContent.trim() === 'Atualizar') { finalBtn = spans[fb]; break; }
+                            }
+                            if (finalBtn) {
+                                console.log('[Atom Booking] Atualizar FINAL...');
+                                finalBtn.click();
+                            }
+                            setTimeout(function() {
+                                showPersistentToast(crossResult.title, crossResult.html, crossResult.type);
+                            }, 1000);
                         }, 1000);
                     }, 2000);
                 } else {
