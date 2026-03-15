@@ -1944,8 +1944,14 @@ try {
                 showToast('Preencha o booking primeiro!', 'warning');
                 return;
             }
-            // Abre Maersk tracking (por enquanto só Maersk)
-            window.open('https://www.maersk.com/tracking/' + encodeURIComponent(bk), '_blank');
+            var carrierName = detectCarrier();
+            var url = getCarrierTrackingUrl(carrierName, bk);
+            if (url) {
+                showToast('Abrindo tracking ' + carrierName.toUpperCase() + '...', 'info');
+                window.open(url, '_blank');
+            } else {
+                showToast('Armador não suportado para tracking direto: ' + carrierName, 'warning');
+            }
         });
         bookingInput.parentElement.appendChild(consultBtn);
 
@@ -1982,13 +1988,82 @@ try {
     }
 
     function detectCarrier() {
-        // Tenta detectar o armador pela página
-        var pageText = document.body.innerText.toUpperCase();
-        if (pageText.indexOf('MSK') >= 0 || pageText.indexOf('MAERSK') >= 0) return 'maersk';
-        if (pageText.indexOf('HMM') >= 0 || pageText.indexOf('HYUNDAI') >= 0) return 'hmm';
-        if (pageText.indexOf('YML') >= 0 || pageText.indexOf('YANG MING') >= 0) return 'yangming';
-        if (pageText.indexOf('ONE') >= 0 || pageText.indexOf('OCEAN NETWORK') >= 0) return 'one';
+        // Tenta detectar o armador pelo campo Armador na tela do Skychart
+        var armadorField = '';
+        var allLabels = document.querySelectorAll('label, span, td');
+        for (var i = 0; i < allLabels.length; i++) {
+            var txt = (allLabels[i].textContent || '').trim();
+            if (txt.match(/^(Embarque|Armador|Navegação|Cia\.?\s*Marítima)/i)) {
+                // Próximo campo, ou select, ou td do lado
+                var next = allLabels[i].nextElementSibling;
+                if (next) {
+                    armadorField = (next.value || next.textContent || '').trim();
+                    break;
+                }
+                // Tenta parent->next
+                var parent = allLabels[i].parentElement;
+                if (parent && parent.nextElementSibling) {
+                    armadorField = (parent.nextElementSibling.value || parent.nextElementSibling.textContent || '').trim();
+                    break;
+                }
+            }
+        }
+
+        // Tenta selects com nome de armador
+        if (!armadorField) {
+            var selects = document.querySelectorAll('select');
+            for (var s = 0; s < selects.length; s++) {
+                var opt = selects[s].options[selects[s].selectedIndex];
+                var optText = opt ? (opt.textContent || '').toUpperCase() : '';
+                if (optText.match(/MAERSK|MSC|CMA|HAPAG|EVERGREEN|COSCO|HMM|HYUNDAI|ONE|OCEAN NETWORK|PIL|PACIFIC|ZIM|OOCL|YANG MING|YML/)) {
+                    armadorField = optText;
+                    break;
+                }
+            }
+        }
+
+        // Fallback: scan page text
+        if (!armadorField) {
+            armadorField = document.body.innerText || '';
+        }
+
+        var arm = armadorField.toUpperCase();
+        if (arm.indexOf('MSK') >= 0 || arm.indexOf('MAERSK') >= 0) return 'maersk';
+        if (arm.indexOf('MSC') >= 0 && arm.indexOf('MSCK') < 0) return 'msc';
+        if (arm.indexOf('CMA') >= 0 || arm.indexOf('CGM') >= 0) return 'cma';
+        if (arm.indexOf('HAPAG') >= 0) return 'hapag';
+        if (arm.indexOf('EVERGREEN') >= 0 || arm.indexOf('EMC') >= 0) return 'evergreen';
+        if (arm.indexOf('OCEAN NETWORK') >= 0 || (arm.indexOf('ONE') >= 0 && arm.indexOf('MOND') < 0)) return 'one';
+        if (arm.indexOf('COSCO') >= 0) return 'cosco';
+        if (arm.indexOf('HMM') >= 0 || arm.indexOf('HYUNDAI') >= 0) return 'hmm';
+        if (arm.indexOf('PIL') >= 0 || arm.indexOf('PACIFIC INTERNATIONAL') >= 0) return 'pil';
+        if (arm.indexOf('ZIM') >= 0) return 'zim';
+        if (arm.indexOf('OOCL') >= 0) return 'oocl';
+        if (arm.indexOf('YML') >= 0 || arm.indexOf('YANG MING') >= 0) return 'yangming';
+        if (arm.indexOf('CSSC') >= 0 || arm.indexOf('TRANSHIPPING') >= 0) return 'zim';
         return 'maersk'; // default
+    }
+
+    function getCarrierTrackingUrl(carrier, booking) {
+        if (!booking) return null;
+        booking = booking.trim();
+        switch (carrier) {
+            case 'maersk': return 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
+            case 'msc':
+                try { return 'https://www.msc.com/en/track-a-shipment?params=' + btoa('trackingNumber=' + booking + '&trackingMode=1'); }
+                catch(e) { return 'https://www.msc.com/en/track-a-shipment'; }
+            case 'cma': return 'https://www.cma-cgm.com/ebusiness/tracking/search';
+            case 'hapag': return 'https://www.hapag-lloyd.com/en/online-business/track/track-by-booking-solution.html?booking=' + encodeURIComponent(booking);
+            case 'evergreen': return 'https://ct.shipmentlink.com/servlet/TDB1_PageFlow.do';
+            case 'one': return 'https://ecomm.one-line.com/one-ecom/manage-shipment/cargo-tracking?trkNo=' + encodeURIComponent(booking);
+            case 'cosco': return 'https://elines.coscoshipping.com/ebusiness/cargotracking?trackingNumber=' + encodeURIComponent(booking);
+            case 'hmm': return 'https://www.hmm21.com/cms/business/ebiz/trackTrace/trackTrace/index.jsp?type=1&number=' + encodeURIComponent(booking);
+            case 'pil': return 'https://www.pilship.com/en--/120.html';
+            case 'zim': return 'https://www.zim.com/tools/track-a-shipment';
+            case 'oocl': return 'https://www.oocl.com/eng/ourservices/eservices/cargotracking/Pages/cargotracking.aspx';
+            case 'yangming': return 'https://www.yangming.com/e-service/Track_Trace/track_trace_cargo_tracking.aspx';
+            default: return 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
+        }
     }
 
     function handleTrackingData(data, error) {
