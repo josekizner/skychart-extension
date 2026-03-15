@@ -349,33 +349,15 @@ try {
         showToast('Processo encontrado! Abrindo...', 'success', 3000);
         await delay(3000);
 
-        // ===== 4. Abre a aba Embarque =====
+        // ===== 4. Abre a aba Embarque (mesmo padrão que check-agent/Serasa) =====
         var embarqueOpened = false;
-        // PrimeNG accordion: o click precisa ser no <a> header, nao no span de texto
-        var allAccTexts = document.querySelectorAll('.ui-accordion-header-text, .ui-accordion-header a, a[role="tab"]');
-        for (var ah = 0; ah < allAccTexts.length; ah++) {
-            var headerText = allAccTexts[ah].textContent || '';
-            if (headerText.indexOf('Embarque') >= 0) {
-                // Sobe pro element clicável: o <a> dentro do header
-                var clickTarget = allAccTexts[ah];
-                // Se é um span, sobe pro <a> pai
-                if (clickTarget.tagName === 'SPAN') {
-                    clickTarget = clickTarget.closest('a') || clickTarget.parentElement;
-                }
-                // Se ainda não é o header, tenta o closest
-                if (!clickTarget.classList.contains('ui-accordion-header')) {
-                    var header = clickTarget.closest('.ui-accordion-header');
-                    if (header) {
-                        // Clica no <a> dentro do header
-                        var headerLink = header.querySelector('a');
-                        if (headerLink) clickTarget = headerLink;
-                    }
-                }
-                
-                console.log('[Atom Booking] Clicando na aba Embarque:', clickTarget.tagName, clickTarget.className);
-                clickTarget.click();
-                // Scroll pra visibilidade
-                clickTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        var allAccSpans = document.querySelectorAll('span.ui-accordion-header-text');
+        for (var ah = 0; ah < allAccSpans.length; ah++) {
+            var spanText = allAccSpans[ah].textContent.trim();
+            if (spanText.indexOf('Embarque') >= 0) {
+                var clickable = allAccSpans[ah].closest('a, .ui-accordion-header') || allAccSpans[ah];
+                console.log('[Atom Booking] Clicando em Embarque (' + clickable.tagName + ')...');
+                clickable.click();
                 embarqueOpened = true;
                 break;
             }
