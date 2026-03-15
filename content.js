@@ -369,19 +369,30 @@ try {
 
         await delay(2000);
 
-        // === DIAGNÓSTICO: achar formcontrolname do navio ===
+        // === DIAGNÓSTICO: achar campo navio ===
         var diagACs = document.querySelectorAll('p-autocomplete');
         var viagemAnchor = document.querySelector('#formularioEmbarque-dsViagem');
         var embSec = viagemAnchor ? viagemAnchor.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
-        console.log('[DIAG] ====== AUTOCOMPLETES na página ======');
+        console.log('[DIAG] ====== AUTOCOMPLETES (Embarque) ======');
         for (var di = 0; di < diagACs.length; di++) {
             var pac = diagACs[di];
-            var inEmb = embSec ? embSec.contains(pac) : '?';
-            var fcn = pac.getAttribute('formcontrolname') || 'SEM-FCN';
-            var labelTd = pac.closest('td');
-            var prevLabel = (labelTd && labelTd.previousElementSibling) ? labelTd.previousElementSibling.textContent.trim().substring(0, 40) : '?';
-            var inputVal = pac.querySelector('input') ? pac.querySelector('input').value : '';
-            console.log('[DIAG] AC[' + di + '] fcn="' + fcn + '" emEmbarque=' + inEmb + ' label="' + prevLabel + '" val="' + inputVal + '"');
+            if (embSec && !embSec.contains(pac)) continue;
+            var fcn = pac.getAttribute('formcontrolname') || pac.getAttribute('name') || '';
+            var inp = pac.querySelector('input');
+            var inputVal = inp ? inp.value : '';
+            // Pega texto da row inteira e de TDs próximos
+            var row = pac.closest('tr');
+            var rowText = row ? row.textContent.replace(/\s+/g, ' ').trim().substring(0, 100) : '?';
+            var td = pac.closest('td');
+            var cellLabel = '';
+            if (td && td.previousElementSibling) cellLabel = td.previousElementSibling.textContent.trim().substring(0, 30);
+            // Procura labels adjacentes
+            var nearby = '';
+            if (td) {
+                var labels = td.querySelectorAll('label');
+                if (labels.length) nearby = labels[0].textContent.trim();
+            }
+            console.log('[DIAG] AC[' + di + '] fcn="' + fcn + '" val="' + inputVal + '" prevTD="' + cellLabel + '" label="' + nearby + '" row="' + rowText + '"');
         }
         console.log('[DIAG] ====================================');
 
@@ -403,50 +414,36 @@ try {
         }
         await delay(600);
 
-        // 5b. Navio (mesmo approach do tracking agent: diagnoseAndFind + memória + charByChar)
-        if (booking.navio && typeof SkAgent !== 'undefined' && SkAgent.engine) {
-            var navioInput = null;
-
-            // Seção embarque (pra validar)
-            var viagemRef = document.querySelector('#formularioEmbarque-dsViagem');
-            var embarqueSec = viagemRef ? viagemRef.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
-
-            // TENTATIVA 1: diagnoseAndFind (mesmo do tracking)
-            if (typeof diagnoseAndFind === 'function') {
-                navioInput = diagnoseAndFind('navio', 'feeder');
+        // ===== 6. Clica em Atualizar =====
+        var atualizarBtn = null;
+        var allBtnSpans = document.querySelectorAll('span.ui-button-text.ui-clickable');
+        for (var bi = 0; bi < allBtnSpans.length; bi++) {
+            if (allBtnSpans[bi].textContent.trim() === 'Atualizar') {
+                atualizarBtn = allBtnSpans[bi];
+                break;
             }
-
-            // TENTATIVA 2: Memória (AC_INDEX)
-            if (!navioInput && typeof SkMemory !== 'undefined') {
-                try {
-                    var navioMem = SkMemory.getFieldMemory('tracking:Navio');
-                    if (navioMem && navioMem.seletoresQueFunc && navioMem.seletoresQueFunc.length > 0) {
-                        var navioSel = navioMem.seletoresQueFunc[navioMem.seletoresQueFunc.length - 1];
-                        var memEl = null;
-                        if (navioSel && navioSel.indexOf('AC_INDEX:') === 0) {
-                            var savedIdx = parseInt(navioSel.split(':')[1]);
-                            var allAcMem = document.querySelectorAll('input.ui-autocomplete-input');
-                            if (savedIdx >= 0 && savedIdx < allAcMem.length) memEl = allAcMem[savedIdx];
-                        } else if (navioSel) {
-                            try { memEl = document.querySelector(navioSel); } catch(e) {}
-                        }
-                        if (memEl && embarqueSec && embarqueSec.contains(memEl)) {
-                            navioInput = memEl;
-                            console.log('[Atom Booking] Navio: memória válida:', navioSel);
-                        }
-                    }
-                } catch(e) {}
-            }
-
-            if (navioInput) {
-                console.log('[Atom Booking] Preenchendo navio:', booking.navio);
-                var r1 = await SkAgent.engine.charByChar(navioInput, booking.navio, { selectFirst: true, tabAfter: true });
-                console.log('[Atom Booking] Navio:', r1.ok ? 'OK' : 'falhou - ' + r1.reason);
-            } else {
-                console.log('[Atom Booking] Navio: campo não encontrado');
-            }
-            await delay(600);
         }
+        if (atualizarBtn) {
+            console.log('[Atom Booking] Clicando em Atualizar...');
+            atualizarBtn.click();
+            showToast('Atualizado! Iniciando cross-check...', 'success', 4000);
+        } else {
+            console.log('[Atom Booking] Botão Atualizar não encontrado');
+        }
+        await delay(2000);
+
+        // 5b. Navio — DESATIVADO TEMPORARIAMENTE
+        // AC_INDEX:8 no memory tava apontando pro Porto de Destino (Rio Grande)
+        // Preciso identificar o AC correto pelo DIAG antes de ativar
+        if (booking.navio) {
+            console.log('[Atom Booking] Navio do email:', booking.navio, '(aguardando DIAG pra identificar campo correto)');
+            // Limpa memória corrupta
+            if (typeof SkMemory !== 'undefined') {
+                try { SkMemory.clearFieldMemory('tracking:Navio'); console.log('[Atom Booking] Memória tracking:Navio LIMPA'); } catch(e) {}
+            }
+        }
+        await delay(600);
+
         if (booking.viagem) {
             var viagemInput = document.querySelector('#formularioEmbarque-dsViagem');
             if (viagemInput) {
