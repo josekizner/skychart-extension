@@ -87,19 +87,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  // Booking Agent: cross-check Maersk (abre em background)
+  // Booking Agent: cross-check Maersk (abre visível pro analista ver)
   if (request.action === "openMaerskTracking") {
     const booking = request.bookingNumber;
     const skychartTabId = sender.tab.id;
 
-    console.log("[Booking Cross-check] Abrindo Maersk tracking em background:", booking);
+    console.log("[Booking Cross-check] Abrindo Maersk tracking visível:", booking);
 
     const trackingUrl = 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
-    chrome.tabs.create({ url: trackingUrl, active: false }, (tab) => {
+    chrome.tabs.create({ url: trackingUrl, active: true }, (tab) => {
       pendingTrackingTabs[tab.id] = skychartTabId;
-      console.log("[Booking Cross-check] Tab aberta em background:", tab.id, "-> Skychart tab:", skychartTabId);
+      // Salva tab ID pra auto-fechar depois
+      chrome.storage.local.set({ crossCheckMaerskTab: tab.id, crossCheckSkychartTab: skychartTabId });
+      console.log("[Booking Cross-check] Tab visível:", tab.id, "-> Skychart tab:", skychartTabId);
     });
 
+    sendResponse({ success: true });
+    return true;
+  }
+
+  // Booking Agent: fecha aba Maersk e volta pro Skychart
+  if (request.action === "closeMaerskAndReturn") {
+    var maerskTab = request.maerskTab;
+    var skychartTab = request.skychartTab;
+
+    console.log("[Booking Cross-check] Fechando Maersk tab:", maerskTab, "voltando para:", skychartTab);
+
+    if (maerskTab) {
+      try { chrome.tabs.remove(maerskTab); } catch(e) {}
+    }
+    if (skychartTab) {
+      chrome.tabs.update(skychartTab, { active: true });
+    }
+
+    chrome.storage.local.remove(['crossCheckMaerskTab', 'crossCheckSkychartTab']);
     sendResponse({ success: true });
     return true;
   }

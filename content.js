@@ -484,12 +484,12 @@ try {
         }
     }
 
-    // Cross-check Maersk: abre tracking e compara dados
+    // Cross-check Maersk: abre tracking visível, fecha, volta, compara tudo
     function crossCheckMaersk(booking) {
         console.log('[Atom Booking] Iniciando cross-check Maersk para:', booking.booking_number);
-        showToast('Cross-check: Consultando Maersk tracking...', 'info', 8000);
+        showToast('Cross-check: Abrindo Maersk tracking...', 'info', 8000);
 
-        // Abre Maersk tracking em background
+        // Abre Maersk tracking visível
         chrome.runtime.sendMessage({
             action: 'openMaerskTracking',
             bookingNumber: booking.booking_number
@@ -499,6 +499,16 @@ try {
         var crossCheckHandler = function(msg) {
             if (msg.action !== 'trackingDataReady') return;
             chrome.runtime.onMessage.removeListener(crossCheckHandler);
+
+            // Auto-fechar aba Maersk e voltar pro Skychart
+            chrome.storage.local.get(['crossCheckMaerskTab', 'crossCheckSkychartTab'], function(tabs) {
+                if (tabs.crossCheckMaerskTab) {
+                    // Aguarda 2s pra analista ver o resultado na Maersk
+                    setTimeout(function() {
+                        chrome.runtime.sendMessage({ action: 'closeMaerskAndReturn', maerskTab: tabs.crossCheckMaerskTab, skychartTab: tabs.crossCheckSkychartTab });
+                    }, 2000);
+                }
+            });
 
             if (msg.error || !msg.data || !msg.data.events || msg.data.events.length === 0) {
                 showPersistentToast(
@@ -510,42 +520,98 @@ try {
             }
 
             var maersk = msg.data;
-            var divergencias = [];
 
-            // Compara navio
-            if (booking.navio && maersk.vessel) {
-                if (booking.navio.toUpperCase().indexOf(maersk.vessel.toUpperCase()) < 0 &&
-                    maersk.vessel.toUpperCase().indexOf(booking.navio.toUpperCase()) < 0) {
-                    divergencias.push('Navio: Email="' + booking.navio + '" vs Maersk="' + maersk.vessel + '"');
-                }
+            // Lê valores ATUAIS do sistema (o que realmente está nos campos)
+            var sysViagem = '';
+            var sysETD = '';
+            var sysETA = '';
+            var sysViagemEl = document.querySelector('#formularioEmbarque-dsViagem');
+            var sysETDEl = document.querySelector('#formularioEmbarque-dtPrevisaoEmbarque');
+            var sysETAEl = document.querySelector('#formularioEmbarque-dtPrevisaoAtracacao');
+            if (sysViagemEl) sysViagem = sysViagemEl.value || '';
+            if (sysETDEl) sysETD = sysETDEl.value || '';
+            if (sysETAEl) sysETA = sysETAEl.value || '';
+
+            // Converte datas Maersk pro formato DD/MM/YYYY
+            function convertDate(dateStr) {
+                if (!dateStr) return '';
+                var months = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
+                var match = dateStr.match(/(\d{1,2})\s+(\w{3})\s+(\d{4})/);
+                if (match) return match[1].padStart(2, '0') + '/' + (months[match[2]] || '01') + '/' + match[3];
+                return dateStr;
             }
 
-            // Compara viagem
-            if (booking.viagem && maersk.voyage) {
-                if (booking.viagem.toUpperCase() !== maersk.voyage.toUpperCase()) {
-                    divergencias.push('Viagem: Email="' + booking.viagem + '" vs Maersk="' + maersk.voyage + '"');
-                }
+            var maerskETD = convertDate(maersk.departureDate);
+            var maerskETA = convertDate(maersk.arrivalDate);
+
+            // Triple comparison: Email vs Sistema vs Maersk
+            var checks = [];
+            var allOk = true;
+
+            // Viagem
+            var emailViagem = booking.viagem || '—';
+            var mkViagem = maersk.voyage || '—';
+            var viagemOk = (!booking.viagem && !maersk.voyage) ||
+                          (sysViagem && (sysViagem === mkViagem || !mkViagem || mkViagem === '—'));
+            checks.push({ label: 'Viagem', email: emailViagem, sistema: sysViagem || '—', maersk: mkViagem, ok: viagemOk });
+            if (!viagemOk) allOk = false;
+
+            // Navio
+            var emailNavio = booking.navio || '—';
+            var mkNavio = maersk.vessel || '—';
+            var navioOk = !maersk.vessel || !booking.navio ||
+                          booking.navio.toUpperCase().indexOf(maersk.vessel.toUpperCase()) >= 0 ||
+                          maersk.vessel.toUpperCase().indexOf(booking.navio.toUpperCase()) >= 0;
+            checks.push({ label: 'Navio', email: emailNavio, sistema: '(autocomplete)', maersk: mkNavio, ok: navioOk });
+            if (!navioOk) allOk = false;
+
+            // ETD
+            var emailETD = booking.etd || '—';
+            var etdOk = !maerskETD || !sysETD || sysETD === maerskETD;
+            checks.push({ label: 'ETD', email: emailETD, sistema: sysETD || '—', maersk: maerskETD || '—', ok: etdOk });
+            if (!etdOk) allOk = false;
+
+            // ETA
+            var emailETA = booking.eta || '—';
+            var etaOk = !maerskETA || !sysETA || sysETA === maerskETA;
+            checks.push({ label: 'ETA', email: emailETA, sistema: sysETA || '—', maersk: maerskETA || '—', ok: etaOk });
+            if (!etaOk) allOk = false;
+
+            // Monta HTML da tabela de comparação
+            var tableRows = '';
+            for (var i = 0; i < checks.length; i++) {
+                var chk = checks[i];
+                var rowColor = chk.ok ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.15)';
+                var icon = chk.ok ? '✓' : '✗';
+                var iconColor = chk.ok ? '#86efac' : '#fca5a5';
+                tableRows += '<tr style="background:' + rowColor + '">' +
+                    '<td style="padding:4px 8px;color:' + iconColor + ';font-weight:bold;">' + icon + '</td>' +
+                    '<td style="padding:4px 8px;color:#e2e8f0;font-weight:600;">' + chk.label + '</td>' +
+                    '<td style="padding:4px 8px;color:#94a3b8;">' + chk.email + '</td>' +
+                    '<td style="padding:4px 8px;color:#c4b5fd;">' + chk.sistema + '</td>' +
+                    '<td style="padding:4px 8px;color:#7dd3fc;">' + chk.maersk + '</td>' +
+                    '</tr>';
             }
 
-            if (divergencias.length === 0) {
-                showPersistentToast(
-                    '✓ Cross-check Maersk: TUDO OK!',
-                    'Navio: ' + (maersk.vessel || booking.navio || '—') + ' | Viagem: ' + (maersk.voyage || booking.viagem || '—') +
-                    ' | ETD: ' + (maersk.departureDate || '—') + ' | ETA: ' + (maersk.arrivalDate || '—'),
-                    'success'
-                );
-            } else {
-                showPersistentToast(
-                    '✗ Cross-check Maersk: DIVERGÊNCIAS!',
-                    divergencias.join(' | '),
-                    'error'
-                );
-            }
+            var html = '<table style="width:100%;border-collapse:collapse;font-size:11px;font-family:Segoe UI,sans-serif;">' +
+                '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">' +
+                '<th style="padding:4px 8px;"></th>' +
+                '<th style="padding:4px 8px;color:#94a3b8;text-align:left;">Campo</th>' +
+                '<th style="padding:4px 8px;color:#94a3b8;text-align:left;">Email</th>' +
+                '<th style="padding:4px 8px;color:#c4b5fd;text-align:left;">Sistema</th>' +
+                '<th style="padding:4px 8px;color:#7dd3fc;text-align:left;">Maersk</th>' +
+                '</tr>' + tableRows + '</table>';
+
+            var title = allOk
+                ? '✓ Cross-check: Email × Sistema × Maersk — TUDO OK!'
+                : '✗ Cross-check: DIVERGÊNCIAS ENCONTRADAS!';
+
+            showPersistentToast(title, html, allOk ? 'success' : 'error');
         };
 
         chrome.runtime.onMessage.addListener(crossCheckHandler);
 
-        // Timeout: se não responder em 45s
+        // Timeout de 45s
         setTimeout(function() {
             chrome.runtime.onMessage.removeListener(crossCheckHandler);
         }, 45000);
