@@ -89,69 +89,34 @@
 
     function updateBadge(data) {
         var expirados = data.filter(function(p) { return p.status === 'expirado'; });
+        var alertas = data.filter(function(p) { return p.status === 'alerta'; });
         var badge = document.getElementById('dm-badge');
-        if (expirados.length > 0) {
-            badge.textContent = expirados.length + ' expirados';
+
+        // Count unique processes
+        var procExp = {};
+        expirados.forEach(function(p) { procExp[p.processo] = true; });
+        var procAlt = {};
+        alertas.forEach(function(p) { procAlt[p.processo] = true; });
+        var nProcExp = Object.keys(procExp).length;
+        var nProcAlt = Object.keys(procAlt).length;
+
+        if (nProcExp > 0) {
+            badge.textContent = nProcExp + ' proc / ' + expirados.length + ' cntrs expirados';
             badge.className = 'dm-badge danger';
+        } else if (nProcAlt > 0) {
+            badge.textContent = nProcAlt + ' proc em alerta';
+            badge.className = 'dm-badge warning';
         } else {
             badge.textContent = 'OK';
             badge.className = 'dm-badge ok';
         }
     }
 
-    // ===== GROUP BY PROCESS =====
-    function groupByProcess(items) {
-        var map = {};
-        var order = [];
-        items.forEach(function(c) {
-            var key = c.processo || '?';
-            if (!map[key]) {
-                map[key] = {
-                    processo: key,
-                    cliente: c.cliente,
-                    armador: c.armador,
-                    booking: c.booking,
-                    atracacao: c.atracacao,
-                    freeTime: c.freeTime,
-                    freeTimeEnd: c.freeTimeEnd,
-                    containers: [],
-                    worstStatus: 'ok',
-                    worstDays: 0
-                };
-                order.push(key);
-            }
-            map[key].containers.push(c);
-
-            // Track worst status
-            var rank = { expirado: 0, alerta: 1, ok: 2, finalizado: 3 };
-            if (rank[c.status] < rank[map[key].worstStatus]) {
-                map[key].worstStatus = c.status;
-            }
-            if (c.status === 'expirado' && c.diasAtrasados > map[key].worstDays) {
-                map[key].worstDays = c.diasAtrasados;
-            }
-            if (c.status === 'alerta' && map[key].worstStatus === 'alerta') {
-                map[key].worstDays = Math.min(map[key].worstDays || 999, c.diasRestantes);
-            }
-        });
-
-        // Sort: expirados first, then alerta, then ok
-        order.sort(function(a, b) {
-            var ra = { expirado: 0, alerta: 1, ok: 2, finalizado: 3 };
-            var sa = ra[map[a].worstStatus], sb = ra[map[b].worstStatus];
-            if (sa !== sb) return sa - sb;
-            if (map[a].worstStatus === 'expirado') return map[b].worstDays - map[a].worstDays;
-            return (map[a].worstDays || 0) - (map[b].worstDays || 0);
-        });
-
-        return order.map(function(k) { return map[k]; });
-    }
-
     // ===== RENDER TABLE =====
     function renderTable(data) {
         var content = document.getElementById('dm-content');
 
-        // Count by container status
+        // Count by process status
         var expirados = data.filter(function(p) { return p.status === 'expirado'; });
         var alerta = data.filter(function(p) { return p.status === 'alerta'; });
         var ok = data.filter(function(p) { return p.status === 'ok'; });
@@ -159,12 +124,12 @@
 
         var html = [];
 
-        // Summary (container counts)
+        // Summary (process counts)
         html.push('<div class="dm-summary">');
         html.push('<span class="dm-tag red">' + expirados.length + ' Expirados</span>');
         html.push('<span class="dm-tag yellow">' + alerta.length + ' Alerta</span>');
         html.push('<span class="dm-tag green">' + ok.length + ' OK</span>');
-        html.push('<span class="dm-tag gray">' + finalizado.length + ' Devolvidos</span>');
+        html.push('<span class="dm-tag gray">' + finalizado.length + ' Finalizados</span>');
         html.push('</div>');
 
         // Filter buttons
@@ -204,8 +169,7 @@
     }
 
     function buildTableInner(items) {
-        var groups = groupByProcess(items);
-        if (groups.length === 0) return '<div style="padding:10px;color:#86efac;font-size:11px;">Nenhum processo neste filtro.</div>';
+        if (items.length === 0) return '<div style="padding:10px;color:#86efac;font-size:11px;">Nenhum processo neste filtro.</div>';
 
         var h = [];
         h.push('<table class="dm-table">');
@@ -221,51 +185,52 @@
         h.push('<th>Status</th>');
         h.push('</tr></thead><tbody>');
 
-        groups.forEach(function(g, i) {
+        items.forEach(function(p, i) {
             var statusText, statusCls;
-            if (g.worstStatus === 'expirado') {
-                statusText = '-' + g.worstDays + 'd';
+            if (p.status === 'expirado') {
+                statusText = '-' + p.diasAtrasados + 'd';
                 statusCls = 'dm-status red';
-            } else if (g.worstStatus === 'alerta') {
-                statusText = g.worstDays + 'd';
+            } else if (p.status === 'alerta') {
+                statusText = p.diasRestantes + 'd';
                 statusCls = 'dm-status yellow';
             } else {
-                statusText = 'OK';
+                statusText = p.diasRestantes + 'd';
                 statusCls = 'dm-status green';
             }
 
-            var nContainers = g.containers.length;
-
-            h.push('<tr class="dm-row ' + g.worstStatus + '" data-gidx="' + i + '">');
+            h.push('<tr class="dm-row ' + p.status + '" data-idx="' + i + '">');
             h.push('<td class="dm-arrow">▶</td>');
-            h.push('<td class="dm-proc">' + g.processo + '</td>');
-            h.push('<td class="dm-cli">' + (g.cliente || '?') + '</td>');
-            h.push('<td>' + (g.armador || '—') + '</td>');
-            h.push('<td style="text-align:center;">' + nContainers + '</td>');
-            h.push('<td>' + (g.atracacao || '—') + '</td>');
-            h.push('<td>' + (g.freeTime || 0) + 'd</td>');
-            h.push('<td>' + (g.freeTimeEnd || '—') + '</td>');
+            h.push('<td class="dm-proc">' + (p.processo || '?') + '</td>');
+            h.push('<td class="dm-cli">' + (p.cliente || '?') + '</td>');
+            h.push('<td>' + (p.armador || '—') + '</td>');
+            h.push('<td style="text-align:center;">' + (p.qtdContainers || 1) + '</td>');
+            h.push('<td>' + (p.atracacao || '—') + '</td>');
+            h.push('<td>' + (p.freeTime || 0) + 'd</td>');
+            h.push('<td>' + (p.freeTimeEnd || '—') + '</td>');
             h.push('<td><span class="' + statusCls + '">' + statusText + '</span></td>');
             h.push('</tr>');
 
-            // Expandable container rows (hidden)
-            h.push('<tr class="dm-detail" id="dm-group-' + i + '" style="display:none;">');
+            // Expandable detail row
+            h.push('<tr class="dm-detail" id="dm-detail-' + i + '" style="display:none;">');
             h.push('<td colspan="9">');
             h.push('<div class="dm-cntr-wrap">');
-            h.push('<table class="dm-cntr-table">');
-            h.push('<tr><th>Container</th><th>Free Time</th><th>Vencimento</th><th>Status</th><th>Dias</th></tr>');
-            g.containers.forEach(function(c) {
-                var cStatusCls = c.status === 'expirado' ? 'dm-status red' : (c.status === 'alerta' ? 'dm-status yellow' : 'dm-status green');
-                var cDays = c.status === 'expirado' ? '-' + c.diasAtrasados + 'd' : c.diasRestantes + 'd';
-                h.push('<tr>');
-                h.push('<td class="dm-cnt">' + (c.container || '—') + '</td>');
-                h.push('<td>' + (c.freeTime || 0) + 'd</td>');
-                h.push('<td>' + (c.freeTimeEnd || '—') + '</td>');
-                h.push('<td><span class="' + cStatusCls + '">' + cDays + '</span></td>');
-                h.push('<td style="color:' + (c.status === 'expirado' ? '#ef4444' : (c.status === 'alerta' ? '#f59e0b' : '#22c55e')) + ';font-weight:700;">' + cDays + '</td>');
-                h.push('</tr>');
-            });
-            h.push('</table></div></td></tr>');
+            h.push('<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">');
+            h.push('<span>Booking: <b style="color:#e2e8f0;">' + (p.booking || '—') + '</b></span>');
+            h.push('</div>');
+            // Show container IDs
+            if (p.container && p.container !== '—') {
+                var cntrs = p.container.split(', ');
+                h.push('<div style="font-size:9px;color:#64748b;margin-top:2px;">Containers:</div>');
+                h.push('<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">');
+                cntrs.forEach(function(c) {
+                    h.push('<span class="dm-cnt" style="background:rgba(255,255,255,0.03);padding:1px 6px;border-radius:3px;">' + c + '</span>');
+                });
+                h.push('</div>');
+            }
+            if (p.status === 'expirado') {
+                h.push('<div style="margin-top:4px;"><span style="color:#ef4444;font-weight:600;font-size:10px;">Expirado há ' + p.diasAtrasados + ' dias!</span></div>');
+            }
+            h.push('</div></td></tr>');
         });
 
         h.push('</tbody></table>');
@@ -275,8 +240,8 @@
     function bindRowClicks(content) {
         content.querySelectorAll('.dm-row').forEach(function(row) {
             row.addEventListener('click', function() {
-                var idx = row.getAttribute('data-gidx');
-                var detail = document.getElementById('dm-group-' + idx);
+                var idx = row.getAttribute('data-idx');
+                var detail = document.getElementById('dm-detail-' + idx);
                 if (detail) {
                     var visible = detail.style.display !== 'none';
                     detail.style.display = visible ? 'none' : 'table-row';

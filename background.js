@@ -924,10 +924,29 @@ Os valores estão corretos? Responda APENAS com JSON:
   }
 
   // ===== DEMURRAGE AGENT: Busca operacional + equipamento e calcula risco =====
+  // Logic copied EXACTLY from dashboard api.service.ts processData()
   if (request.action === "fetchDemurrageData") {
     const API_BASE = 'https://server-mond.tail46f98e.ts.net/api';
     const API_TOKEN = 'b2e7c1f4-8a2d-4e3b-9c6a-7f1e2d5a9b3c';
     const headers = { 'Authorization': `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' };
+
+    // Helper: parse date — handles ISO and DD/MM/YYYY (same as api.service.ts parseDate)
+    function parseDate(dateStr) {
+      if (!dateStr) return null;
+      // ISO string (contains '-')
+      if (typeof dateStr === 'string' && dateStr.includes('-')) {
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      // DD/MM/YYYY
+      const parts = ('' + dateStr).split('/');
+      if (parts.length !== 3) return null;
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      return isNaN(d.getTime()) ? null : d;
+    }
 
     Promise.all([
       fetch(`${API_BASE}/operacional`, { headers }).then(r => r.json()),
@@ -937,7 +956,7 @@ Os valores estão corretos? Responda APENAS com JSON:
       const operacional = opJson.data || opJson || [];
       const equipamento = eqJson.data || eqJson || [];
 
-      // Build equipment map by CD_MOVIMENTO
+      // Build equipment map by CD_MOVIMENTO (array per movement, same as dashboard)
       const equipMap = {};
       equipamento.forEach(eq => {
         if (!equipMap[eq.CD_MOVIMENTO]) equipMap[eq.CD_MOVIMENTO] = [];
@@ -949,7 +968,7 @@ Os valores estão corretos? Responda APENAS com JSON:
 
       const results = [];
 
-      // Filter: Importação Marítima FCL, not cancelled, not duplicate
+      // Filter: Importação Marítima FCL, not cancelled, not duplicate D
       const filtered = operacional.filter(op =>
         op.PRODUTO === 'Importação Marítima' &&
         (op.DS_TIPO_FRETE || '').includes('FCL') &&
@@ -957,93 +976,71 @@ Os valores estão corretos? Responda APENAS com JSON:
         !(op.PROCESSO || '').trim().toUpperCase().endsWith(' D')
       );
 
+      // Process per OP (one result per process, same as dashboard)
       filtered.forEach(op => {
-        const equips = equipMap[op.CD_MOVIMENTO] || [];
-        if (equips.length === 0) return;
+        const equipmentsList = equipMap[op.CD_MOVIMENTO] || [];
 
-        equips.forEach(eq => {
-          const freeTime = eq.NR_FREE_TIME_NOSSO || 0;
+        // Dashboard requires: equipment list AND docking date
+        if (equipmentsList.length === 0 || !op.DT_CONFIRMACAO_ATRACACAO) return;
 
-          // Parse atracação date (DD/MM/YYYY) — try multiple fields
-          let dtStr = op.DT_CONFIRMACAO_ATRACACAO || op.DT_CHEGADA || '';
-          let dataAtracacao = null;
+        // Use the first equipment for general data (same as dashboard mainEquip)
+        const mainEquip = equipmentsList[0];
 
-          if (dtStr) {
-            // Try DD/MM/YYYY
-            const m = dtStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-            if (m) {
-              dataAtracacao = new Date(m[3], m[2] - 1, m[1]);
-              if (isNaN(dataAtracacao.getTime())) dataAtracacao = null;
-            }
-            // Try ISO format YYYY-MM-DD
-            if (!dataAtracacao) {
-              const iso = new Date(dtStr);
-              if (!isNaN(iso.getTime()) && iso.getFullYear() > 2000) dataAtracacao = iso;
-            }
-          }
+        // Parse atracação date
+        const dataAtracacao = parseDate(op.DT_CONFIRMACAO_ATRACACAO);
+        if (!dataAtracacao) return;
 
-          // If no arrival date, skip — can't calculate free time
-          if (!dataAtracacao) return;
+        // Calculate free time end date (same as dashboard)
+        const freeTime = mainEquip.NR_FREE_TIME_NOSSO || 0;
+        const freeTimeEnd = new Date(dataAtracacao);
+        freeTimeEnd.setDate(dataAtracacao.getDate() + freeTime);
+        freeTimeEnd.setHours(0, 0, 0, 0);
 
-          // Check if returned — must be a real date (DD/MM/YYYY with year > 2000)
-          const dtDev = eq.DT_DEVOLUCAO;
-          let returned = false;
-          if (dtDev && dtDev !== 'null' && dtDev !== '' && dtDev !== 'undefined' && dtDev !== '0') {
-            const devMatch = ('' + dtDev).match(/(\d{2})\/(\d{2})\/(\d{4})/);
-            if (devMatch) {
-              const devYear = parseInt(devMatch[3]);
-              if (devYear > 2000) returned = true;
-            } else {
-              // Try ISO
-              const devDate = new Date(dtDev);
-              if (!isNaN(devDate.getTime()) && devDate.getFullYear() > 2000) returned = true;
-            }
-          }
+        // Parse return date from main equipment (same as dashboard)
+        let dataDevolucao = parseDate(mainEquip.DT_DEVOLUCAO);
+        if (dataDevolucao) dataDevolucao.setHours(0, 0, 0, 0);
 
-          let daysRemaining = 999;
-          let freeTimeEndStr = '—';
+        // Aggregate all container IDs (DS_IDENTIFICACAO, same as dashboard)
+        const allContainers = equipmentsList
+          .map(e => e.DS_IDENTIFICACAO)
+          .filter(id => id)
+          .join(', ');
 
-          if (freeTime > 0) {
-            const freeTimeEnd = new Date(dataAtracacao);
-            freeTimeEnd.setDate(freeTimeEnd.getDate() + freeTime);
-            freeTimeEnd.setHours(0, 0, 0, 0);
-            const diffMs = freeTimeEnd.getTime() - today.getTime();
-            daysRemaining = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            freeTimeEndStr = freeTimeEnd.toLocaleDateString('pt-BR');
-          }
+        // Status logic — EXACT copy from dashboard api.service.ts
+        let daysRemaining;
+        let status;
 
-          let status;
-          if (returned) {
-            status = 'finalizado';
-          } else if (freeTime === 0) {
-            status = 'ok'; // No free time info = can't determine risk
-          } else if (daysRemaining < 0) {
+        if (dataDevolucao) {
+          // Container returned — check if within free time
+          const timeDiff = freeTimeEnd.getTime() - dataDevolucao.getTime();
+          daysRemaining = Math.floor(timeDiff / (1000 * 3600 * 24));
+          status = daysRemaining >= 0 ? 'finalizado' : 'finalizado'; // Both are finalizado for our panel
+        } else {
+          // Container NOT returned — check risk vs today
+          const timeDiff = freeTimeEnd.getTime() - today.getTime();
+          daysRemaining = Math.floor(timeDiff / (1000 * 3600 * 24));
+          if (daysRemaining < 0) {
             status = 'expirado';
           } else if (daysRemaining <= 5) {
             status = 'alerta';
           } else {
             status = 'ok';
           }
+        }
 
-          // Format atracacao for display
-          let atacDisplay = '';
-          if (dataAtracacao) {
-            atacDisplay = dataAtracacao.toLocaleDateString('pt-BR');
-          }
-
-          results.push({
-            processo: op.PROCESSO,
-            cliente: op.CLIENTE || '',
-            armador: op.ARMADOR || '',
-            container: eq.NR_CONTAINER || eq.DS_IDENTIFICACAO || '',
-            booking: op.BOOKING || '',
-            atracacao: atacDisplay,
-            freeTime: freeTime,
-            freeTimeEnd: freeTimeEndStr,
-            diasRestantes: Math.max(0, daysRemaining),
-            diasAtrasados: Math.max(0, -daysRemaining),
-            status: status
-          });
+        results.push({
+          processo: op.PROCESSO,
+          cliente: op.CLIENTE || '',
+          armador: op.ARMADOR || '',
+          container: allContainers || '—',
+          booking: op.BOOKING || '',
+          atracacao: dataAtracacao.toLocaleDateString('pt-BR'),
+          freeTime: freeTime,
+          freeTimeEnd: freeTimeEnd.toLocaleDateString('pt-BR'),
+          diasRestantes: Math.max(0, daysRemaining),
+          diasAtrasados: Math.max(0, -daysRemaining),
+          status: status,
+          qtdContainers: mainEquip.NR_QTD || equipmentsList.length
         });
       });
 
@@ -1055,18 +1052,13 @@ Os valores estão corretos? Responda APENAS com JSON:
         return a.diasRestantes - b.diasRestantes;
       });
 
-      console.log('[Demurrage] Dados processados:', results.length, 'containers');
+      console.log('[Demurrage] Processed:', results.length, 'processos');
       console.log('[Demurrage] Breakdown:', {
         expirado: results.filter(r => r.status === 'expirado').length,
         alerta: results.filter(r => r.status === 'alerta').length,
         ok: results.filter(r => r.status === 'ok').length,
-        finalizado: results.filter(r => r.status === 'finalizado').length,
-        filtered_ops: filtered.length,
-        total_equip: equipamento.length
+        finalizado: results.filter(r => r.status === 'finalizado').length
       });
-      // Log sample DT_DEVOLUCAO values for debug
-      const sampleDevs = equipamento.slice(0, 5).map(e => ({ cntr: e.NR_CONTAINER, dev: e.DT_DEVOLUCAO, ft: e.NR_FREE_TIME_NOSSO }));
-      console.log('[Demurrage] Sample equipment:', sampleDevs);
       sendResponse({ success: true, data: results });
     })
     .catch(err => {
