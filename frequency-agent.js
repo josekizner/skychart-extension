@@ -507,75 +507,46 @@
             var today = new Date();
             var dateStr = today.toLocaleDateString('pt-BR');
 
-            // Monta corpo do email
+            // Monta corpo COMPACTO (cabe em URL)
             var lines = [];
-            lines.push('RELATÓRIO DE FREQUÊNCIA DE COTAÇÃO — ' + dateStr);
-            lines.push('═══════════════════════════════════════════════');
+            lines.push('FREQUENCIA DE COTACAO - ' + dateStr);
             lines.push('');
-            lines.push('Resumo:');
-            lines.push('  • Total de clientes monitorados: ' + allClients.length);
-            lines.push('  • 🔴 Atrasados: ' + atrasados.length);
-            lines.push('  • 🟡 Atenção: ' + atencao.length);
-            lines.push('  • 🟢 Em dia: ' + ok.length);
+            lines.push('Resumo: ' + allClients.length + ' clientes | ' + atrasados.length + ' atrasados | ' + atencao.length + ' atencao | ' + ok.length + ' em dia');
             lines.push('');
 
             if (atrasados.length > 0) {
-                lines.push('');
-                lines.push('🔴 CLIENTES ATRASADOS (ação necessária)');
-                lines.push('───────────────────────────────────────');
-                atrasados.forEach(function(c, i) {
-                    lines.push('');
-                    lines.push((i + 1) + '. ' + c.name);
-                    lines.push('   Vendedor: ' + (c.vendedor || '—'));
-                    lines.push('   Frequência média: a cada ' + c.avgGapDays + ' dias');
-                    lines.push('   Dias sem cotar: ' + Math.round(c.daysSinceLast) + ' dias');
-                    lines.push('   Rota principal: ' + (c.origin || '?') + ' → ' + (c.dest || '?'));
-                    lines.push('   Cotações: ' + c.totalQuotes + ' total | ' + c.approved + ' aprovadas (' + c.ratio + '%)');
+                lines.push('ATRASADOS:');
+                var top = atrasados.slice(0, 15);
+                top.forEach(function(c, i) {
+                    lines.push((i + 1) + '. ' + c.name + ' - ' + Math.round(c.daysSinceLast) + 'd sem cotar (media ' + c.avgGapDays + 'd) - ' + (c.vendedor || '?'));
                 });
+                if (atrasados.length > 15) lines.push('... e mais ' + (atrasados.length - 15) + ' clientes atrasados');
             }
 
             if (atencao.length > 0) {
                 lines.push('');
-                lines.push('');
-                lines.push('🟡 CLIENTES EM ATENÇÃO (monitorar)');
-                lines.push('───────────────────────────────────');
-                atencao.forEach(function(c, i) {
-                    lines.push('');
-                    lines.push((i + 1) + '. ' + c.name);
-                    lines.push('   Vendedor: ' + (c.vendedor || '—'));
-                    lines.push('   Frequência média: a cada ' + c.avgGapDays + ' dias');
-                    lines.push('   Dias sem cotar: ' + Math.round(c.daysSinceLast) + ' dias');
-                    lines.push('   Cotações: ' + c.totalQuotes + ' total | ' + c.approved + ' aprovadas');
+                lines.push('ATENCAO:');
+                var topAt = atencao.slice(0, 10);
+                topAt.forEach(function(c, i) {
+                    lines.push((i + 1) + '. ' + c.name + ' - ' + Math.round(c.daysSinceLast) + 'd (media ' + c.avgGapDays + 'd)');
                 });
-            }
-
-            if (ok.length > 0) {
-                lines.push('');
-                lines.push('');
-                lines.push('🟢 CLIENTES EM DIA (' + ok.length + ')');
-                lines.push('───────────────────────────');
-                ok.forEach(function(c) {
-                    lines.push('  ✓ ' + c.name + ' — última cotação há ' + Math.round(c.daysSinceLast) + ' dias (média: ' + c.avgGapDays + 'd)');
-                });
+                if (atencao.length > 10) lines.push('... e mais ' + (atencao.length - 10));
             }
 
             lines.push('');
-            lines.push('');
-            lines.push('═══════════════════════════════════════════════');
-            lines.push('Atom • Multiagentes — Mond Shipping');
-            lines.push('Relatório gerado automaticamente em ' + today.toLocaleString('pt-BR'));
+            lines.push('Atom - Mond Shipping');
 
             var body = lines.join('\n');
-            var subject = '📊 Frequência de Cotação — ' + atrasados.length + ' atrasados | ' + dateStr;
+            var subject = 'Frequencia - ' + atrasados.length + ' atrasados | ' + dateStr;
 
-            // Abre Outlook compose com o relatório
+            // Abre Outlook compose
             var composeUrl = 'https://outlook.office.com/mail/deeplink/compose?to=' +
                 encodeURIComponent(ALERT_EMAIL) +
                 '&subject=' + encodeURIComponent(subject) +
                 '&body=' + encodeURIComponent(body);
 
             window.open(composeUrl, '_blank');
-            console.log(TAG, 'Relatório consolidado aberto no Outlook');
+            console.log(TAG, 'Relatório compacto aberto no Outlook (' + body.length + ' chars)');
 
             // Marca cooldown
             var obj = {};
