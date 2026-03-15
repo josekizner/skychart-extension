@@ -128,12 +128,12 @@
 
         var html = [];
 
-        // Summary (process counts)
+        // Summary (clickable as filters)
         html.push('<div class="dm-summary">');
-        html.push('<span class="dm-tag red">' + expirados.length + ' Expirados</span>');
-        html.push('<span class="dm-tag yellow">' + alerta.length + ' Alerta</span>');
-        html.push('<span class="dm-tag green">' + ok.length + ' OK</span>');
-        html.push('<span class="dm-tag gray">' + finalizado.length + ' Finalizados</span>');
+        html.push('<span class="dm-tag red dm-tag-filter" data-filter="expirado">' + expirados.length + ' Expirados</span>');
+        html.push('<span class="dm-tag yellow dm-tag-filter" data-filter="alerta">' + alerta.length + ' Alerta</span>');
+        html.push('<span class="dm-tag green dm-tag-filter" data-filter="ok">' + ok.length + ' OK</span>');
+        html.push('<span class="dm-tag gray dm-tag-filter" data-filter="finalizado">' + finalizado.length + ' Finalizados</span>');
         html.push('</div>');
 
         // Filter buttons
@@ -151,26 +151,49 @@
 
         content.innerHTML = html.join('');
 
-        // Bind filters
+        // Helper to apply filter
+        function applyFilter(items) {
+            _currentItems = items;
+            _sortCol = '';
+            _sortDir = 'asc';
+            var tableDiv = content.querySelector('.dm-table-wrap');
+            if (tableDiv) tableDiv.innerHTML = buildTableInner(_currentItems);
+            bindRowClicks(content);
+            bindSortHeaders(content);
+        }
+
+        // Bind filter buttons
         content.querySelectorAll('.dm-filter-btn').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 content.querySelectorAll('.dm-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+                content.querySelectorAll('.dm-tag-filter').forEach(function(t) { t.classList.remove('dm-tag-active'); });
                 btn.classList.add('active');
                 var f = btn.getAttribute('data-filter');
-                if (f === 'risk') _currentItems = expirados.concat(alerta);
-                else if (f === 'ok') _currentItems = ok.slice();
-                else _currentItems = data.filter(function(p) { return p.status !== 'finalizado'; });
-                _sortCol = '';
-                _sortDir = 'asc';
-                var tableDiv = content.querySelector('.dm-table-wrap');
-                if (tableDiv) tableDiv.innerHTML = buildTableInner(_currentItems);
-                bindRowClicks(content);
-                bindSortHeaders(content);
+                if (f === 'risk') applyFilter(expirados.concat(alerta));
+                else if (f === 'ok') applyFilter(ok.slice());
+                else applyFilter(data.filter(function(p) { return p.status !== 'finalizado'; }));
+            });
+        });
+
+        // Bind clickable summary tags
+        content.querySelectorAll('.dm-tag-filter').forEach(function(tag) {
+            tag.addEventListener('click', function() {
+                content.querySelectorAll('.dm-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+                content.querySelectorAll('.dm-tag-filter').forEach(function(t) { t.classList.remove('dm-tag-active'); });
+                tag.classList.add('dm-tag-active');
+                var f = tag.getAttribute('data-filter');
+                if (f === 'expirado') applyFilter(expirados.slice());
+                else if (f === 'alerta') applyFilter(alerta.slice());
+                else if (f === 'ok') applyFilter(ok.slice());
+                else if (f === 'finalizado') applyFilter(finalizado.slice());
             });
         });
 
         bindRowClicks(content);
         bindSortHeaders(content);
+
+        // Init resize handle
+        initResize();
     }
 
     function sortItems(items, col, dir) {
@@ -313,6 +336,25 @@
     }
 
     // ===== STYLES =====
+    // ===== RESIZE HANDLE =====
+    function initResize() {
+        var bar = document.getElementById('atom-demurrage-bar');
+        if (!bar || bar.querySelector('.dm-resize-handle')) return;
+        var handle = document.createElement('div');
+        handle.className = 'dm-resize-handle';
+        bar.appendChild(handle);
+        var startX = 0, startW = 0;
+        handle.addEventListener('mousedown', function(e) {
+            e.preventDefault(); e.stopPropagation();
+            startX = e.clientX; startW = bar.offsetWidth;
+            bar.style.transition = 'none';
+            function onMove(ev) { bar.style.width = Math.max(400, startW + (ev.clientX - startX)) + 'px'; }
+            function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); bar.style.transition = ''; }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+    }
+
     function injectStyles() {
         if (document.getElementById('dm-styles')) return;
         var style = document.createElement('style');
@@ -332,7 +374,7 @@
             '#atom-demurrage-bar.expanded {',
             '  height: auto; max-height: calc(100vh - 120px);',
             '  width: 620px; max-width: calc(100vw - 20px);',
-            '  overflow-y: auto;',
+            '  overflow-y: auto; position: relative;',
             '}',
             '.dm-bar-inner {',
             '  display: flex; align-items: center; gap: 10px;',
@@ -353,6 +395,9 @@
             '',
             '.dm-summary { display: flex; gap: 6px; padding: 8px 12px; flex-wrap: wrap; }',
             '.dm-tag { padding: 3px 8px; border-radius: 10px; font-size: 9px; font-weight: 600; }',
+            '.dm-tag-filter { cursor: pointer; transition: all 0.15s; }',
+            '.dm-tag-filter:hover { opacity: 0.8; transform: scale(1.05); }',
+            '.dm-tag-active { outline: 2px solid currentColor; outline-offset: 1px; }',
             '.dm-tag.red { background: rgba(239,68,68,0.15); color: #fca5a5; }',
             '.dm-tag.yellow { background: rgba(245,158,11,0.15); color: #fbbf24; }',
             '.dm-tag.green { background: rgba(34,197,94,0.15); color: #86efac; }',
@@ -410,7 +455,13 @@
             '  border: 2px solid rgba(239,68,68,0.2); border-top-color: #ef4444;',
             '  border-radius: 50%; animation: dm-spin 0.6s linear infinite;',
             '}',
-            '@keyframes dm-spin { to { transform: rotate(360deg); } }'
+            '@keyframes dm-spin { to { transform: rotate(360deg); } }',
+            '',
+            '.dm-resize-handle {',
+            '  position: absolute; top: 0; right: 0; width: 6px; height: 100%;',
+            '  cursor: ew-resize; z-index: 10;',
+            '}',
+            '.dm-resize-handle:hover { background: rgba(239,68,68,0.2); }'
         ].join('\n');
         document.head.appendChild(style);
     }
