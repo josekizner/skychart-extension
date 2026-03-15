@@ -618,27 +618,37 @@ try {
         }, 45000);
     }
 
-    // Toast persistente premium (fica até o usuário fechar — design sólido)
+    // Toast persistente premium — modal centralizado, impossível de perder
     function showPersistentToast(title, message, type) {
         var styles = {
-            success: { bg: '#1a2e1a', border: '#2ecc71', accent: '#2ecc71', titleBg: 'linear-gradient(135deg, #1B5E20, #2ecc71)' },
-            warning: { bg: '#2e2a1a', border: '#f39c12', accent: '#f39c12', titleBg: 'linear-gradient(135deg, #E65100, #f39c12)' },
-            error:   { bg: '#2e1a1a', border: '#e74c3c', accent: '#e74c3c', titleBg: 'linear-gradient(135deg, #B71C1C, #e74c3c)' }
+            success: { bg: '#0f1f0f', border: '#2ecc71', titleBg: 'linear-gradient(135deg, #1B5E20, #2ecc71)' },
+            warning: { bg: '#1f1a0f', border: '#f39c12', titleBg: 'linear-gradient(135deg, #E65100, #f39c12)' },
+            error:   { bg: '#1f0f0f', border: '#e74c3c', titleBg: 'linear-gradient(135deg, #B71C1C, #e74c3c)' }
         };
         var s = styles[type] || styles.success;
 
-        var toastDiv = document.createElement('div');
-        toastDiv.style.cssText = 'position:fixed;top:16px;right:16px;z-index:999999;width:520px;' +
-            'background:' + s.bg + ';border:2px solid ' + s.border + ';border-radius:12px;' +
-            'box-shadow:0 10px 40px rgba(0,0,0,0.7);font-family:Segoe UI,sans-serif;cursor:pointer;' +
-            'overflow:hidden;';
+        // Backdrop escuro
+        var backdrop = document.createElement('div');
+        backdrop.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:999998;';
 
-        var headerDiv = '<div style="background:' + s.titleBg + ';padding:10px 16px;color:white;font-weight:700;font-size:13px;">' + title + '</div>';
-        var bodyDiv = '<div style="padding:12px 16px;color:#e2e8f0;">' + message + '</div>';
-        var footerDiv = '<div style="padding:6px 16px 10px;color:#64748b;font-size:10px;text-align:right;border-top:1px solid rgba(255,255,255,0.05);">Clique para fechar</div>';
+        // Modal centralizado
+        var toastDiv = document.createElement('div');
+        toastDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:999999;width:560px;' +
+            'background:' + s.bg + ';border:2px solid ' + s.border + ';border-radius:14px;' +
+            'box-shadow:0 20px 60px rgba(0,0,0,0.8);font-family:Segoe UI,sans-serif;overflow:hidden;';
+
+        var headerDiv = '<div style="background:' + s.titleBg + ';padding:14px 20px;color:white;font-weight:700;font-size:14px;">' + title + '</div>';
+        var bodyDiv = '<div style="padding:16px 20px;color:#e2e8f0;">' + message + '</div>';
+        var footerDiv = '<div style="padding:10px 20px 14px;text-align:center;border-top:1px solid rgba(255,255,255,0.08);">' +
+            '<button style="padding:8px 32px;background:' + s.border + ';color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px;">Entendido</button></div>';
 
         toastDiv.innerHTML = headerDiv + bodyDiv + footerDiv;
-        toastDiv.addEventListener('click', function() { toastDiv.remove(); });
+
+        var closeAll = function() { backdrop.remove(); toastDiv.remove(); };
+        backdrop.addEventListener('click', closeAll);
+        toastDiv.querySelector('button').addEventListener('click', closeAll);
+
+        document.body.appendChild(backdrop);
         document.body.appendChild(toastDiv);
     }
 
