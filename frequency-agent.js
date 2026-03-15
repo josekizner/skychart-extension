@@ -488,17 +488,10 @@
     function sendConsolidatedReport(allClients) {
         if (allClients.length === 0) return;
 
-        // Cooldown: 1 email por dia
+        // Cooldown: 1 email por dia (reset forçado pra teste)
         var cooldownKey = 'freq_report_last';
+        chrome.storage.local.remove(cooldownKey); // limpa cooldown anterior
         chrome.storage.local.get(cooldownKey, function(data) {
-            var last = data[cooldownKey];
-            if (last) {
-                var diff = (Date.now() - new Date(last).getTime()) / (1000 * 60 * 60);
-                if (diff < 24) {
-                    console.log(TAG, 'Report já enviado há', Math.round(diff), 'horas. Cooldown 24h.');
-                    return;
-                }
-            }
 
             var atrasados = allClients.filter(function(c) { return c.status === 'atrasado'; });
             var atencao = allClients.filter(function(c) { return c.status === 'atencao'; });
