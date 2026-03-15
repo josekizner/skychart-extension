@@ -21,7 +21,12 @@ try {
             showToast(' Nova versão ' + msg.newVersion + ' disponível! Peça ao admin para atualizar. ' + (msg.changelog || ''), 'warning', 15000);
         }
         if (msg.action === 'trackingDataReady') {
-            handleTrackingData(msg.data, msg.error);
+            // Se é cross-check do booking agent, NÃO preencher campos (só comparar)
+            if (window._atomBookingCrossCheck) {
+                console.log('[Tracking] Ignorando fillTrackingFields — cross-check booking ativo');
+            } else {
+                handleTrackingData(msg.data, msg.error);
+            }
         }
         // Navegacao SPA: email agent pede pra ir pra oferta
         if (msg.action === 'navigateToOferta') {
@@ -387,31 +392,12 @@ try {
         }
         await delay(600);
 
-        // 5b. Navio (autocomplete — charByChar)
-        if (booking.navio && typeof SkAgent !== 'undefined' && SkAgent.engine) {
-            var navioInput = null;
-
-            // Tenta achar autocomplete de navio na seção Embarque
-            var viagemRef = document.querySelector('#formularioEmbarque-dsViagem');
-            if (viagemRef) {
-                var embarqueSection = viagemRef.closest('.ui-accordion-content, form, .ui-panel-content');
-                if (embarqueSection) {
-                    var acInputs = embarqueSection.querySelectorAll('input.ui-autocomplete-input');
-                    if (acInputs.length > 0) navioInput = acInputs[0];
-                }
-            }
-
-            if (navioInput) {
-                console.log('[Atom Booking] Preenchendo navio:', booking.navio);
-                var r1 = await SkAgent.engine.charByChar(navioInput, booking.navio, { selectFirst: true, tabAfter: true });
-                if (r1.ok) {
-                    console.log('[Atom Booking] Navio preenchido OK');
-                } else {
-                    console.log('[Atom Booking] Navio falhou:', r1.reason);
-                }
-            }
-            await delay(600);
+        // 5b. Navio — NÃO preenchemos aqui (autocomplete complexo, risco de errar campo)
+        // O navio do email é usado apenas no cross-check comparativo
+        if (booking.navio) {
+            console.log('[Atom Booking] Navio do email:', booking.navio, '(usado apenas no cross-check)');
         }
+        await delay(600);
 
         // 5c. Viagem
         if (booking.viagem) {
@@ -485,10 +471,13 @@ try {
         }
     }
 
-    // Cross-check Maersk: Email do agente × Site do armador
+    // Cross-check Maersk: Email do agente × Site do armador (só comparação, sem preencher)
     function crossCheckMaersk(booking) {
         console.log('[Atom Booking] Iniciando cross-check Maersk para:', booking.booking_number);
         showToast('Cross-check: Abrindo Maersk tracking...', 'info', 8000);
+
+        // Flag pra tracking agent não preencher campos (só cross-check)
+        window._atomBookingCrossCheck = true;
 
         // Abre Maersk tracking visível
         chrome.runtime.sendMessage({
@@ -583,12 +572,13 @@ try {
                 crossResult = { type: allOk ? 'success' : 'error', title: title, html: html };
             }
 
-            // Auto-fechar Maersk → voltar ao Skychart → ENTÃO mostrar o modal
+            // Auto-fechar Maersk → voltar ao Skychart → ENTÃO mostrar popup
+            window._atomBookingCrossCheck = false;
             chrome.storage.local.get(['crossCheckMaerskTab', 'crossCheckSkychartTab'], function(tabs) {
                 if (tabs.crossCheckMaerskTab) {
                     setTimeout(function() {
                         chrome.runtime.sendMessage({ action: 'closeMaerskAndReturn', maerskTab: tabs.crossCheckMaerskTab, skychartTab: tabs.crossCheckSkychartTab });
-                        // Modal aparece 1s depois de voltar pro Skychart
+                        // Popup aparece 1s depois de voltar pro Skychart
                         setTimeout(function() {
                             showPersistentToast(crossResult.title, crossResult.html, crossResult.type);
                         }, 1000);
@@ -607,7 +597,7 @@ try {
         }, 45000);
     }
 
-    // Toast persistente premium — modal centralizado, impossível de perder
+    // Popup persistente (sem backdrop, não bloqueia a página)
     function showPersistentToast(title, message, type) {
         var styles = {
             success: { bg: '#0f1f0f', border: '#2ecc71', titleBg: 'linear-gradient(135deg, #1B5E20, #2ecc71)' },
@@ -616,28 +606,18 @@ try {
         };
         var s = styles[type] || styles.success;
 
-        // Backdrop escuro
-        var backdrop = document.createElement('div');
-        backdrop.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:999998;';
-
-        // Modal centralizado
         var toastDiv = document.createElement('div');
-        toastDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:999999;width:560px;' +
+        toastDiv.style.cssText = 'position:fixed;top:80px;right:20px;z-index:999999;width:480px;' +
             'background:' + s.bg + ';border:2px solid ' + s.border + ';border-radius:14px;' +
-            'box-shadow:0 20px 60px rgba(0,0,0,0.8);font-family:Segoe UI,sans-serif;overflow:hidden;';
+            'box-shadow:0 10px 40px rgba(0,0,0,0.7);font-family:Segoe UI,sans-serif;overflow:hidden;';
 
-        var headerDiv = '<div style="background:' + s.titleBg + ';padding:14px 20px;color:white;font-weight:700;font-size:14px;">' + title + '</div>';
-        var bodyDiv = '<div style="padding:16px 20px;color:#e2e8f0;">' + message + '</div>';
-        var footerDiv = '<div style="padding:10px 20px 14px;text-align:center;border-top:1px solid rgba(255,255,255,0.08);">' +
-            '<button style="padding:8px 32px;background:' + s.border + ';color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px;">Entendido</button></div>';
+        var headerDiv = '<div style="background:' + s.titleBg + ';padding:12px 16px;color:white;font-weight:700;font-size:13px;">' + title + '</div>';
+        var bodyDiv = '<div style="padding:14px 16px;color:#e2e8f0;">' + message + '</div>';
+        var footerDiv = '<div style="padding:8px 16px 12px;text-align:right;border-top:1px solid rgba(255,255,255,0.08);">' +
+            '<button style="padding:6px 24px;background:' + s.border + ';color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:11px;">Entendido</button></div>';
 
         toastDiv.innerHTML = headerDiv + bodyDiv + footerDiv;
-
-        var closeAll = function() { backdrop.remove(); toastDiv.remove(); };
-        backdrop.addEventListener('click', closeAll);
-        toastDiv.querySelector('button').addEventListener('click', closeAll);
-
-        document.body.appendChild(backdrop);
+        toastDiv.querySelector('button').addEventListener('click', function() { toastDiv.remove(); });
         document.body.appendChild(toastDiv);
     }
 
