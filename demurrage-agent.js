@@ -212,6 +212,26 @@
         });
     }
 
+    // ===== TRACKING URL (same as process-list.component.ts) =====
+    function getTrackingUrl(armador, booking) {
+        if (!booking || booking.trim() === '') return null;
+        var arm = (armador || '').toLowerCase();
+        booking = booking.trim();
+        if (arm.includes('maersk')) return 'https://www.maersk.com/tracking/search?searchNumber=' + encodeURIComponent(booking);
+        if (arm.includes('msc')) {
+            try { return 'https://www.msc.com/en/track-a-shipment?params=' + btoa('trackingNumber=' + booking + '&trackingMode=1'); } catch(e) { return 'https://www.msc.com/en/track-a-shipment'; }
+        }
+        if (arm.includes('cma')) return 'https://www.cma-cgm.com/ebusiness/tracking/search';
+        if (arm.includes('hapag')) return 'https://www.hapag-lloyd.com/en/online-business/track/track-by-booking-solution.html?booking=' + encodeURIComponent(booking);
+        if (arm.includes('evergreen')) return 'https://ct.shipmentlink.com/servlet/TDB1_PageFlow.do';
+        if (arm.includes('one') || arm.includes('ocean network')) return 'https://ecomm.one-line.com/one-ecom/manage-shipment/cargo-tracking?trkNo=' + encodeURIComponent(booking);
+        if (arm.includes('cosco')) return 'https://elines.coscoshipping.com/ebusiness/cargotracking?trackingNumber=' + encodeURIComponent(booking);
+        if (arm.includes('hmm') || arm.includes('hyundai')) return 'https://www.hmm21.com/cms/business/ebiz/trackTrace/trackTrace/index.jsp?type=1&number=' + encodeURIComponent(booking);
+        if (arm.includes('pil') || arm.includes('pacific international')) return 'https://www.pilship.com/en--/120.html';
+        if (arm.includes('cssc') || arm.includes('transhipping') || arm.includes('zim')) return 'https://www.zim.com/tools/track-a-shipment';
+        return null;
+    }
+
     function buildTable(items) {
         return '<div class="dm-table-wrap">' + buildTableInner(items) + '</div>';
     }
@@ -263,7 +283,7 @@
 
             h.push('<tr class="dm-row ' + p.status + '" data-idx="' + i + '">');
             h.push('<td class="dm-arrow">▶</td>');
-            h.push('<td class="dm-proc">' + (p.processo || '?') + '</td>');
+            h.push('<td class="dm-proc dm-copy" data-copy="' + (p.processo || '') + '" title="Clique para copiar">' + (p.processo || '?') + '</td>');
             h.push('<td class="dm-cli">' + (p.cliente || '?') + '</td>');
             h.push('<td>' + (p.armador || '—') + '</td>');
             h.push('<td style="text-align:center;">' + (p.qtdContainers || '—') + '</td>');
@@ -277,8 +297,13 @@
             h.push('<tr class="dm-detail" id="dm-detail-' + i + '" style="display:none;">');
             h.push('<td colspan="9">');
             h.push('<div class="dm-cntr-wrap">');
-            h.push('<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;">');
-            h.push('<span>Booking: <b style="color:#e2e8f0;">' + (p.booking || '—') + '</b></span>');
+            h.push('<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;display:flex;gap:12px;align-items:center;">');
+            var trackUrl = getTrackingUrl(p.armador, p.booking);
+            if (trackUrl && p.booking) {
+                h.push('<span>Booking: <a href="' + trackUrl + '" target="_blank" rel="noopener" class="dm-booking-link" title="Rastrear no site do armador">' + p.booking + ' ↗</a></span>');
+            } else {
+                h.push('<span>Booking: <b style="color:#e2e8f0;">' + (p.booking || '—') + '</b></span>');
+            }
             h.push('</div>');
             if (p.container && p.container !== '—') {
                 var cntrs = p.container.split(', ');
@@ -301,7 +326,9 @@
 
     function bindRowClicks(content) {
         content.querySelectorAll('.dm-row').forEach(function(row) {
-            row.addEventListener('click', function() {
+            row.addEventListener('click', function(e) {
+                // Don't toggle if clicking copy or link
+                if (e.target.classList.contains('dm-copy') || e.target.tagName === 'A') return;
                 var idx = row.getAttribute('data-idx');
                 var detail = document.getElementById('dm-detail-' + idx);
                 if (detail) {
@@ -312,6 +339,24 @@
                     if (arrow) arrow.textContent = visible ? '▶' : '▼';
                 }
             });
+        });
+        // Bind copy on process cells
+        content.querySelectorAll('.dm-copy').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var text = el.getAttribute('data-copy');
+                if (!text) return;
+                navigator.clipboard.writeText(text).then(function() {
+                    var orig = el.textContent;
+                    el.textContent = '✓ Copiado!';
+                    el.style.color = '#86efac';
+                    setTimeout(function() { el.textContent = orig; el.style.color = ''; }, 1500);
+                });
+            });
+        });
+        // Prevent booking links from toggling row
+        content.querySelectorAll('.dm-booking-link').forEach(function(a) {
+            a.addEventListener('click', function(e) { e.stopPropagation(); });
         });
     }
 
@@ -429,8 +474,12 @@
             '.dm-row.selected { background: rgba(239,68,68,0.1); }',
             '.dm-row td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #cbd5e1; }',
             '.dm-proc { color: #e2e8f0 !important; font-weight: 600; }',
+            '.dm-copy { cursor: copy !important; transition: color 0.15s; }',
+            '.dm-copy:hover { color: #fca5a5 !important; }',
             '.dm-cli { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
             '.dm-cnt { color: #94a3b8 !important; font-family: Consolas, monospace; font-size: 9px; }',
+            '.dm-booking-link { color: #60a5fa; text-decoration: none; font-weight: 600; transition: all 0.15s; }',
+            '.dm-booking-link:hover { color: #93c5fd; text-decoration: underline; }',
             '',
             '.dm-status { padding: 2px 6px; border-radius: 8px; font-size: 9px; font-weight: 700; }',
             '.dm-status.red { background: rgba(239,68,68,0.15); color: #ef4444; }',
