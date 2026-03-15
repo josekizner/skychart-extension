@@ -374,7 +374,7 @@
             '#atom-demurrage-bar.expanded {',
             '  height: auto; max-height: calc(100vh - 120px);',
             '  width: 620px; max-width: calc(100vw - 20px);',
-            '  overflow-y: auto; position: relative;',
+            '  overflow-y: auto;',
             '}',
             '.dm-bar-inner {',
             '  display: flex; align-items: center; gap: 10px;',
