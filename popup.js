@@ -1,8 +1,8 @@
 var PROFILES = {
-  master: ['cambio','serasa','frete','tracking','cotacao','chequeio-op','chequeio-fin'],
+  master: ['cambio','serasa','frete','tracking','cotacao','chequeio-op','chequeio-fin','frequencia','booking'],
   financeiro: ['cambio','serasa','chequeio-fin'],
-  operacional: ['tracking','frete','chequeio-op'],
-  comercial: ['cotacao','frete']
+  operacional: ['tracking','frete','chequeio-op','booking'],
+  comercial: ['cotacao','frete','frequencia']
 };
 var LABELS = { master:'Master', financeiro:'Financeiro', operacional:'Operacional', comercial:'Comercial', custom:'Personalizado' };
 var ADMIN_PWD = 'realsteel';
@@ -56,7 +56,7 @@ function applyPermissions(agents, profile) {
       cards[i].classList.remove('hidden'); n++;
     } else { cards[i].classList.add('hidden'); }
   }
-  document.getElementById('status-text').textContent = n === 7 ? 'Todos os agentes ativos' : n + ' agentes ativos';
+  document.getElementById('status-text').textContent = n === 9 ? 'Todos os agentes ativos' : n + ' agentes ativos';
   document.getElementById('profile-name').textContent = LABELS[profile] || profile;
   var gearBtn = document.getElementById('gear-btn');
   var configSection = document.querySelector('.settings-card');
