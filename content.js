@@ -618,25 +618,26 @@ try {
         }, 45000);
     }
 
-    // Toast persistente (fica até o usuário fechar)
+    // Toast persistente premium (fica até o usuário fechar — design sólido)
     function showPersistentToast(title, message, type) {
-        var colors = {
-            success: { bg: 'rgba(34,197,94,0.15)', border: 'rgba(34,197,94,0.4)', text: '#86efac', icon: '✓' },
-            warning: { bg: 'rgba(234,179,8,0.15)', border: 'rgba(234,179,8,0.4)', text: '#fde68a', icon: '⚠' },
-            error: { bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.4)', text: '#fca5a5', icon: '✗' }
+        var styles = {
+            success: { bg: '#1a2e1a', border: '#2ecc71', accent: '#2ecc71', titleBg: 'linear-gradient(135deg, #1B5E20, #2ecc71)' },
+            warning: { bg: '#2e2a1a', border: '#f39c12', accent: '#f39c12', titleBg: 'linear-gradient(135deg, #E65100, #f39c12)' },
+            error:   { bg: '#2e1a1a', border: '#e74c3c', accent: '#e74c3c', titleBg: 'linear-gradient(135deg, #B71C1C, #e74c3c)' }
         };
-        var c = colors[type] || colors.success;
+        var s = styles[type] || styles.success;
 
         var toastDiv = document.createElement('div');
-        toastDiv.style.cssText = 'position:fixed;top:20px;right:20px;z-index:999999;max-width:450px;padding:16px 20px;' +
-            'background:' + c.bg + ';border:1px solid ' + c.border + ';border-radius:10px;' +
-            'box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:Segoe UI,sans-serif;cursor:pointer;' +
-            'backdrop-filter:blur(12px);animation:fadeIn 0.3s ease;';
+        toastDiv.style.cssText = 'position:fixed;top:16px;right:16px;z-index:999999;width:520px;' +
+            'background:' + s.bg + ';border:2px solid ' + s.border + ';border-radius:12px;' +
+            'box-shadow:0 10px 40px rgba(0,0,0,0.7);font-family:Segoe UI,sans-serif;cursor:pointer;' +
+            'overflow:hidden;';
 
-        toastDiv.innerHTML = '<div style="color:' + c.text + ';font-weight:700;font-size:13px;margin-bottom:6px;">' + title + '</div>' +
-            '<div style="color:#e2e8f0;font-size:11px;line-height:1.5;">' + message + '</div>' +
-            '<div style="color:#64748b;font-size:9px;margin-top:8px;">Clique para fechar</div>';
+        var headerDiv = '<div style="background:' + s.titleBg + ';padding:10px 16px;color:white;font-weight:700;font-size:13px;">' + title + '</div>';
+        var bodyDiv = '<div style="padding:12px 16px;color:#e2e8f0;">' + message + '</div>';
+        var footerDiv = '<div style="padding:6px 16px 10px;color:#64748b;font-size:10px;text-align:right;border-top:1px solid rgba(255,255,255,0.05);">Clique para fechar</div>';
 
+        toastDiv.innerHTML = headerDiv + bodyDiv + footerDiv;
         toastDiv.addEventListener('click', function() { toastDiv.remove(); });
         document.body.appendChild(toastDiv);
     }
