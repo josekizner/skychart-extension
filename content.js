@@ -369,25 +369,6 @@ try {
 
         await delay(2000);
 
-        // === VISUAL: marcar campos vazios com cores pra user identificar navio ===
-        var diagACs = document.querySelectorAll('p-autocomplete');
-        var viagemAnchor = document.querySelector('#formularioEmbarque-dsViagem');
-        var embSec = viagemAnchor ? viagemAnchor.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
-        var emptyColors = { 6: '#ff0000', 9: '#0088ff', 10: '#00cc00', 12: '#ffcc00' };
-        var colorNames = { 6: 'VERMELHO', 9: 'AZUL', 10: 'VERDE', 12: 'AMARELO' };
-        var embIdx = 0;
-        for (var di = 0; di < diagACs.length; di++) {
-            var pac = diagACs[di];
-            if (embSec && !embSec.contains(pac)) continue;
-            var inp = pac.querySelector('input');
-            if (inp && !inp.value && emptyColors[di]) {
-                inp.style.border = '4px solid ' + emptyColors[di];
-                inp.style.boxShadow = '0 0 10px ' + emptyColors[di];
-                console.log('[DIAG] AC[' + di + '] = BORDA ' + colorNames[di]);
-            }
-        }
-        showToast('OLHA O FORMULÁRIO: qual COR está no campo NAVIO? VERMELHO, AZUL, VERDE ou AMARELO?', 'warning', 30000);
-
         // ===== 5. Preenche os campos do Embarque =====
         showToast('Preenchendo campos do embarque...', 'info', 5000);
 
@@ -406,14 +387,17 @@ try {
         }
         await delay(600);
 
-        // 5b. Navio — DESATIVADO TEMPORARIAMENTE
-        // AC_INDEX:8 no memory tava apontando pro Porto de Destino (Rio Grande)
-        // Preciso identificar o AC correto pelo DIAG antes de ativar
-        if (booking.navio) {
-            console.log('[Atom Booking] Navio do email:', booking.navio, '(aguardando DIAG pra identificar campo correto)');
-            // Limpa memória corrupta
-            if (typeof SkMemory !== 'undefined') {
-                try { SkMemory.clearFieldMemory('tracking:Navio'); console.log('[Atom Booking] Memória tracking:Navio LIMPA'); } catch(e) {}
+        // 5b. Navio — AC[10] confirmado pelo usuário (borda VERDE)
+        if (booking.navio && typeof SkAgent !== 'undefined' && SkAgent.engine) {
+            var allPacs = document.querySelectorAll('p-autocomplete');
+            var navioAC = allPacs[10]; // AC[10] = campo Navio confirmado
+            var navioInput = navioAC ? navioAC.querySelector('input') : null;
+            if (navioInput) {
+                console.log('[Atom Booking] Preenchendo navio (AC[10]):', booking.navio);
+                var r1 = await SkAgent.engine.charByChar(navioInput, booking.navio, { selectFirst: true, tabAfter: true });
+                console.log('[Atom Booking] Navio:', r1.ok ? 'OK' : 'falhou - ' + r1.reason);
+            } else {
+                console.log('[Atom Booking] Navio: AC[10] não encontrado');
             }
         }
         await delay(600);
@@ -2208,38 +2192,18 @@ try {
             var viagemRef = document.querySelector('#formularioEmbarque-dsViagem');
             var embarqueSec = viagemRef ? viagemRef.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
 
-            // TENTATIVA 1: Auto-diagnóstico
-            navioInput = diagnoseAndFind('navio', 'feeder');
-
-            // TENTATIVA 2: Memória (com suporte a AC_INDEX e validação Embarque)
-            if (!navioInput) {
-                try {
-                    var navioMem = SkMemory.getFieldMemory('tracking:Navio');
-                    if (navioMem && navioMem.seletoresQueFunc && navioMem.seletoresQueFunc.length > 0) {
-                        var navioSel = navioMem.seletoresQueFunc[navioMem.seletoresQueFunc.length - 1];
-                        var memEl = null;
-
-                        // Suporte a AC_INDEX:N
-                        if (navioSel && navioSel.indexOf('AC_INDEX:') === 0) {
-                            var savedIdx = parseInt(navioSel.split(':')[1]);
-                            var allAcMem = document.querySelectorAll('input.ui-autocomplete-input');
-                            if (savedIdx >= 0 && savedIdx < allAcMem.length) {
-                                memEl = allAcMem[savedIdx];
-                            }
-                        } else if (navioSel) {
-                            try { memEl = document.querySelector(navioSel); } catch(e) {}
-                        }
-
-                        // SÓ USA se tá dentro da seção Embarque
-                        if (memEl && embarqueSec && embarqueSec.contains(memEl)) {
-                            navioInput = memEl;
-                            SkDebug.log('Navio', 'OK', ' Memória válida: ' + navioSel);
-                        } else if (memEl) {
-                            SkDebug.log('Navio', 'FAIL', ' Memória rejeitada (fora do Embarque): ' + navioSel);
-                        }
-                    }
-                } catch(e) {}
+            // TENTATIVA 1: AC[10] confirmado pelo usuário (campo Navio = borda VERDE)
+            var allPacsT = document.querySelectorAll('p-autocomplete');
+            if (allPacsT[10]) {
+                var ac10inp = allPacsT[10].querySelector('input');
+                if (ac10inp && embarqueSec && embarqueSec.contains(ac10inp)) {
+                    navioInput = ac10inp;
+                    SkDebug.log('Navio', 'OK', ' AC[10] confirmado');
+                }
             }
+
+            // TENTATIVA 2: Auto-diagnóstico (fallback)
+            if (!navioInput) navioInput = diagnoseAndFind('navio', 'feeder');
 
             // TENTATIVA 3: Pede ajuda
             if (!navioInput) {
