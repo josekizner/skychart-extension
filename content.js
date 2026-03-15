@@ -514,7 +514,7 @@ try {
         });
 
         // Escuta resultado do cross-check (canal separado do tracking)
-        var crossCheckHandler = function(msg) {
+        var crossCheckHandler = async function(msg) {
             if (msg.action !== 'bookingCrossCheckData') return;
             chrome.runtime.onMessage.removeListener(crossCheckHandler);
 
@@ -569,6 +569,22 @@ try {
                 var etaOk = !booking.eta || !maerskETA || booking.eta === maerskETA;
                 checks.push({ label: 'ETA', email: emailETA, maersk: maerskETA || '—', ok: etaOk });
                 if (!etaOk) allOk = false;
+
+                // Se navio bate e Maersk tem ETA, preenche ETA no sistema
+                if (navioOk && maerskETA) {
+                    var etaField = document.querySelector('#formularioEmbarque-dtPrevisaoAtracacao');
+                    if (etaField) {
+                        console.log('[Atom Booking] Cross-check OK, preenchendo ETA da Maersk:', maerskETA);
+                        if (typeof SkAgent !== 'undefined' && SkAgent.engine) {
+                            await SkAgent.engine.charByChar(etaField, maerskETA, { selectFirst: false, tabAfter: true });
+                        } else {
+                            etaField.focus();
+                            etaField.value = maerskETA;
+                            etaField.dispatchEvent(new Event('input', { bubbles: true }));
+                            etaField.dispatchEvent(new Event('blur', { bubbles: true }));
+                        }
+                    }
+                }
 
                 // Monta tabela Email × Maersk
                 var tableRows = '';
