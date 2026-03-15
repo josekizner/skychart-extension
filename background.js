@@ -963,30 +963,60 @@ Os valores estão corretos? Responda APENAS com JSON:
 
         equips.forEach(eq => {
           const freeTime = eq.NR_FREE_TIME_NOSSO || 0;
-          if (!freeTime) return;
 
-          // Parse atracação date (DD/MM/YYYY)
-          const dtStr = op.DT_CONFIRMACAO_ATRACACAO;
-          if (!dtStr) return;
-          const m = dtStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-          if (!m) return;
-          const dataAtracacao = new Date(m[3], m[2] - 1, m[1]);
-          if (isNaN(dataAtracacao.getTime())) return;
+          // Parse atracação date (DD/MM/YYYY) — try multiple fields
+          let dtStr = op.DT_CONFIRMACAO_ATRACACAO || op.DT_CHEGADA || '';
+          let dataAtracacao = null;
 
-          const freeTimeEnd = new Date(dataAtracacao);
-          freeTimeEnd.setDate(freeTimeEnd.getDate() + freeTime);
-          freeTimeEnd.setHours(0, 0, 0, 0);
+          if (dtStr) {
+            // Try DD/MM/YYYY
+            const m = dtStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+            if (m) {
+              dataAtracacao = new Date(m[3], m[2] - 1, m[1]);
+              if (isNaN(dataAtracacao.getTime())) dataAtracacao = null;
+            }
+            // Try ISO format YYYY-MM-DD
+            if (!dataAtracacao) {
+              const iso = new Date(dtStr);
+              if (!isNaN(iso.getTime()) && iso.getFullYear() > 2000) dataAtracacao = iso;
+            }
+          }
 
-          const diffMs = freeTimeEnd.getTime() - today.getTime();
-          const daysRemaining = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          // If no arrival date, skip — can't calculate free time
+          if (!dataAtracacao) return;
 
-          // Check if returned
-          const dt = eq.DT_DEVOLUCAO;
-          const returned = dt && dt !== 'null' && dt !== '' && dt !== 'undefined';
+          // Check if returned — must be a real date (DD/MM/YYYY with year > 2000)
+          const dtDev = eq.DT_DEVOLUCAO;
+          let returned = false;
+          if (dtDev && dtDev !== 'null' && dtDev !== '' && dtDev !== 'undefined' && dtDev !== '0') {
+            const devMatch = ('' + dtDev).match(/(\d{2})\/(\d{2})\/(\d{4})/);
+            if (devMatch) {
+              const devYear = parseInt(devMatch[3]);
+              if (devYear > 2000) returned = true;
+            } else {
+              // Try ISO
+              const devDate = new Date(dtDev);
+              if (!isNaN(devDate.getTime()) && devDate.getFullYear() > 2000) returned = true;
+            }
+          }
+
+          let daysRemaining = 999;
+          let freeTimeEndStr = '—';
+
+          if (freeTime > 0) {
+            const freeTimeEnd = new Date(dataAtracacao);
+            freeTimeEnd.setDate(freeTimeEnd.getDate() + freeTime);
+            freeTimeEnd.setHours(0, 0, 0, 0);
+            const diffMs = freeTimeEnd.getTime() - today.getTime();
+            daysRemaining = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            freeTimeEndStr = freeTimeEnd.toLocaleDateString('pt-BR');
+          }
 
           let status;
           if (returned) {
             status = 'finalizado';
+          } else if (freeTime === 0) {
+            status = 'ok'; // No free time info = can't determine risk
           } else if (daysRemaining < 0) {
             status = 'expirado';
           } else if (daysRemaining <= 5) {
@@ -995,15 +1025,21 @@ Os valores estão corretos? Responda APENAS com JSON:
             status = 'ok';
           }
 
+          // Format atracacao for display
+          let atacDisplay = '';
+          if (dataAtracacao) {
+            atacDisplay = dataAtracacao.toLocaleDateString('pt-BR');
+          }
+
           results.push({
             processo: op.PROCESSO,
             cliente: op.CLIENTE || '',
             armador: op.ARMADOR || '',
             container: eq.NR_CONTAINER || eq.DS_IDENTIFICACAO || '',
             booking: op.BOOKING || '',
-            atracacao: dtStr,
+            atracacao: atacDisplay,
             freeTime: freeTime,
-            freeTimeEnd: freeTimeEnd.toLocaleDateString('pt-BR'),
+            freeTimeEnd: freeTimeEndStr,
             diasRestantes: Math.max(0, daysRemaining),
             diasAtrasados: Math.max(0, -daysRemaining),
             status: status
@@ -1020,6 +1056,17 @@ Os valores estão corretos? Responda APENAS com JSON:
       });
 
       console.log('[Demurrage] Dados processados:', results.length, 'containers');
+      console.log('[Demurrage] Breakdown:', {
+        expirado: results.filter(r => r.status === 'expirado').length,
+        alerta: results.filter(r => r.status === 'alerta').length,
+        ok: results.filter(r => r.status === 'ok').length,
+        finalizado: results.filter(r => r.status === 'finalizado').length,
+        filtered_ops: filtered.length,
+        total_equip: equipamento.length
+      });
+      // Log sample DT_DEVOLUCAO values for debug
+      const sampleDevs = equipamento.slice(0, 5).map(e => ({ cntr: e.NR_CONTAINER, dev: e.DT_DEVOLUCAO, ft: e.NR_FREE_TIME_NOSSO }));
+      console.log('[Demurrage] Sample equipment:', sampleDevs);
       sendResponse({ success: true, data: results });
     })
     .catch(err => {
