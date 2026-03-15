@@ -324,8 +324,17 @@
 
     function safeInit() {
         if (!isContextValid()) return;
-        chrome.storage.local.get('enabledAgents', function(d) {
+        chrome.storage.local.get(['enabledAgents', 'userProfile'], function(d) {
             var agents = d.enabledAgents || [];
+            var profile = d.userProfile || '';
+
+            // Master always gets demurrage; auto-add if missing from old stored list
+            if (profile === 'master' && agents.indexOf('demurrage') < 0) {
+                agents.push('demurrage');
+                chrome.storage.local.set({ enabledAgents: agents });
+                console.log(TAG, 'Auto-adicionado ao perfil master');
+            }
+
             if (agents.indexOf('demurrage') < 0) {
                 console.log(TAG, 'Agente desabilitado pelo perfil');
                 return;
