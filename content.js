@@ -387,14 +387,50 @@ try {
         }
         await delay(600);
 
-        // 5b. Navio — NÃO preenchemos aqui (autocomplete complexo, risco de errar campo)
-        // O navio do email é usado apenas no cross-check comparativo
-        if (booking.navio) {
-            console.log('[Atom Booking] Navio do email:', booking.navio, '(usado apenas no cross-check)');
-        }
-        await delay(600);
+        // 5b. Navio (mesmo approach do tracking agent: diagnoseAndFind + memória + charByChar)
+        if (booking.navio && typeof SkAgent !== 'undefined' && SkAgent.engine) {
+            var navioInput = null;
 
-        // 5c. Viagem
+            // Seção embarque (pra validar)
+            var viagemRef = document.querySelector('#formularioEmbarque-dsViagem');
+            var embarqueSec = viagemRef ? viagemRef.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
+
+            // TENTATIVA 1: diagnoseAndFind (mesmo do tracking)
+            if (typeof diagnoseAndFind === 'function') {
+                navioInput = diagnoseAndFind('navio', 'feeder');
+            }
+
+            // TENTATIVA 2: Memória (AC_INDEX)
+            if (!navioInput && typeof SkMemory !== 'undefined') {
+                try {
+                    var navioMem = SkMemory.getFieldMemory('tracking:Navio');
+                    if (navioMem && navioMem.seletoresQueFunc && navioMem.seletoresQueFunc.length > 0) {
+                        var navioSel = navioMem.seletoresQueFunc[navioMem.seletoresQueFunc.length - 1];
+                        var memEl = null;
+                        if (navioSel && navioSel.indexOf('AC_INDEX:') === 0) {
+                            var savedIdx = parseInt(navioSel.split(':')[1]);
+                            var allAcMem = document.querySelectorAll('input.ui-autocomplete-input');
+                            if (savedIdx >= 0 && savedIdx < allAcMem.length) memEl = allAcMem[savedIdx];
+                        } else if (navioSel) {
+                            try { memEl = document.querySelector(navioSel); } catch(e) {}
+                        }
+                        if (memEl && embarqueSec && embarqueSec.contains(memEl)) {
+                            navioInput = memEl;
+                            console.log('[Atom Booking] Navio: memória válida:', navioSel);
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            if (navioInput) {
+                console.log('[Atom Booking] Preenchendo navio:', booking.navio);
+                var r1 = await SkAgent.engine.charByChar(navioInput, booking.navio, { selectFirst: true, tabAfter: true });
+                console.log('[Atom Booking] Navio:', r1.ok ? 'OK' : 'falhou - ' + r1.reason);
+            } else {
+                console.log('[Atom Booking] Navio: campo não encontrado');
+            }
+            await delay(600);
+        }
         if (booking.viagem) {
             var viagemInput = document.querySelector('#formularioEmbarque-dsViagem');
             if (viagemInput) {
