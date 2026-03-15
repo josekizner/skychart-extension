@@ -369,32 +369,24 @@ try {
 
         await delay(2000);
 
-        // === DIAGNÓSTICO: achar campo navio ===
+        // === VISUAL: marcar campos vazios com cores pra user identificar navio ===
         var diagACs = document.querySelectorAll('p-autocomplete');
         var viagemAnchor = document.querySelector('#formularioEmbarque-dsViagem');
         var embSec = viagemAnchor ? viagemAnchor.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
-        console.log('[DIAG] ====== AUTOCOMPLETES (Embarque) ======');
+        var emptyColors = { 6: '#ff0000', 9: '#0088ff', 10: '#00cc00', 12: '#ffcc00' };
+        var colorNames = { 6: 'VERMELHO', 9: 'AZUL', 10: 'VERDE', 12: 'AMARELO' };
+        var embIdx = 0;
         for (var di = 0; di < diagACs.length; di++) {
             var pac = diagACs[di];
             if (embSec && !embSec.contains(pac)) continue;
-            var fcn = pac.getAttribute('formcontrolname') || pac.getAttribute('name') || '';
             var inp = pac.querySelector('input');
-            var inputVal = inp ? inp.value : '';
-            // Pega texto da row inteira e de TDs próximos
-            var row = pac.closest('tr');
-            var rowText = row ? row.textContent.replace(/\s+/g, ' ').trim().substring(0, 100) : '?';
-            var td = pac.closest('td');
-            var cellLabel = '';
-            if (td && td.previousElementSibling) cellLabel = td.previousElementSibling.textContent.trim().substring(0, 30);
-            // Procura labels adjacentes
-            var nearby = '';
-            if (td) {
-                var labels = td.querySelectorAll('label');
-                if (labels.length) nearby = labels[0].textContent.trim();
+            if (inp && !inp.value && emptyColors[di]) {
+                inp.style.border = '4px solid ' + emptyColors[di];
+                inp.style.boxShadow = '0 0 10px ' + emptyColors[di];
+                console.log('[DIAG] AC[' + di + '] = BORDA ' + colorNames[di]);
             }
-            console.log('[DIAG] AC[' + di + '] fcn="' + fcn + '" val="' + inputVal + '" prevTD="' + cellLabel + '" label="' + nearby + '" row="' + rowText + '"');
         }
-        console.log('[DIAG] ====================================');
+        showToast('OLHA O FORMULÁRIO: qual COR está no campo NAVIO? VERMELHO, AZUL, VERDE ou AMARELO?', 'warning', 30000);
 
         // ===== 5. Preenche os campos do Embarque =====
         showToast('Preenchendo campos do embarque...', 'info', 5000);
