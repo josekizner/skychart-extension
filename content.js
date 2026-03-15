@@ -485,7 +485,7 @@ try {
         }
     }
 
-    // Cross-check Maersk: abre tracking visível, fecha, volta, compara tudo
+    // Cross-check Maersk: Email do agente × Site do armador
     function crossCheckMaersk(booking) {
         console.log('[Atom Booking] Iniciando cross-check Maersk para:', booking.booking_number);
         showToast('Cross-check: Abrindo Maersk tracking...', 'info', 8000);
@@ -501,113 +501,102 @@ try {
             if (msg.action !== 'trackingDataReady') return;
             chrome.runtime.onMessage.removeListener(crossCheckHandler);
 
-            // Auto-fechar aba Maersk e voltar pro Skychart
-            chrome.storage.local.get(['crossCheckMaerskTab', 'crossCheckSkychartTab'], function(tabs) {
-                if (tabs.crossCheckMaerskTab) {
-                    // Aguarda 2s pra analista ver o resultado na Maersk
-                    setTimeout(function() {
-                        chrome.runtime.sendMessage({ action: 'closeMaerskAndReturn', maerskTab: tabs.crossCheckMaerskTab, skychartTab: tabs.crossCheckSkychartTab });
-                    }, 2000);
-                }
-            });
+            var crossResult = null;
 
             if (msg.error || !msg.data || !msg.data.events || msg.data.events.length === 0) {
-                showPersistentToast(
-                    '⚠ Cross-check Maersk: Sem dados de tracking',
-                    'Booking ' + booking.booking_number + ' — dados de tracking nao disponiveis no site da Maersk.',
-                    'warning'
-                );
-                return;
+                crossResult = { type: 'warning', title: '⚠ Cross-check: Sem dados no site Maersk', html: 'Booking ' + booking.booking_number + ' — tracking não disponível no site da Maersk.' };
+            } else {
+                var maersk = msg.data;
+
+                // Converte datas Maersk pro formato DD/MM/YYYY
+                function convertDate(dateStr) {
+                    if (!dateStr) return '';
+                    var months = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
+                    var match = dateStr.match(/(\d{1,2})\s+(\w{3})\s+(\d{4})/);
+                    if (match) return match[1].padStart(2, '0') + '/' + (months[match[2]] || '01') + '/' + match[3];
+                    return dateStr;
+                }
+
+                var maerskETD = convertDate(maersk.departureDate);
+                var maerskETA = convertDate(maersk.arrivalDate);
+
+                // Comparação: Email × Maersk
+                var checks = [];
+                var allOk = true;
+
+                // Navio
+                var emailNavio = booking.navio || '—';
+                var mkNavio = maersk.vessel || '—';
+                var navioOk = !maersk.vessel || !booking.navio ||
+                              booking.navio.toUpperCase().indexOf(maersk.vessel.toUpperCase()) >= 0 ||
+                              maersk.vessel.toUpperCase().indexOf(booking.navio.toUpperCase()) >= 0;
+                checks.push({ label: 'Navio', email: emailNavio, maersk: mkNavio, ok: navioOk });
+                if (!navioOk) allOk = false;
+
+                // Viagem
+                var emailViagem = booking.viagem || '—';
+                var mkViagem = maersk.voyage || '—';
+                var viagemOk = !booking.viagem || !maersk.voyage ||
+                              booking.viagem.toUpperCase() === maersk.voyage.toUpperCase();
+                checks.push({ label: 'Viagem', email: emailViagem, maersk: mkViagem, ok: viagemOk });
+                if (!viagemOk) allOk = false;
+
+                // ETD
+                var emailETD = booking.etd || '—';
+                var etdOk = !booking.etd || !maerskETD || booking.etd === maerskETD;
+                checks.push({ label: 'ETD', email: emailETD, maersk: maerskETD || '—', ok: etdOk });
+                if (!etdOk) allOk = false;
+
+                // ETA
+                var emailETA = booking.eta || '—';
+                var etaOk = !booking.eta || !maerskETA || booking.eta === maerskETA;
+                checks.push({ label: 'ETA', email: emailETA, maersk: maerskETA || '—', ok: etaOk });
+                if (!etaOk) allOk = false;
+
+                // Monta tabela Email × Maersk
+                var tableRows = '';
+                for (var i = 0; i < checks.length; i++) {
+                    var chk = checks[i];
+                    var rowColor = chk.ok ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.15)';
+                    var icon = chk.ok ? '✓' : '✗';
+                    var iconColor = chk.ok ? '#86efac' : '#fca5a5';
+                    tableRows += '<tr style="background:' + rowColor + '">' +
+                        '<td style="padding:6px 10px;color:' + iconColor + ';font-weight:bold;font-size:14px;">' + icon + '</td>' +
+                        '<td style="padding:6px 10px;color:#e2e8f0;font-weight:600;">' + chk.label + '</td>' +
+                        '<td style="padding:6px 10px;color:#fbbf24;">' + chk.email + '</td>' +
+                        '<td style="padding:6px 10px;color:#7dd3fc;">' + chk.maersk + '</td>' +
+                        '</tr>';
+                }
+
+                var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;font-family:Segoe UI,sans-serif;">' +
+                    '<tr style="border-bottom:1px solid rgba(255,255,255,0.15);">' +
+                    '<th style="padding:6px 10px;width:30px;"></th>' +
+                    '<th style="padding:6px 10px;color:#94a3b8;text-align:left;">Campo</th>' +
+                    '<th style="padding:6px 10px;color:#fbbf24;text-align:left;">Email Agente</th>' +
+                    '<th style="padding:6px 10px;color:#7dd3fc;text-align:left;">Site Maersk</th>' +
+                    '</tr>' + tableRows + '</table>';
+
+                var title = allOk
+                    ? '✓ Booking concluído — Cross-check OK!'
+                    : '✗ Booking concluído — DIVERGÊNCIAS!';
+
+                crossResult = { type: allOk ? 'success' : 'error', title: title, html: html };
             }
 
-            var maersk = msg.data;
-
-            // Lê valores ATUAIS do sistema (o que realmente está nos campos)
-            var sysViagem = '';
-            var sysETD = '';
-            var sysETA = '';
-            var sysViagemEl = document.querySelector('#formularioEmbarque-dsViagem');
-            var sysETDEl = document.querySelector('#formularioEmbarque-dtPrevisaoEmbarque');
-            var sysETAEl = document.querySelector('#formularioEmbarque-dtPrevisaoAtracacao');
-            if (sysViagemEl) sysViagem = sysViagemEl.value || '';
-            if (sysETDEl) sysETD = sysETDEl.value || '';
-            if (sysETAEl) sysETA = sysETAEl.value || '';
-
-            // Converte datas Maersk pro formato DD/MM/YYYY
-            function convertDate(dateStr) {
-                if (!dateStr) return '';
-                var months = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
-                var match = dateStr.match(/(\d{1,2})\s+(\w{3})\s+(\d{4})/);
-                if (match) return match[1].padStart(2, '0') + '/' + (months[match[2]] || '01') + '/' + match[3];
-                return dateStr;
-            }
-
-            var maerskETD = convertDate(maersk.departureDate);
-            var maerskETA = convertDate(maersk.arrivalDate);
-
-            // Triple comparison: Email vs Sistema vs Maersk
-            var checks = [];
-            var allOk = true;
-
-            // Viagem
-            var emailViagem = booking.viagem || '—';
-            var mkViagem = maersk.voyage || '—';
-            var viagemOk = (!booking.viagem && !maersk.voyage) ||
-                          (sysViagem && (sysViagem === mkViagem || !mkViagem || mkViagem === '—'));
-            checks.push({ label: 'Viagem', email: emailViagem, sistema: sysViagem || '—', maersk: mkViagem, ok: viagemOk });
-            if (!viagemOk) allOk = false;
-
-            // Navio
-            var emailNavio = booking.navio || '—';
-            var mkNavio = maersk.vessel || '—';
-            var navioOk = !maersk.vessel || !booking.navio ||
-                          booking.navio.toUpperCase().indexOf(maersk.vessel.toUpperCase()) >= 0 ||
-                          maersk.vessel.toUpperCase().indexOf(booking.navio.toUpperCase()) >= 0;
-            checks.push({ label: 'Navio', email: emailNavio, sistema: '(autocomplete)', maersk: mkNavio, ok: navioOk });
-            if (!navioOk) allOk = false;
-
-            // ETD
-            var emailETD = booking.etd || '—';
-            var etdOk = !maerskETD || !sysETD || sysETD === maerskETD;
-            checks.push({ label: 'ETD', email: emailETD, sistema: sysETD || '—', maersk: maerskETD || '—', ok: etdOk });
-            if (!etdOk) allOk = false;
-
-            // ETA
-            var emailETA = booking.eta || '—';
-            var etaOk = !maerskETA || !sysETA || sysETA === maerskETA;
-            checks.push({ label: 'ETA', email: emailETA, sistema: sysETA || '—', maersk: maerskETA || '—', ok: etaOk });
-            if (!etaOk) allOk = false;
-
-            // Monta HTML da tabela de comparação
-            var tableRows = '';
-            for (var i = 0; i < checks.length; i++) {
-                var chk = checks[i];
-                var rowColor = chk.ok ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.15)';
-                var icon = chk.ok ? '✓' : '✗';
-                var iconColor = chk.ok ? '#86efac' : '#fca5a5';
-                tableRows += '<tr style="background:' + rowColor + '">' +
-                    '<td style="padding:4px 8px;color:' + iconColor + ';font-weight:bold;">' + icon + '</td>' +
-                    '<td style="padding:4px 8px;color:#e2e8f0;font-weight:600;">' + chk.label + '</td>' +
-                    '<td style="padding:4px 8px;color:#94a3b8;">' + chk.email + '</td>' +
-                    '<td style="padding:4px 8px;color:#c4b5fd;">' + chk.sistema + '</td>' +
-                    '<td style="padding:4px 8px;color:#7dd3fc;">' + chk.maersk + '</td>' +
-                    '</tr>';
-            }
-
-            var html = '<table style="width:100%;border-collapse:collapse;font-size:11px;font-family:Segoe UI,sans-serif;">' +
-                '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">' +
-                '<th style="padding:4px 8px;"></th>' +
-                '<th style="padding:4px 8px;color:#94a3b8;text-align:left;">Campo</th>' +
-                '<th style="padding:4px 8px;color:#94a3b8;text-align:left;">Email</th>' +
-                '<th style="padding:4px 8px;color:#c4b5fd;text-align:left;">Sistema</th>' +
-                '<th style="padding:4px 8px;color:#7dd3fc;text-align:left;">Maersk</th>' +
-                '</tr>' + tableRows + '</table>';
-
-            var title = allOk
-                ? '✓ Cross-check: Email × Sistema × Maersk — TUDO OK!'
-                : '✗ Cross-check: DIVERGÊNCIAS ENCONTRADAS!';
-
-            showPersistentToast(title, html, allOk ? 'success' : 'error');
+            // Auto-fechar Maersk → voltar ao Skychart → ENTÃO mostrar o modal
+            chrome.storage.local.get(['crossCheckMaerskTab', 'crossCheckSkychartTab'], function(tabs) {
+                if (tabs.crossCheckMaerskTab) {
+                    setTimeout(function() {
+                        chrome.runtime.sendMessage({ action: 'closeMaerskAndReturn', maerskTab: tabs.crossCheckMaerskTab, skychartTab: tabs.crossCheckSkychartTab });
+                        // Modal aparece 1s depois de voltar pro Skychart
+                        setTimeout(function() {
+                            showPersistentToast(crossResult.title, crossResult.html, crossResult.type);
+                        }, 1000);
+                    }, 2000);
+                } else {
+                    showPersistentToast(crossResult.title, crossResult.html, crossResult.type);
+                }
+            });
         };
 
         chrome.runtime.onMessage.addListener(crossCheckHandler);
