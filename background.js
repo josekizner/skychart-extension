@@ -923,6 +923,111 @@ Os valores estão corretos? Responda APENAS com JSON:
     return true;
   }
 
+  // ===== DEMURRAGE AGENT: Busca operacional + equipamento e calcula risco =====
+  if (request.action === "fetchDemurrageData") {
+    const API_BASE = 'https://server-mond.tail46f98e.ts.net/api';
+    const API_TOKEN = 'b2e7c1f4-8a2d-4e3b-9c6a-7f1e2d5a9b3c';
+    const headers = { 'Authorization': `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' };
+
+    Promise.all([
+      fetch(`${API_BASE}/operacional`, { headers }).then(r => r.json()),
+      fetch(`${API_BASE}/equipamento`, { headers }).then(r => r.json())
+    ])
+    .then(([opJson, eqJson]) => {
+      const operacional = opJson.data || opJson || [];
+      const equipamento = eqJson.data || eqJson || [];
+
+      // Build equipment map by CD_MOVIMENTO
+      const equipMap = {};
+      equipamento.forEach(eq => {
+        if (!equipMap[eq.CD_MOVIMENTO]) equipMap[eq.CD_MOVIMENTO] = [];
+        equipMap[eq.CD_MOVIMENTO].push(eq);
+      });
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const results = [];
+
+      // Filter: Importação Marítima FCL, not cancelled, not duplicate
+      const filtered = operacional.filter(op =>
+        op.PRODUTO === 'Importação Marítima' &&
+        (op.DS_TIPO_FRETE || '').includes('FCL') &&
+        (op.DS_STATUS || '').toUpperCase() !== 'CANCELADO' &&
+        !(op.PROCESSO || '').trim().toUpperCase().endsWith(' D')
+      );
+
+      filtered.forEach(op => {
+        const equips = equipMap[op.CD_MOVIMENTO] || [];
+        if (equips.length === 0) return;
+
+        equips.forEach(eq => {
+          const freeTime = eq.NR_FREE_TIME_NOSSO || 0;
+          if (!freeTime) return;
+
+          // Parse atracação date (DD/MM/YYYY)
+          const dtStr = op.DT_CONFIRMACAO_ATRACACAO;
+          if (!dtStr) return;
+          const m = dtStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+          if (!m) return;
+          const dataAtracacao = new Date(m[3], m[2] - 1, m[1]);
+          if (isNaN(dataAtracacao.getTime())) return;
+
+          const freeTimeEnd = new Date(dataAtracacao);
+          freeTimeEnd.setDate(freeTimeEnd.getDate() + freeTime);
+          freeTimeEnd.setHours(0, 0, 0, 0);
+
+          const diffMs = freeTimeEnd.getTime() - today.getTime();
+          const daysRemaining = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+          // Check if returned
+          const dt = eq.DT_DEVOLUCAO;
+          const returned = dt && dt !== 'null' && dt !== '' && dt !== 'undefined';
+
+          let status;
+          if (returned) {
+            status = 'finalizado';
+          } else if (daysRemaining < 0) {
+            status = 'expirado';
+          } else if (daysRemaining <= 5) {
+            status = 'alerta';
+          } else {
+            status = 'ok';
+          }
+
+          results.push({
+            processo: op.PROCESSO,
+            cliente: op.CLIENTE || '',
+            armador: op.ARMADOR || '',
+            container: eq.NR_CONTAINER || eq.DS_IDENTIFICACAO || '',
+            booking: op.BOOKING || '',
+            freeTime: freeTime,
+            freeTimeEnd: freeTimeEnd.toLocaleDateString('pt-BR'),
+            diasRestantes: Math.max(0, daysRemaining),
+            diasAtrasados: Math.max(0, -daysRemaining),
+            status: status
+          });
+        });
+      });
+
+      // Sort: expirados first (most days overdue), then alerta, then ok
+      results.sort((a, b) => {
+        const order = { expirado: 0, alerta: 1, ok: 2, finalizado: 3 };
+        if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+        if (a.status === 'expirado') return b.diasAtrasados - a.diasAtrasados;
+        return a.diasRestantes - b.diasRestantes;
+      });
+
+      console.log('[Demurrage] Dados processados:', results.length, 'containers');
+      sendResponse({ success: true, data: results });
+    })
+    .catch(err => {
+      console.error('[Demurrage] Erro ao buscar dados:', err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true;
+  }
+
   // ===== FREQUENCY AGENT: Gera email de churn via Gemini =====
   if (request.action === "generateChurnEmail") {
     const c = request.client || {};

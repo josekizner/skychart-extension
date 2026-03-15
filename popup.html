@@ -101,6 +101,7 @@
     .agent-icon.chequeio-fin { background: rgba(34,197,94,0.15); }
     .agent-icon.frequencia { background: rgba(251,146,60,0.15); }
     .agent-icon.booking { background: rgba(14,165,233,0.15); }
+    .agent-icon.demurrage { background: rgba(239,68,68,0.15); }
     .agent-name { font-size: 11px; font-weight: 600; color: #cbd5e1; }
     .agent-desc { font-size: 9px; color: #64748b; margin-top: 1px; }
     .settings { padding: 0 20px 14px; }
@@ -258,6 +259,10 @@
         <div class="agent-icon booking">B</div>
         <div><div class="agent-name">Booking</div><div class="agent-desc">Email → Skychart</div></div>
       </div>
+      <div class="agent-card" data-agent="demurrage">
+        <div class="agent-icon demurrage">D</div>
+        <div><div class="agent-name">Demurrage</div><div class="agent-desc">Free Time Control</div></div>
+      </div>
     </div>
   </div>
 
@@ -293,6 +298,7 @@
             <option value="financeiro">Financeiro</option>
             <option value="operacional">Operacional</option>
             <option value="comercial">Comercial</option>
+            <option value="demurrage">Demurrage</option>
             <option value="custom">Personalizado</option>
           </select>
         </div>
@@ -306,6 +312,7 @@
           <div class="agent-check"><input type="checkbox" value="chequeio-fin"> Chequeio Fin <span class="tag">Financeiro</span></div>
           <div class="agent-check"><input type="checkbox" value="frequencia"> Frequência <span class="tag">Comercial</span></div>
           <div class="agent-check"><input type="checkbox" value="booking"> Booking <span class="tag">Operacional</span></div>
+          <div class="agent-check"><input type="checkbox" value="demurrage"> Demurrage <span class="tag">Demurrage</span></div>
         </div>
         <button class="btn-save" id="admin-save">Salvar Permissões</button>
         <div class="saved-msg" id="admin-saved">Permissões salvas!</div>

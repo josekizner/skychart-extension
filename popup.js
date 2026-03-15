@@ -1,10 +1,11 @@
 var PROFILES = {
-  master: ['cambio','serasa','frete','tracking','cotacao','chequeio-op','chequeio-fin','frequencia','booking'],
+  master: ['cambio','serasa','frete','tracking','cotacao','chequeio-op','chequeio-fin','frequencia','booking','demurrage'],
   financeiro: ['cambio','serasa','chequeio-fin'],
   operacional: ['tracking','frete','chequeio-op','booking'],
-  comercial: ['cotacao','frete','frequencia']
+  comercial: ['cotacao','frete','frequencia'],
+  demurrage: ['demurrage','tracking','frete']
 };
-var LABELS = { master:'Master', financeiro:'Financeiro', operacional:'Operacional', comercial:'Comercial', custom:'Personalizado' };
+var LABELS = { master:'Master', financeiro:'Financeiro', operacional:'Operacional', comercial:'Comercial', demurrage:'Demurrage', custom:'Personalizado' };
 var ADMIN_PWD = 'realsteel';
 
 // Load from chrome.storage FIRST (most reliable)
@@ -33,6 +34,7 @@ function showProfileSelector() {
     '<button class="prof-btn" data-p="financeiro" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Financeiro</button>' +
     '<button class="prof-btn" data-p="operacional" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Operacional</button>' +
     '<button class="prof-btn" data-p="comercial" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Comercial</button>' +
+    '<button class="prof-btn" data-p="demurrage" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#5c1a1a;color:#fff;font-size:14px;cursor:pointer;">Demurrage</button>' +
     '<button class="prof-btn" data-p="master" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#2d5a1e;color:#fff;font-size:14px;cursor:pointer;">Master - Todos</button>' +
     '</div>';
   document.body.appendChild(overlay);
@@ -56,7 +58,7 @@ function applyPermissions(agents, profile) {
       cards[i].classList.remove('hidden'); n++;
     } else { cards[i].classList.add('hidden'); }
   }
-  document.getElementById('status-text').textContent = n === 9 ? 'Todos os agentes ativos' : n + ' agentes ativos';
+  document.getElementById('status-text').textContent = n === 10 ? 'Todos os agentes ativos' : n + ' agentes ativos';
   document.getElementById('profile-name').textContent = LABELS[profile] || profile;
   var gearBtn = document.getElementById('gear-btn');
   var configSection = document.querySelector('.settings-card');

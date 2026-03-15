@@ -28,9 +28,14 @@
             '      <span class="key">W</span>',
             '      <span class="label">Booking</span>',
             '    </div>',
+            '    <div class="atom-shortcut demurrage" data-action="demurrage" title="Painel de Demurrage">',
+            '      <span class="key">D</span>',
+            '      <span class="label">Demurrage</span>',
+            '    </div>',
             '  </div>',
             '  <span class="atom-status" id="atom-email-status">Pronto</span>',
-            '</div>'
+            '</div>',
+            '<div id="atom-demurrage-panel" style="display:none;"></div>'
         ].join('\n');
 
         document.body.appendChild(panel);
@@ -42,6 +47,7 @@
                 var action = btn.getAttribute('data-action');
                 if (action === 'quote') processQuotation();
                 if (action === 'booking') processBooking();
+                if (action === 'demurrage') toggleDemurragePanel();
             });
         });
 
@@ -687,6 +693,156 @@
         });
     } else {
         setTimeout(safeInit, 2000);
+    }
+
+    // ==========================================
+    // DEMURRAGE PANEL
+    // ==========================================
+
+    var _demurrageOpen = false;
+    var _demurrageCache = null;
+    var DEMURRAGE_EMAIL = 'jose.kizner@mondshipping.com.br';
+
+    function toggleDemurragePanel() {
+        var panel = document.getElementById('atom-demurrage-panel');
+        if (!panel) return;
+
+        _demurrageOpen = !_demurrageOpen;
+
+        if (_demurrageOpen) {
+            panel.style.display = 'block';
+            panel.innerHTML = '<div style="padding:12px;color:#a5b4fc;font-size:12px;display:flex;align-items:center;gap:8px;"><div class="atom-spinner"></div>Carregando dados de demurrage...</div>';
+
+            // Expand parent
+            var mainPanel = document.getElementById('atom-outlook-panel');
+            if (mainPanel) mainPanel.classList.add('expanded');
+
+            chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
+                if (response && response.success) {
+                    _demurrageCache = response.data;
+                    renderDemurragePanel(response.data);
+                    autoSendDemurrageReport(response.data);
+                } else {
+                    panel.innerHTML = '<div style="padding:12px;color:#f87171;font-size:12px;">Erro ao carregar dados: ' + (response ? response.error : 'sem resposta') + '</div>';
+                }
+            });
+        } else {
+            panel.style.display = 'none';
+            var mainPanel2 = document.getElementById('atom-outlook-panel');
+            if (mainPanel2) mainPanel2.classList.remove('expanded');
+        }
+    }
+
+    function renderDemurragePanel(processes) {
+        var panel = document.getElementById('atom-demurrage-panel');
+        if (!panel) return;
+
+        var expirados = processes.filter(function(p) { return p.status === 'expirado'; });
+        var alerta = processes.filter(function(p) { return p.status === 'alerta'; });
+        var ok = processes.filter(function(p) { return p.status === 'ok'; });
+        var finalizado = processes.filter(function(p) { return p.status === 'finalizado'; });
+
+        var html = [];
+        html.push('<div style="padding:10px 12px;border-top:1px solid rgba(99,102,241,0.15);">');
+
+        // Summary badges
+        html.push('<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">');
+        html.push('<span style="padding:3px 10px;border-radius:12px;font-size:10px;font-weight:600;background:rgba(239,68,68,0.15);color:#fca5a5;">' + expirados.length + ' Expirados</span>');
+        html.push('<span style="padding:3px 10px;border-radius:12px;font-size:10px;font-weight:600;background:rgba(245,158,11,0.15);color:#fbbf24;">' + alerta.length + ' Alerta</span>');
+        html.push('<span style="padding:3px 10px;border-radius:12px;font-size:10px;font-weight:600;background:rgba(34,197,94,0.15);color:#86efac;">' + ok.length + ' OK</span>');
+        html.push('<span style="padding:3px 10px;border-radius:12px;font-size:10px;font-weight:600;background:rgba(148,163,184,0.1);color:#94a3b8;">' + finalizado.length + ' Devolvidos</span>');
+        html.push('</div>');
+
+        // Table of risky processes
+        var risky = expirados.concat(alerta).slice(0, 20);
+        if (risky.length > 0) {
+            html.push('<div style="max-height:240px;overflow-y:auto;">');
+            html.push('<table style="width:100%;border-collapse:collapse;font-size:10px;">');
+            html.push('<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">');
+            html.push('<th style="padding:4px 6px;color:#64748b;text-align:left;">Processo</th>');
+            html.push('<th style="padding:4px 6px;color:#64748b;text-align:left;">Cliente</th>');
+            html.push('<th style="padding:4px 6px;color:#64748b;text-align:center;">Dias</th>');
+            html.push('<th style="padding:4px 6px;color:#64748b;text-align:center;">Status</th>');
+            html.push('</tr>');
+
+            risky.forEach(function(p) {
+                var statusColor = p.status === 'expirado' ? '#ef4444' : '#f59e0b';
+                var statusBg = p.status === 'expirado' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)';
+                var statusLabel = p.status === 'expirado' ? p.diasAtrasados + 'd atrasado' : p.diasRestantes + 'd restante';
+
+                html.push('<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">');
+                html.push('<td style="padding:4px 6px;color:#e2e8f0;font-weight:600;">' + (p.processo || '?') + '</td>');
+                html.push('<td style="padding:4px 6px;color:#cbd5e1;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (p.cliente || '?') + '</td>');
+                html.push('<td style="padding:4px 6px;text-align:center;color:' + statusColor + ';font-weight:700;">' + (p.status === 'expirado' ? '-' + p.diasAtrasados : p.diasRestantes) + '</td>');
+                html.push('<td style="padding:4px 6px;text-align:center;"><span style="padding:2px 6px;border-radius:8px;font-size:9px;background:' + statusBg + ';color:' + statusColor + ';">' + statusLabel + '</span></td>');
+                html.push('</tr>');
+            });
+
+            html.push('</table></div>');
+        } else {
+            html.push('<div style="color:#86efac;font-size:11px;padding:10px;">Nenhum processo com risco de demurrage.</div>');
+        }
+
+        html.push('</div>');
+        panel.innerHTML = html.join('');
+    }
+
+    function autoSendDemurrageReport(processes) {
+        var expirados = processes.filter(function(p) { return p.status === 'expirado'; });
+        var alerta = processes.filter(function(p) { return p.status === 'alerta'; });
+        if (expirados.length === 0 && alerta.length === 0) return;
+
+        var cooldownKey = 'demurrage_report_last';
+        chrome.storage.local.get(cooldownKey, function(data) {
+            var last = data[cooldownKey];
+            if (last) {
+                var diff = (Date.now() - new Date(last).getTime()) / (1000 * 60 * 60);
+                if (diff < 24) return;
+            }
+
+            var today = new Date();
+            var dateStr = today.toLocaleDateString('pt-BR');
+
+            var lines = [];
+            lines.push('DEMURRAGE REPORT - ' + dateStr);
+            lines.push('');
+            lines.push(expirados.length + ' expirados | ' + alerta.length + ' alerta | ' + processes.length + ' total');
+            lines.push('');
+
+            if (expirados.length > 0) {
+                lines.push('EXPIRADOS:');
+                expirados.slice(0, 15).forEach(function(p, i) {
+                    lines.push((i + 1) + '. ' + p.processo + ' - ' + p.cliente + ' - ' + p.diasAtrasados + 'd atrasado - ' + (p.container || '?'));
+                });
+                if (expirados.length > 15) lines.push('... e mais ' + (expirados.length - 15));
+            }
+
+            if (alerta.length > 0) {
+                lines.push('');
+                lines.push('ALERTA:');
+                alerta.slice(0, 10).forEach(function(p, i) {
+                    lines.push((i + 1) + '. ' + p.processo + ' - ' + p.cliente + ' - ' + p.diasRestantes + 'd restante');
+                });
+            }
+
+            lines.push('');
+            lines.push('Atom - Mond Shipping');
+
+            var body = lines.join('\n');
+            var subject = 'Demurrage - ' + expirados.length + ' expirados | ' + dateStr;
+
+            var composeUrl = 'https://outlook.office.com/mail/deeplink/compose?to=' +
+                encodeURIComponent(DEMURRAGE_EMAIL) +
+                '&subject=' + encodeURIComponent(subject) +
+                '&body=' + encodeURIComponent(body);
+
+            window.open(composeUrl, '_blank');
+
+            var obj = {};
+            obj[cooldownKey] = new Date().toISOString();
+            chrome.storage.local.set(obj);
+            console.log('[Atom Demurrage] Report aberto no Outlook');
+        });
     }
 
 })();

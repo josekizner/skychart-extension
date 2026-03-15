@@ -281,3 +281,27 @@
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* Demurrage button — red accent */
+.atom-shortcut.demurrage {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.atom-shortcut.demurrage:hover {
+    background: rgba(239, 68, 68, 0.22);
+    border-color: rgba(239, 68, 68, 0.5);
+}
+
+.atom-shortcut.demurrage .key {
+    background: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+}
+
+.atom-shortcut.demurrage .label {
+    color: #fca5a5;
+}
+
+#atom-demurrage-panel {
+    background: rgba(15, 15, 26, 0.95);
+}
