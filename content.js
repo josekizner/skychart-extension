@@ -369,6 +369,22 @@ try {
 
         await delay(2000);
 
+        // === DIAGNÓSTICO: achar formcontrolname do navio ===
+        var diagACs = document.querySelectorAll('p-autocomplete');
+        var viagemAnchor = document.querySelector('#formularioEmbarque-dsViagem');
+        var embSec = viagemAnchor ? viagemAnchor.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
+        console.log('[DIAG] ====== AUTOCOMPLETES na página ======');
+        for (var di = 0; di < diagACs.length; di++) {
+            var pac = diagACs[di];
+            var inEmb = embSec ? embSec.contains(pac) : '?';
+            var fcn = pac.getAttribute('formcontrolname') || 'SEM-FCN';
+            var labelTd = pac.closest('td');
+            var prevLabel = (labelTd && labelTd.previousElementSibling) ? labelTd.previousElementSibling.textContent.trim().substring(0, 40) : '?';
+            var inputVal = pac.querySelector('input') ? pac.querySelector('input').value : '';
+            console.log('[DIAG] AC[' + di + '] fcn="' + fcn + '" emEmbarque=' + inEmb + ' label="' + prevLabel + '" val="' + inputVal + '"');
+        }
+        console.log('[DIAG] ====================================');
+
         // ===== 5. Preenche os campos do Embarque =====
         showToast('Preenchendo campos do embarque...', 'info', 5000);
 
