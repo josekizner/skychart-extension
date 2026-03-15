@@ -414,24 +414,6 @@ try {
         }
         await delay(600);
 
-        // ===== 6. Clica em Atualizar =====
-        var atualizarBtn = null;
-        var allBtnSpans = document.querySelectorAll('span.ui-button-text.ui-clickable');
-        for (var bi = 0; bi < allBtnSpans.length; bi++) {
-            if (allBtnSpans[bi].textContent.trim() === 'Atualizar') {
-                atualizarBtn = allBtnSpans[bi];
-                break;
-            }
-        }
-        if (atualizarBtn) {
-            console.log('[Atom Booking] Clicando em Atualizar...');
-            atualizarBtn.click();
-            showToast('Atualizado! Iniciando cross-check...', 'success', 4000);
-        } else {
-            console.log('[Atom Booking] Botão Atualizar não encontrado');
-        }
-        await delay(2000);
-
         // 5b. Navio — DESATIVADO TEMPORARIAMENTE
         // AC_INDEX:8 no memory tava apontando pro Porto de Destino (Rio Grande)
         // Preciso identificar o AC correto pelo DIAG antes de ativar
@@ -500,7 +482,25 @@ try {
             await delay(600);
         }
 
-        showToast('Campos preenchidos! Iniciando cross-check Maersk...', 'success', 5000);
+        showToast('Campos preenchidos! Salvando...', 'info', 3000);
+
+        // ===== 6. Clica em Atualizar =====
+        var atualizarBtn = null;
+        var allBtnSpans = document.querySelectorAll('span.ui-button-text.ui-clickable');
+        for (var bi = 0; bi < allBtnSpans.length; bi++) {
+            if (allBtnSpans[bi].textContent.trim() === 'Atualizar') {
+                atualizarBtn = allBtnSpans[bi];
+                break;
+            }
+        }
+        if (atualizarBtn) {
+            console.log('[Atom Booking] Clicando em Atualizar...');
+            atualizarBtn.click();
+            showToast('Atualizado! Iniciando cross-check...', 'success', 4000);
+        } else {
+            console.log('[Atom Booking] Botão Atualizar não encontrado');
+        }
+        await delay(2000);
 
         // ===== 6. Cross-check Maersk =====
         if (booking.booking_number && booking.armador && booking.armador.toLowerCase().indexOf('maersk') >= 0) {

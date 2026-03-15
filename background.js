@@ -274,13 +274,17 @@ Os valores estão corretos? Responda APENAS com JSON:
 
     if (skychartTabId) {
       if (isCrossCheck) {
-        // Cross-check: envia como bookingCrossCheckData (não aciona fillTrackingFields)
+        // Cross-check: volta pro Skychart e envia dados separados
+        chrome.tabs.update(skychartTabId, { active: true }).catch(() => { });
         chrome.tabs.sendMessage(skychartTabId, {
           action: 'bookingCrossCheckData',
           data: request.data,
           error: request.error || null
         }).catch(err => console.error("[CrossCheck] Erro enviando dados:", err));
-        // NÃO fecha a aba aqui — o content.js controla (fecha após 2s)
+        // Fecha a Maersk após 3s (analista já viu)
+        setTimeout(() => {
+          chrome.tabs.remove(maerskTabId).catch(() => { });
+        }, 3000);
       } else {
         // Tracking normal: volta pra Skychart e preenche campos
         chrome.tabs.update(skychartTabId, { active: true }).catch(() => { });
