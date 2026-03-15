@@ -1001,6 +1001,7 @@ Os valores estão corretos? Responda APENAS com JSON:
             armador: op.ARMADOR || '',
             container: eq.NR_CONTAINER || eq.DS_IDENTIFICACAO || '',
             booking: op.BOOKING || '',
+            atracacao: dtStr,
             freeTime: freeTime,
             freeTimeEnd: freeTimeEnd.toLocaleDateString('pt-BR'),
             diasRestantes: Math.max(0, daysRemaining),

@@ -72,7 +72,8 @@
         "https://outlook.cloud.microsoft/*"
       ],
       "js": [
-        "outlook-agent.js"
+        "outlook-agent.js",
+        "demurrage-agent.js"
       ],
       "css": [
         "outlook-agent.css"
