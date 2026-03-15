@@ -233,8 +233,8 @@
         sortClients(clients);
         renderPanel(clients);
 
-        // Auto-notifica
-        autoNotify(clients.filter(function(c) { return c.status === 'atrasado'; }));
+        // Auto-notifica (relatório consolidado por email)
+        sendConsolidatedReport(clients);
     }
 
     function cleanName(name) {
@@ -484,52 +484,119 @@
         console.log(TAG, 'Email draft aberto via Outlook pra:', client.name);
     }
 
-    // ===== AUTO-NOTIFICAÇÃO PRO MASTER =====
-    function autoNotify(atrasados) {
-        if (atrasados.length === 0) return;
+    // ===== EMAIL CONSOLIDADO AUTOMÁTICO =====
+    function sendConsolidatedReport(allClients) {
+        if (allClients.length === 0) return;
 
-        var keys = atrasados.map(function(c) { return 'freq_notify_' + c.name.replace(/\s+/g, '_'); });
-        chrome.storage.local.get(keys, function(data) {
-            var now = new Date();
-            var toNotify = [];
-
-            atrasados.forEach(function(c) {
-                var key = 'freq_notify_' + c.name.replace(/\s+/g, '_');
-                var last = data[key];
-                if (last && last.sentAt) {
-                    var diff = (now - new Date(last.sentAt)) / (1000 * 60 * 60 * 24);
-                    if (diff < COOLDOWN_DAYS) return;
+        // Cooldown: 1 email por dia
+        var cooldownKey = 'freq_report_last';
+        chrome.storage.local.get(cooldownKey, function(data) {
+            var last = data[cooldownKey];
+            if (last) {
+                var diff = (Date.now() - new Date(last).getTime()) / (1000 * 60 * 60);
+                if (diff < 24) {
+                    console.log(TAG, 'Report já enviado há', Math.round(diff), 'horas. Cooldown 24h.');
+                    return;
                 }
-                toNotify.push(c);
-            });
+            }
 
-            if (toNotify.length === 0) return;
+            var atrasados = allClients.filter(function(c) { return c.status === 'atrasado'; });
+            var atencao = allClients.filter(function(c) { return c.status === 'atencao'; });
+            var ok = allClients.filter(function(c) { return c.status === 'ok'; });
 
-            var lines = toNotify.map(function(c) {
-                return c.name + ': cota a cada ' + c.avgGapDays + ' dias, está há ' + Math.round(c.daysSinceLast) + ' dias sem cotar';
-            });
+            var today = new Date();
+            var dateStr = today.toLocaleDateString('pt-BR');
 
+            // Monta corpo do email
+            var lines = [];
+            lines.push('RELATÓRIO DE FREQUÊNCIA DE COTAÇÃO — ' + dateStr);
+            lines.push('═══════════════════════════════════════════════');
+            lines.push('');
+            lines.push('Resumo:');
+            lines.push('  • Total de clientes monitorados: ' + allClients.length);
+            lines.push('  • 🔴 Atrasados: ' + atrasados.length);
+            lines.push('  • 🟡 Atenção: ' + atencao.length);
+            lines.push('  • 🟢 Em dia: ' + ok.length);
+            lines.push('');
+
+            if (atrasados.length > 0) {
+                lines.push('');
+                lines.push('🔴 CLIENTES ATRASADOS (ação necessária)');
+                lines.push('───────────────────────────────────────');
+                atrasados.forEach(function(c, i) {
+                    lines.push('');
+                    lines.push((i + 1) + '. ' + c.name);
+                    lines.push('   Vendedor: ' + (c.vendedor || '—'));
+                    lines.push('   Frequência média: a cada ' + c.avgGapDays + ' dias');
+                    lines.push('   Dias sem cotar: ' + Math.round(c.daysSinceLast) + ' dias');
+                    lines.push('   Rota principal: ' + (c.origin || '?') + ' → ' + (c.dest || '?'));
+                    lines.push('   Cotações: ' + c.totalQuotes + ' total | ' + c.approved + ' aprovadas (' + c.ratio + '%)');
+                });
+            }
+
+            if (atencao.length > 0) {
+                lines.push('');
+                lines.push('');
+                lines.push('🟡 CLIENTES EM ATENÇÃO (monitorar)');
+                lines.push('───────────────────────────────────');
+                atencao.forEach(function(c, i) {
+                    lines.push('');
+                    lines.push((i + 1) + '. ' + c.name);
+                    lines.push('   Vendedor: ' + (c.vendedor || '—'));
+                    lines.push('   Frequência média: a cada ' + c.avgGapDays + ' dias');
+                    lines.push('   Dias sem cotar: ' + Math.round(c.daysSinceLast) + ' dias');
+                    lines.push('   Cotações: ' + c.totalQuotes + ' total | ' + c.approved + ' aprovadas');
+                });
+            }
+
+            if (ok.length > 0) {
+                lines.push('');
+                lines.push('');
+                lines.push('🟢 CLIENTES EM DIA (' + ok.length + ')');
+                lines.push('───────────────────────────');
+                ok.forEach(function(c) {
+                    lines.push('  ✓ ' + c.name + ' — última cotação há ' + Math.round(c.daysSinceLast) + ' dias (média: ' + c.avgGapDays + 'd)');
+                });
+            }
+
+            lines.push('');
+            lines.push('');
+            lines.push('═══════════════════════════════════════════════');
+            lines.push('Atom • Multiagentes — Mond Shipping');
+            lines.push('Relatório gerado automaticamente em ' + today.toLocaleString('pt-BR'));
+
+            var body = lines.join('\n');
+            var subject = '📊 Frequência de Cotação — ' + atrasados.length + ' atrasados | ' + dateStr;
+
+            // Abre Outlook compose com o relatório
+            var composeUrl = 'https://outlook.office.com/mail/deeplink/compose?to=' +
+                encodeURIComponent(ALERT_EMAIL) +
+                '&subject=' + encodeURIComponent(subject) +
+                '&body=' + encodeURIComponent(body);
+
+            window.open(composeUrl, '_blank');
+            console.log(TAG, 'Relatório consolidado aberto no Outlook');
+
+            // Marca cooldown
+            var obj = {};
+            obj[cooldownKey] = new Date().toISOString();
+            chrome.storage.local.set(obj);
+
+            // Chrome notification também
             chrome.runtime.sendMessage({
                 action: 'healthCheckAlert',
                 data: {
                     modulo: 'Frequência',
-                    total: atrasados.length,
-                    passed: 0,
-                    failures: lines.slice(0, 5),
+                    total: allClients.length,
+                    passed: ok.length,
+                    failures: atrasados.slice(0, 5).map(function(c) {
+                        return c.name + ': há ' + Math.round(c.daysSinceLast) + 'd sem cotar (média ' + c.avgGapDays + 'd)';
+                    }),
                     profile: 'master',
                     url: location.href,
-                    timestamp: now.toISOString()
+                    timestamp: today.toISOString()
                 }
             });
-
-            toNotify.forEach(function(c) {
-                var key = 'freq_notify_' + c.name.replace(/\s+/g, '_');
-                var obj = {};
-                obj[key] = { sentAt: now.toISOString(), client: c.name };
-                chrome.storage.local.set(obj);
-            });
-
-            console.log(TAG, toNotify.length, 'clientes atrasados notificados');
         });
     }
 
