@@ -351,12 +351,31 @@ try {
 
         // ===== 4. Abre a aba Embarque =====
         var embarqueOpened = false;
-        var allAccHeaders = document.querySelectorAll('.ui-accordion-header, a[role="tab"], .ui-accordion-header-text');
-        for (var ah = 0; ah < allAccHeaders.length; ah++) {
-            var headerText = allAccHeaders[ah].textContent || '';
+        // PrimeNG accordion: o click precisa ser no <a> header, nao no span de texto
+        var allAccTexts = document.querySelectorAll('.ui-accordion-header-text, .ui-accordion-header a, a[role="tab"]');
+        for (var ah = 0; ah < allAccTexts.length; ah++) {
+            var headerText = allAccTexts[ah].textContent || '';
             if (headerText.indexOf('Embarque') >= 0) {
-                console.log('[Atom Booking] Encontrou aba Embarque:', headerText);
-                allAccHeaders[ah].click();
+                // Sobe pro element clicável: o <a> dentro do header
+                var clickTarget = allAccTexts[ah];
+                // Se é um span, sobe pro <a> pai
+                if (clickTarget.tagName === 'SPAN') {
+                    clickTarget = clickTarget.closest('a') || clickTarget.parentElement;
+                }
+                // Se ainda não é o header, tenta o closest
+                if (!clickTarget.classList.contains('ui-accordion-header')) {
+                    var header = clickTarget.closest('.ui-accordion-header');
+                    if (header) {
+                        // Clica no <a> dentro do header
+                        var headerLink = header.querySelector('a');
+                        if (headerLink) clickTarget = headerLink;
+                    }
+                }
+                
+                console.log('[Atom Booking] Clicando na aba Embarque:', clickTarget.tagName, clickTarget.className);
+                clickTarget.click();
+                // Scroll pra visibilidade
+                clickTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 embarqueOpened = true;
                 break;
             }
