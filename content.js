@@ -1916,6 +1916,27 @@ try {
             stopBtn.style.display = 'inline-block';
         });
 
+        // Botão CONSULTAR — abre site do armador direto
+        var consultBtn = document.createElement('button');
+        consultBtn.className = 'sk-tracking-consult-btn';
+        consultBtn.innerHTML = 'Consultar';
+        consultBtn.title = 'Abre o site do armador com o booking pra análise manual';
+        consultBtn.style.cssText = 'background:linear-gradient(135deg,#6a1b9a,#ab47bc);color:#fff;border:none;border-radius:6px;padding:6px 14px;margin-left:4px;cursor:pointer;font-size:12px;font-weight:bold;vertical-align:middle;box-shadow:0 3px 8px rgba(106,27,154,0.4);transition:all 0.2s ease;font-family:Arial,sans-serif;';
+        consultBtn.addEventListener('mouseenter', function() { this.style.transform = 'scale(1.05)'; this.style.boxShadow = '0 4px 12px rgba(106,27,154,0.6)'; });
+        consultBtn.addEventListener('mouseleave', function() { this.style.transform = 'scale(1)'; this.style.boxShadow = '0 3px 8px rgba(106,27,154,0.4)'; });
+        consultBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var bk = (bookingInput.value || '').trim();
+            if (!bk) {
+                showToast('Preencha o booking primeiro!', 'warning');
+                return;
+            }
+            // Abre Maersk tracking (por enquanto só Maersk)
+            window.open('https://www.maersk.com/tracking/' + encodeURIComponent(bk), '_blank');
+        });
+        bookingInput.parentElement.appendChild(consultBtn);
+
         console.log('[Tracking] Botão  +  injetados!');
     }
 
