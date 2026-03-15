@@ -976,47 +976,50 @@ Os valores estão corretos? Responda APENAS com JSON:
         !(op.PROCESSO || '').trim().toUpperCase().endsWith(' D')
       );
 
-      // Process per OP (one result per process, same as dashboard)
+      // Process per OP (one result per process)
       filtered.forEach(op => {
         const equipmentsList = equipMap[op.CD_MOVIMENTO] || [];
 
-        // Dashboard requires: equipment list AND docking date
-        if (equipmentsList.length === 0 || !op.DT_CONFIRMACAO_ATRACACAO) return;
-
-        // Use the first equipment for general data (same as dashboard mainEquip)
-        const mainEquip = equipmentsList[0];
+        // Require docking date
+        if (!op.DT_CONFIRMACAO_ATRACACAO) return;
 
         // Parse atracação date
         const dataAtracacao = parseDate(op.DT_CONFIRMACAO_ATRACACAO);
         if (!dataAtracacao) return;
 
-        // Calculate free time end date (same as dashboard)
-        const freeTime = mainEquip.NR_FREE_TIME_NOSSO || 0;
+        let freeTime = 0;
+        let dataDevolucao = null;
+        let allContainers = '—';
+        let qtdContainers = 0;
+
+        if (equipmentsList.length > 0) {
+          // Has equipment data — use it
+          const mainEquip = equipmentsList[0];
+          freeTime = mainEquip.NR_FREE_TIME_NOSSO || 0;
+          dataDevolucao = parseDate(mainEquip.DT_DEVOLUCAO);
+          if (dataDevolucao) dataDevolucao.setHours(0, 0, 0, 0);
+          allContainers = equipmentsList
+            .map(e => e.DS_IDENTIFICACAO)
+            .filter(id => id)
+            .join(', ') || '—';
+          qtdContainers = mainEquip.NR_QTD || equipmentsList.length;
+        }
+
+        // Calculate free time end date
         const freeTimeEnd = new Date(dataAtracacao);
         freeTimeEnd.setDate(dataAtracacao.getDate() + freeTime);
         freeTimeEnd.setHours(0, 0, 0, 0);
 
-        // Parse return date from main equipment (same as dashboard)
-        let dataDevolucao = parseDate(mainEquip.DT_DEVOLUCAO);
-        if (dataDevolucao) dataDevolucao.setHours(0, 0, 0, 0);
-
-        // Aggregate all container IDs (DS_IDENTIFICACAO, same as dashboard)
-        const allContainers = equipmentsList
-          .map(e => e.DS_IDENTIFICACAO)
-          .filter(id => id)
-          .join(', ');
-
-        // Status logic — EXACT copy from dashboard api.service.ts
+        // Status logic
         let daysRemaining;
         let status;
 
         if (dataDevolucao) {
-          // Container returned — check if within free time
           const timeDiff = freeTimeEnd.getTime() - dataDevolucao.getTime();
           daysRemaining = Math.floor(timeDiff / (1000 * 3600 * 24));
-          status = daysRemaining >= 0 ? 'finalizado' : 'finalizado'; // Both are finalizado for our panel
+          status = 'finalizado';
         } else {
-          // Container NOT returned — check risk vs today
+          // Not returned — check risk vs today
           const timeDiff = freeTimeEnd.getTime() - today.getTime();
           daysRemaining = Math.floor(timeDiff / (1000 * 3600 * 24));
           if (daysRemaining < 0) {
@@ -1032,7 +1035,7 @@ Os valores estão corretos? Responda APENAS com JSON:
           processo: op.PROCESSO,
           cliente: op.CLIENTE || '',
           armador: op.ARMADOR || '',
-          container: allContainers || '—',
+          container: allContainers,
           booking: op.BOOKING || '',
           atracacao: dataAtracacao.toLocaleDateString('pt-BR'),
           freeTime: freeTime,
@@ -1040,7 +1043,7 @@ Os valores estão corretos? Responda APENAS com JSON:
           diasRestantes: Math.max(0, daysRemaining),
           diasAtrasados: Math.max(0, -daysRemaining),
           status: status,
-          qtdContainers: mainEquip.NR_QTD || equipmentsList.length
+          qtdContainers: qtdContainers
         });
       });
 
