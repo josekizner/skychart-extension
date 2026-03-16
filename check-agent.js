@@ -346,19 +346,34 @@
         archivosTab.click();
         await delay(1500);
 
-        // Busca row com "Cotação Cliente" — retry loop (accordion pode demorar pra carregar)
+        // Busca row com "Cotação Cliente" DENTRO da seção Arquivos (não na página toda)
         var targetRow = null;
+        var arquivosScope = archivosTab.nextElementSibling || document;
+        // Se o accordion header é um <a> dentro de um <div>, pega o próximo do pai
+        if (arquivosScope === document && archivosTab.parentElement) {
+            arquivosScope = archivosTab.parentElement.nextElementSibling || document;
+        }
+        console.log(TAG, 'Scope de busca:', arquivosScope.tagName || 'document', 'classe:', (arquivosScope.className || '').substring(0, 40));
+
         for (var attempt = 0; attempt < 10; attempt++) {
-            var allRows = document.querySelectorAll('tr');
-            for (var r = 0; r < allRows.length; r++) {
-                var rowText = allRows[r].textContent || '';
+            var scopeRows = arquivosScope.querySelectorAll('tr');
+            console.log(TAG, 'Tentativa', attempt + 1, '- TRs no scope:', scopeRows.length);
+            for (var r = 0; r < scopeRows.length; r++) {
+                var rowText = scopeRows[r].textContent || '';
                 if (rowText.indexOf('Cotação Cliente') >= 0 || rowText.indexOf('Cotacao Cliente') >= 0) {
-                    targetRow = allRows[r];
+                    targetRow = scopeRows[r];
                     console.log(TAG, 'Cotação Cliente encontrada na row', r, '(tentativa', attempt + 1 + ')');
                     break;
                 }
             }
             if (targetRow) break;
+
+            // Fallback: se scope não tem rows, tenta document (mas loga warning)
+            if (scopeRows.length === 0 && attempt === 5) {
+                console.log(TAG, '⚠ Scope vazio, expandindo busca pra página toda');
+                arquivosScope = document;
+            }
+
             console.log(TAG, 'Cotação Cliente não encontrada, tentativa', attempt + 1, '/ 10...');
             await delay(1000);
         }
