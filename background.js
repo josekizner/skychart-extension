@@ -103,6 +103,296 @@ async function checkForUpdates() {
   }
 }
 
+// ===== MAERSK API TRACKING (sem content script) =====
+// Busca dados de tracking diretamente via API da Maersk
+// Funciona do service worker — bypassa CSP e problemas de content script injection
+async function fetchMaerskTrackingAPI(bookingNumber) {
+  console.log('[Maersk API] Buscando tracking para:', bookingNumber);
+
+  // Tenta múltiplos endpoints (Maersk muda com frequência)
+  var endpoints = [
+    'https://api.maersk.com/tracking/' + encodeURIComponent(bookingNumber) + '?operator=maeu',
+    'https://www.maersk.com/tracking-api/shipment?trackingNumber=' + encodeURIComponent(bookingNumber),
+    'https://api.maersk.com/track/v2/shipments?onm=' + encodeURIComponent(bookingNumber)
+  ];
+
+  var lastError = null;
+
+  for (var i = 0; i < endpoints.length; i++) {
+    try {
+      console.log('[Maersk API] Tentando endpoint', i + 1, ':', endpoints[i]);
+      var response = await fetch(endpoints[i], {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Origin': 'https://www.maersk.com',
+          'Referer': 'https://www.maersk.com/tracking/' + encodeURIComponent(bookingNumber)
+        }
+      });
+
+      if (!response.ok) {
+        console.log('[Maersk API] Endpoint', i + 1, 'retornou', response.status);
+        continue;
+      }
+
+      var data = await response.json();
+      console.log('[Maersk API] Dados brutos recebidos de endpoint', i + 1);
+      
+      var parsed = parseMaerskAPIResponse(data, bookingNumber);
+      if (parsed) {
+        console.log('[Maersk API] Parsed com sucesso:', parsed);
+        return parsed;
+      }
+    } catch (err) {
+      lastError = err;
+      console.log('[Maersk API] Endpoint', i + 1, 'falhou:', err.message);
+    }
+  }
+
+  // Fallback: busca a página HTML e extrai dados com regex
+  console.log('[Maersk API] APIs falharam, tentando HTML fallback...');
+  try {
+    var htmlResponse = await fetch('https://www.maersk.com/tracking/' + encodeURIComponent(bookingNumber), {
+      headers: { 'Accept': 'text/html' }
+    });
+    var html = await htmlResponse.text();
+    var parsed = parseMaerskHTML(html, bookingNumber);
+    if (parsed) return parsed;
+  } catch (err) {
+    console.log('[Maersk API] HTML fallback falhou:', err.message);
+  }
+
+  console.error('[Maersk API] Todas as tentativas falharam para:', bookingNumber);
+  return null;
+}
+
+// Converte resposta JSON da API pro formato que o Skychart espera
+function parseMaerskAPIResponse(data, bookingNumber) {
+  try {
+    var result = {
+      bookingNumber: bookingNumber,
+      from: '',
+      to: '',
+      eta: '',
+      containerNumber: '',
+      events: [],
+      vessel: '',
+      voyage: '',
+      departureDate: '',
+      arrivalDate: '',
+      transshipments: [],
+      source: 'api'
+    };
+
+    // A API pode retornar em vários formatos dependendo do endpoint
+    // Tenta os formatos conhecidos
+    var shipment = null;
+
+    // Formato 1: { origin: {...}, destination: {...}, containers: [...] }
+    if (data.origin && data.destination) {
+      shipment = data;
+    }
+    // Formato 2: { shipments: [{...}] }
+    else if (data.shipments && data.shipments.length > 0) {
+      shipment = data.shipments[0];
+    }
+    // Formato 3: array direto [{...}]
+    else if (Array.isArray(data) && data.length > 0) {
+      shipment = data[0];
+    }
+    // Formato 4: wrappado em data
+    else if (data.data) {
+      shipment = Array.isArray(data.data) ? data.data[0] : data.data;
+    }
+    // Formato 5: o próprio data já é o shipment (tem trackingNumber ou containers)
+    else if (data.trackingNumber || data.containers || data.shipmentId) {
+      shipment = data;
+    }
+
+    if (!shipment) {
+      console.log('[Maersk API] Formato de resposta não reconhecido:', JSON.stringify(data).substring(0, 500));
+      return null;
+    }
+
+    // Origem e destino
+    if (shipment.origin) {
+      result.from = shipment.origin.port || shipment.origin.city || shipment.origin.locationName || '';
+    }
+    if (shipment.destination) {
+      result.to = shipment.destination.port || shipment.destination.city || shipment.destination.locationName || '';
+    }
+
+    // ETA
+    result.eta = shipment.destination?.eta || shipment.eta || shipment.estimatedArrival || '';
+
+    // Container
+    if (shipment.containers && shipment.containers.length > 0) {
+      result.containerNumber = shipment.containers[0].containerNum || shipment.containers[0].containerNumber || '';
+      
+      // Eventos dos containers
+      var container = shipment.containers[0];
+      if (container.events) {
+        for (var i = 0; i < container.events.length; i++) {
+          var evt = container.events[i];
+          var eventType = '';
+          var desc = (evt.description || evt.activity || '').toLowerCase();
+          
+          if (desc.includes('departure') || desc.includes('load')) eventType = 'departure';
+          else if (desc.includes('arrival') || desc.includes('discharge')) eventType = 'arrival';
+          
+          if (eventType) {
+            result.events.push({
+              type: eventType,
+              vesselName: evt.vesselName || evt.vessel || shipment.vesselName || '',
+              voyage: evt.voyage || evt.voyageNumber || '',
+              date: evt.actualTime || evt.expectedTime || evt.date || '',
+              port: evt.location || evt.port || ''
+            });
+          }
+        }
+      }
+    }
+
+    // Vessel direto
+    result.vessel = shipment.vesselName || shipment.vessel || '';
+    
+    // Se não achou eventos nos containers, tenta extrair do nível do shipment
+    if (result.events.length === 0 && shipment.events) {
+      for (var j = 0; j < shipment.events.length; j++) {
+        var sEvt = shipment.events[j];
+        var sType = '';
+        var sDesc = (sEvt.description || sEvt.activity || sEvt.type || '').toLowerCase();
+        
+        if (sDesc.includes('departure') || sDesc.includes('load')) sType = 'departure';
+        else if (sDesc.includes('arrival') || sDesc.includes('discharge')) sType = 'arrival';
+        
+        if (sType) {
+          result.events.push({
+            type: sType,
+            vesselName: sEvt.vesselName || sEvt.vessel || result.vessel,
+            voyage: sEvt.voyage || sEvt.voyageNumber || '',
+            date: sEvt.actualTime || sEvt.expectedTime || sEvt.date || '',
+            port: sEvt.location || sEvt.port || ''
+          });
+        }
+      }
+    }
+
+    // Processa pra formato Skychart (mesma lógica do scraper)
+    processTrackingForSkychart(result);
+    
+    return result;
+  } catch (err) {
+    console.error('[Maersk API] Erro ao parsear resposta:', err);
+    return null;
+  }
+}
+
+// Fallback: extrai dados do HTML da página de tracking
+function parseMaerskHTML(html, bookingNumber) {
+  try {
+    var result = {
+      bookingNumber: bookingNumber,
+      from: '',
+      to: '',
+      eta: '',
+      containerNumber: '',
+      events: [],
+      vessel: '',
+      voyage: '',
+      departureDate: '',
+      arrivalDate: '',
+      transshipments: [],
+      source: 'html'
+    };
+
+    // Tenta extrair __NEXT_DATA__ (se Maersk usa Next.js)
+    var nextDataMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (nextDataMatch) {
+      try {
+        var nextData = JSON.parse(nextDataMatch[1]);
+        var props = nextData.props?.pageProps;
+        if (props && (props.shipment || props.tracking || props.data)) {
+          var shipmentData = props.shipment || props.tracking || props.data;
+          return parseMaerskAPIResponse(shipmentData, bookingNumber);
+        }
+      } catch (e) {
+        console.log('[Maersk HTML] __NEXT_DATA__ parse falhou:', e.message);
+      }
+    }
+
+    // Regex fallback no HTML bruto
+    var fromTo = html.match(/From\s+([A-Z\s]+?)\s+To\s+([A-Z\s]+?)(?:[<"\n])/i);
+    if (fromTo) {
+      result.from = fromTo[1].trim();
+      result.to = fromTo[2].trim();
+    }
+
+    var etaMatch = html.match(/Estimated arrival[^<]*?(\d{1,2}\s+\w+\s+\d{4})/i);
+    if (etaMatch) result.eta = etaMatch[1].trim();
+
+    var containerMatch = html.match(/([A-Z]{4}\d{7})/);
+    if (containerMatch) result.containerNumber = containerMatch[1];
+
+    console.log('[Maersk HTML] Extraído:', result);
+    return result.from || result.eta || result.containerNumber ? result : null;
+  } catch (err) {
+    console.error('[Maersk HTML] Parse falhou:', err);
+    return null;
+  }
+}
+
+// Processa dados de tracking pro formato Skychart (usado por API e HTML)
+function processTrackingForSkychart(result) {
+  if (!result.events || result.events.length === 0) return;
+
+  var firstDeparture = null;
+  var lastArrival = null;
+
+  for (var i = 0; i < result.events.length; i++) {
+    if (result.events[i].type === 'departure' && !firstDeparture) {
+      firstDeparture = result.events[i];
+    }
+    if (result.events[i].type === 'arrival') {
+      lastArrival = result.events[i];
+    }
+  }
+
+  if (firstDeparture) {
+    result.vessel = result.vessel || firstDeparture.vesselName;
+    result.voyage = result.voyage || firstDeparture.voyage;
+    result.departureDate = firstDeparture.date;
+  }
+
+  if (lastArrival) {
+    result.arrivalDate = lastArrival.date;
+  }
+
+  // Transshipments
+  var departures = result.events.filter(function(e) { return e.type === 'departure'; });
+  var arrivals = result.events.filter(function(e) { return e.type === 'arrival'; });
+
+  if (departures.length > 1) {
+    for (var t = 0; t < arrivals.length; t++) {
+      if (t === arrivals.length - 1 && arrivals.length > 1) continue;
+      var arrivalEvent = arrivals[t];
+      var nextDep = departures.length > t + 1 ? departures[t + 1] : null;
+
+      if (arrivalEvent && t > 0) {
+        result.transshipments.push({
+          port: arrivalEvent.port || '',
+          vesselIn: arrivalEvent.vesselName,
+          voyageIn: arrivalEvent.voyage,
+          arrivalDate: arrivalEvent.date,
+          vesselOut: nextDep ? nextDep.vesselName : '',
+          voyageOut: nextDep ? nextDep.voyage : '',
+          departureDate: nextDep ? nextDep.date : ''
+        });
+      }
+    }
+  }
+}
+
 // ===== BOOKING TRACKING =====
 var pendingTrackingTabs = {}; // { maerskTabId: skychartTabId }
 var pendingHmmTabs = {};      // { hmmTabId: skychartTabId }
@@ -116,39 +406,56 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const skychartTabId = sender.tab.id;
     const carrier = request.carrier || 'maersk';
 
-    console.log("[Tracking] Abrindo tracking para:", booking, "carrier:", carrier);
+    console.log("[Tracking] Buscando dados via API para:", booking, "carrier:", carrier);
 
-    let trackingUrl = '';
     if (carrier === 'maersk') {
-      trackingUrl = 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
-    }
-    // Futuros armadores aqui...
-
-    if (trackingUrl) {
-      chrome.tabs.create({ url: trackingUrl, active: true }, (tab) => {
-        pendingTrackingTabs[tab.id] = skychartTabId;
-        console.log("[Tracking] Tab aberta:", tab.id, "-> Skychart tab:", skychartTabId);
-        // maersk-scraper.js será injetado automaticamente pelo registerContentScripts
+      // Busca direto via API — sem abrir tab, sem content script
+      fetchMaerskTrackingAPI(booking).then(function(trackingData) {
+        console.log("[Tracking] Dados obtidos via API:", trackingData ? 'OK' : 'null');
+        chrome.tabs.sendMessage(skychartTabId, {
+          action: 'trackingDataReady',
+          data: trackingData,
+          error: trackingData ? null : 'Não foi possível obter dados de tracking'
+        }).catch(function(err) {
+          console.error("[Tracking] Erro enviando dados pro Skychart:", err);
+        });
+      }).catch(function(err) {
+        console.error("[Tracking] Erro na API Maersk:", err);
+        chrome.tabs.sendMessage(skychartTabId, {
+          action: 'trackingDataReady',
+          data: null,
+          error: 'Erro ao consultar Maersk: ' + err.message
+        }).catch(function() {});
       });
     }
 
-    sendResponse({ success: true, message: 'Tracking aberto' });
+    sendResponse({ success: true, message: 'Tracking em andamento (via API)' });
     return true;
   }
 
-  // Booking Agent: cross-check Maersk (abre visível pro analista ver)
+  // Booking Agent: cross-check Maersk (agora via API)
   if (request.action === "openMaerskTracking") {
     const booking = request.bookingNumber;
     const skychartTabId = sender.tab.id;
 
-    console.log("[Booking Cross-check] Abrindo Maersk tracking visível:", booking);
+    console.log("[Booking Cross-check] Buscando Maersk via API:", booking);
 
-    const trackingUrl = 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
-    chrome.tabs.create({ url: trackingUrl, active: true }, (tab) => {
-      pendingTrackingTabs[tab.id] = { skychartTab: skychartTabId, crossCheck: true };
-      chrome.storage.local.set({ crossCheckMaerskTab: tab.id, crossCheckSkychartTab: skychartTabId });
-      console.log("[Booking Cross-check] Tab visível:", tab.id, "-> Skychart tab:", skychartTabId);
-      // maersk-scraper.js será injetado automaticamente pelo registerContentScripts
+    fetchMaerskTrackingAPI(booking).then(function(trackingData) {
+      console.log("[Booking Cross-check] Dados obtidos:", trackingData ? 'OK' : 'null');
+      chrome.tabs.sendMessage(skychartTabId, {
+        action: 'bookingCrossCheckData',
+        data: trackingData,
+        error: trackingData ? null : 'Não foi possível obter dados de tracking'
+      }).catch(function(err) {
+        console.error("[CrossCheck] Erro enviando dados:", err);
+      });
+    }).catch(function(err) {
+      console.error("[CrossCheck] Erro na API:", err);
+      chrome.tabs.sendMessage(skychartTabId, {
+        action: 'bookingCrossCheckData',
+        data: null,
+        error: 'Erro ao consultar Maersk: ' + err.message
+      }).catch(function() {});
     });
 
     sendResponse({ success: true });
