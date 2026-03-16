@@ -1,0 +1,29 @@
+{
+  "embarque": {
+    "navio": {
+      "selector": "#opcoes-empresas-filtros > p-autocomplete > span > input",
+      "description": "Campo Navio na seção Embarque",
+      "type": "autocomplete"
+    },
+    "viagem": {
+      "selector": "#formularioEmbarque-dsViagem",
+      "description": "Campo Viagem na seção Embarque",
+      "type": "input"
+    },
+    "prevEmbarque": {
+      "selector": "#formularioEmbarque-dtPrevisaoEmbarque",
+      "description": "Data previsão de embarque",
+      "type": "date"
+    },
+    "prevAtracacao": {
+      "selector": "#formularioEmbarque-dtPrevisaoAtracacao",
+      "description": "Data previsão de atracação",
+      "type": "date"
+    },
+    "booking": {
+      "selector": "#formularioEmbarque-dsReserva",
+      "description": "Número do booking",
+      "type": "input"
+    }
+  }
+}
