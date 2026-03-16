@@ -368,8 +368,33 @@
         if (!arquivosScope) arquivosScope = document;
         console.log(TAG, 'Scope de busca:', arquivosScope.tagName || 'document', 'classes:', (arquivosScope.className || '').substring(0, 50));
 
-        for (var attempt = 0; attempt < 10; attempt++) {
+        for (var attempt = 0; attempt < 15; attempt++) {
             var scopeRows = arquivosScope.querySelectorAll('tr');
+            
+            // Se scope está vazio, o accordion pode não ter expandido — re-clica
+            if (scopeRows.length === 0) {
+                if (attempt > 0 && attempt % 3 === 0) {
+                    console.log(TAG, 'Tentativa', attempt + 1, '- scope vazio, re-clicando Arquivos...');
+                    // Re-acha o header (Angular pode ter re-renderizado)
+                    var freshTab = findAccordionHeader('Arquivos');
+                    if (freshTab) {
+                        freshTab.click();
+                        await delay(500);
+                        freshTab.click(); // double click pra garantir toggle
+                        await delay(1500);
+                        // Re-acha o scope
+                        var freshHeader = freshTab.closest('.ui-accordion-header') || freshTab;
+                        var freshNext = freshHeader.nextElementSibling;
+                        if (freshNext && freshNext.querySelectorAll('tr').length > 0) {
+                            arquivosScope = freshNext;
+                        }
+                    }
+                }
+                console.log(TAG, 'Tentativa', attempt + 1, '- TRs no scope:', 0);
+                await delay(1500);
+                continue;
+            }
+
             console.log(TAG, 'Tentativa', attempt + 1, '- TRs no scope:', scopeRows.length);
             for (var r = 0; r < scopeRows.length; r++) {
                 var rowText = scopeRows[r].textContent || '';
@@ -381,14 +406,8 @@
             }
             if (targetRow) break;
 
-            // Fallback: se scope não tem rows, tenta document (mas loga warning)
-            if (scopeRows.length === 0 && attempt === 5) {
-                console.log(TAG, '⚠ Scope vazio, expandindo busca pra página toda');
-                arquivosScope = document;
-            }
-
-            console.log(TAG, 'Cotação Cliente não encontrada, tentativa', attempt + 1, '/ 10...');
-            await delay(1000);
+            console.log(TAG, 'Cotação Cliente não encontrada, tentativa', attempt + 1, '/ 15...');
+            await delay(1500);
         }
 
         if (!targetRow) {
