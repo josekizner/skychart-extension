@@ -742,9 +742,10 @@
     }
 
     // ===== MESSAGE HANDLING =====
-    // Listen for tracking data from scrapers
     chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
-        // Messages are handled in the actionConfirmarEmbarque listener
+        if (msg.action === 'maerskTrackingData') {
+            console.log(TAG, 'Mensagem maerskTrackingData recebida!', msg.data ? 'com dados' : 'sem dados');
+        }
     });
 
 })();

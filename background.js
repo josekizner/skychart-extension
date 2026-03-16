@@ -39,16 +39,19 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
 
     // Route maerskTrackingData from Maersk scraper tab back to Skychart tab
     if (msg.action === 'maerskTrackingData') {
-        chrome.tabs.query({ url: 'https://app2.skychart.com.br/*' }, function(tabs) {
+        console.log('[BG] Recebeu maerskTrackingData:', msg.data ? 'com dados' : 'sem dados');
+        chrome.tabs.query({ url: '*://app2.skychart.com.br/*' }, function(tabs) {
+            console.log('[BG] Abas Skychart encontradas:', tabs.length);
             tabs.forEach(function(tab) {
+                console.log('[BG] Enviando para tab', tab.id, tab.url);
                 chrome.tabs.sendMessage(tab.id, msg);
             });
         });
         // Close the Maersk tracking tab after scraping
         if (sender.tab && sender.tab.id) {
-            setTimeout(function() { chrome.tabs.remove(sender.tab.id); }, 2000);
+            setTimeout(function() { chrome.tabs.remove(sender.tab.id); }, 3000);
         }
-        return;
+        return true; // keep message channel open for async response
     }
 });
 
