@@ -1203,20 +1203,28 @@ try {
         clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
         clickTarget.click();
 
-        // Espera dialog abrir, lê conteúdo
-        setTimeout(function() {
-            // Procura QUALQUER dialog na página
-            var dialog = document.querySelector('.ui-dialog, p-dialog, [role="dialog"], .ui-overlaypanel');
-            
-            if (!dialog) {
-                // Tenta overlay panels do PrimeNG
-                var overlays = document.querySelectorAll('.ui-overlaypanel, .cdk-overlay-pane, .ui-tooltip, [class*="overlay"], [class*="popup"]');
-                for (var ov = 0; ov < overlays.length; ov++) {
-                    if (overlays[ov].offsetHeight > 0 && overlays[ov].textContent.trim().length > 0) {
-                        dialog = overlays[ov];
-                        break;
-                    }
+        // Espera dialog VISÍVEL abrir (poll até 3s), depois lê textarea
+        var pollCount = 0;
+        var pollMax = 15; // 15 x 200ms = 3s
+        var pollTimer = setInterval(function() {
+            pollCount++;
+            // Procura dialog VISÍVEL (offsetHeight > 0, não display:none)
+            var allDialogs = document.querySelectorAll('p-dialog .ui-dialog, .ui-dialog[role="dialog"]');
+            var dialog = null;
+            for (var d = 0; d < allDialogs.length; d++) {
+                if (allDialogs[d].offsetHeight > 0 && allDialogs[d].style.display !== 'none') {
+                    dialog = allDialogs[d];
+                    break;
                 }
+            }
+
+            if (!dialog && pollCount < pollMax) return; // continua polling
+            clearInterval(pollTimer);
+
+            if (!dialog) {
+                console.log('[Atom Oferta]', tar.cod, '- Dialog não abriu após 3s');
+                readAllObservations(tarifarios, index + 1, callback);
+                return;
             }
 
             if (dialog) {
@@ -1297,20 +1305,13 @@ try {
                         }
                     }
                 }
-            } else {
-                console.log('[Atom Oferta]', tar.cod, '- Dialog nao abriu');
-                // DIAGNÓSTICO: mostra todos os elementos visíveis que podem ser o dialog
-                var allVisible = document.querySelectorAll('[style*="display: block"], [style*="visibility: visible"], .ui-dialog, .ui-overlaypanel');
-                console.log('[Atom Diag] Elementos visíveis candidatos:', allVisible.length);
-                for (var av = 0; av < Math.min(allVisible.length, 5); av++) {
-                    console.log('[Atom Diag]  ', allVisible[av].tagName, allVisible[av].className.substring(0, 40), 'text:', allVisible[av].textContent.substring(0, 50));
-                }
             }
 
+            // Continua pro próximo tarifário (com delay pra fechar o dialog atual)
             setTimeout(function() {
                 readAllObservations(tarifarios, index + 1, callback);
             }, 800);
-        }, 1500);
+        }, 200);
     }
 
 
