@@ -440,8 +440,9 @@
 
             // 4. Read booking
             var booking = (bookingInput.value || '').trim();
-            if (!booking) {
-                callback({ processo: processoName, status: 'skip', msg: 'Sem booking' });
+            // Filtra placeholders: #, *, -, vazio
+            if (!booking || booking === '#' || booking === '*' || booking === '-') {
+                callback({ processo: processoName, status: 'skip', msg: 'Sem booking (' + (booking || 'vazio') + ')' });
                 return;
             }
 
