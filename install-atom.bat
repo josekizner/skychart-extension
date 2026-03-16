@@ -111,7 +111,7 @@ set VBS_FILE=%INSTALL_DIR%\skychart-autoupdate.vbs
 :: Cria o VBS que roda git pull invisivel
 (
 echo Set WshShell = CreateObject^("WScript.Shell"^)
-echo Set oExec = WshShell.Run^("cmd /c cd /d ""%INSTALL_DIR%"" ^&^& :LOOP ^&^& git pull origin main --quiet 2^>nul ^&^& timeout /t 300 /nobreak ^>nul ^&^& goto LOOP", 0, False^)
+echo WshShell.Run "cmd /c cd /d ""%INSTALL_DIR%"" ^&^& :LOOP ^&^& git pull origin main --quiet 2^>nul ^&^& timeout /t 300 /nobreak ^>nul ^&^& goto LOOP", 0, False
 ) > "%VBS_FILE%"
 
 :: Copia pro Startup

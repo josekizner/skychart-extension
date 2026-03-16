@@ -18,7 +18,7 @@ set SHORTCUT_NAME=Skychart-AutoUpdate
 echo [1/3] Criando auto-updater silencioso...
 (
 echo Set WshShell = CreateObject^("WScript.Shell"^)
-echo Set oExec = WshShell.Run^("cmd /c cd /d ""%EXT_PATH%"" ^&^& :LOOP ^&^& git pull origin main --quiet 2^>nul ^&^& timeout /t 300 /nobreak ^>nul ^&^& goto LOOP", 0, False^)
+echo WshShell.Run "cmd /c cd /d ""%EXT_PATH%"" ^&^& :LOOP ^&^& git pull origin main --quiet 2^>nul ^&^& timeout /t 300 /nobreak ^>nul ^&^& goto LOOP", 0, False
 ) > "%VBS_FILE%"
 
 :: 2. Copia o VBS pro Startup do Windows
