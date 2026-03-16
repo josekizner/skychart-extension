@@ -15,59 +15,46 @@ try {
 
     console.log("Skychart AI: Script carregado com sucesso.");
 
-    // Utilitário: encontra o campo Navio buscando pelo LABEL dentro da seção Embarque
-    // NÃO usa seletor fixo — busca autocompletes com label "navio" (sem "feeder")
+    // Utilitário: encontra o campo Navio buscando pelo LABEL nos elementos vizinhos
+    // O formulário usa DIVs (não tabelas), então sobe pelo DOM checando siblings
     function findNavioByLabel() {
         var allACs = document.querySelectorAll('input.ui-autocomplete-input');
         var viagemAnchor = document.querySelector('#formularioEmbarque-dsViagem');
         var embarqueSection = viagemAnchor ? viagemAnchor.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
 
-        console.log('[Navio Finder] ' + allACs.length + ' ACs, viagemAnchor=' + !!viagemAnchor + ', section=' + !!embarqueSection);
+        console.log('[Navio Finder] ' + allACs.length + ' ACs, section=' + !!embarqueSection);
 
-        // 1ª passada: dentro da seção Embarque
         for (var i = 0; i < allACs.length; i++) {
             var ac = allACs[i];
-            var inScope = !embarqueSection || embarqueSection.contains(ac);
+            if (embarqueSection && !embarqueSection.contains(ac)) continue;
 
-            var td = ac.closest('td');
-            var parentEl = ac.parentElement;
-            var sameTd = td ? td.textContent.trim().toLowerCase() : '';
-            var prevTd = (td && td.previousElementSibling) ? td.previousElementSibling.textContent.trim().toLowerCase() : '';
-            var parentText = parentEl ? parentEl.textContent.trim().toLowerCase() : '';
-            // Remove valor existente pra não poluir o label
-            if (ac.value) {
-                sameTd = sameTd.replace(ac.value.toLowerCase(), '').trim();
-                prevTd = prevTd.replace(ac.value.toLowerCase(), '').trim();
-                parentText = parentText.replace(ac.value.toLowerCase(), '').trim();
+            // Sobe até 5 níveis buscando label "navio" em siblings anteriores
+            var el = ac;
+            var found = false;
+            for (var up = 0; up < 6; up++) {
+                el = el.parentElement;
+                if (!el) break;
+
+                // Checa o previousElementSibling desse nível
+                var prev = el.previousElementSibling;
+                if (prev) {
+                    var prevText = prev.textContent.trim().toLowerCase();
+                    if (prevText.indexOf('navio') >= 0 && prevText.indexOf('feeder') < 0) {
+                        console.log('[Navio Finder] MATCH AC[' + i + '] via sibling nível ' + up + ': "' + prevText.substring(0, 40) + '"');
+                        found = true;
+                        break;
+                    }
+                }
             }
-
-            // DIAGNÓSTICO: mostra CADA AC
-            console.log('[Navio Finder] AC[' + i + '] scope=' + inScope + ' td="' + sameTd.substring(0, 40) + '" prev="' + prevTd.substring(0, 40) + '" parent="' + parentText.substring(0, 40) + '" hasTD=' + !!td);
-
-            if (!inScope) continue;
-
-            if ((sameTd.indexOf('navio') >= 0 && sameTd.indexOf('feeder') < 0) ||
-                (prevTd.indexOf('navio') >= 0 && prevTd.indexOf('feeder') < 0)) {
-                console.log('[Navio Finder] MATCH AC[' + i + ']');
-                return ac;
-            }
+            if (found) return ac;
         }
 
-        // 2ª passada: sem scope (fallback)
-        for (var j = 0; j < allACs.length; j++) {
-            var ac2 = allACs[j];
-            var td2 = ac2.closest('td');
-            var sameTd2 = td2 ? td2.textContent.trim().toLowerCase() : '';
-            var prevTd2 = (td2 && td2.previousElementSibling) ? td2.previousElementSibling.textContent.trim().toLowerCase() : '';
-            if (ac2.value) {
-                sameTd2 = sameTd2.replace(ac2.value.toLowerCase(), '').trim();
-                prevTd2 = prevTd2.replace(ac2.value.toLowerCase(), '').trim();
-            }
-
-            if ((sameTd2.indexOf('navio') >= 0 && sameTd2.indexOf('feeder') < 0) ||
-                (prevTd2.indexOf('navio') >= 0 && prevTd2.indexOf('feeder') < 0)) {
-                console.log('[Navio Finder] Encontrado via fallback AC[' + j + ']');
-                return ac2;
+        // Fallback: AC_INDEX:10 (aprendido pelo tracking)
+        if (allACs.length > 10) {
+            var candidate = allACs[10];
+            if (!embarqueSection || embarqueSection.contains(candidate)) {
+                console.log('[Navio Finder] Fallback AC_INDEX:10');
+                return candidate;
             }
         }
 
@@ -448,63 +435,16 @@ try {
         }
         await delay(600);
 
-        // 5b. Navio — busca pelo label na seção Embarque (mesma lógica do tracking)
+        // 5b. Navio — usa findNavioByLabel() centralizado
         if (booking.navio && typeof SkAgent !== 'undefined' && SkAgent.engine) {
-            var navioInput = null;
-
-            // Busca o autocomplete cujo TD vizinho contém "navio" (excluindo "feeder")
-            var allACs = document.querySelectorAll('input.ui-autocomplete-input');
-            var viagemAnchor = document.querySelector('#formularioEmbarque-dsViagem');
-            var embarqueSection = viagemAnchor ? viagemAnchor.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
-
-            console.log('[Atom Booking] Diag: ' + allACs.length + ' ACs na página, viagemAnchor=' + !!viagemAnchor + ', embarqueSection=' + !!embarqueSection);
-
-            for (var ni = 0; ni < allACs.length; ni++) {
-                var ac = allACs[ni];
-                var inScope = !embarqueSection || embarqueSection.contains(ac);
-
-                var td = ac.closest('td');
-                var sameTd = td ? td.textContent.trim().toLowerCase() : '';
-                var prevTd = (td && td.previousElementSibling) ? td.previousElementSibling.textContent.trim().toLowerCase() : '';
-
-                // Log TODOS os ACs pra diagnóstico
-                console.log('[Atom Booking] AC[' + ni + '] inScope=' + inScope + ' same="' + sameTd.substring(0, 40) + '" prev="' + prevTd.substring(0, 40) + '"');
-
-                if (!inScope) continue;
-
-                // Procura label "navio" mas NÃO "feeder"
-                if ((sameTd.indexOf('navio') >= 0 && sameTd.indexOf('feeder') < 0) ||
-                    (prevTd.indexOf('navio') >= 0 && prevTd.indexOf('feeder') < 0)) {
-                    navioInput = ac;
-                    console.log('[Atom Booking] Navio AC encontrado! AC[' + ni + ']');
-                    break;
-                }
-            }
-
-            // Fallback: se não achou com scope, tenta sem scope
-            if (!navioInput) {
-                console.log('[Atom Booking] Tentando fallback sem scope...');
-                for (var ni2 = 0; ni2 < allACs.length; ni2++) {
-                    var ac2 = allACs[ni2];
-                    var td2 = ac2.closest('td');
-                    var sameTd2 = td2 ? td2.textContent.trim().toLowerCase() : '';
-                    var prevTd2 = (td2 && td2.previousElementSibling) ? td2.previousElementSibling.textContent.trim().toLowerCase() : '';
-
-                    if ((sameTd2.indexOf('navio') >= 0 && sameTd2.indexOf('feeder') < 0) ||
-                        (prevTd2.indexOf('navio') >= 0 && prevTd2.indexOf('feeder') < 0)) {
-                        navioInput = ac2;
-                        console.log('[Atom Booking] Navio AC encontrado via fallback! AC[' + ni2 + ']');
-                        break;
-                    }
-                }
-            }
+            var navioInput = findNavioByLabel();
 
             if (navioInput) {
                 console.log('[Atom Booking] Preenchendo navio:', booking.navio);
                 var r1 = await SkAgent.engine.charByChar(navioInput, booking.navio, { selectFirst: false, tabAfter: true });
                 console.log('[Atom Booking] Navio:', r1.ok ? 'OK' : 'falhou - ' + r1.reason);
             } else {
-                console.log('[Atom Booking] Navio: NENHUM autocomplete com label "navio" encontrado');
+                console.log('[Atom Booking] Navio: campo não encontrado');
             }
         }
         await delay(600);
