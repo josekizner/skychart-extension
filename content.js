@@ -15,50 +15,59 @@ try {
 
     console.log("Skychart AI: Script carregado com sucesso.");
 
-    // Utilitário: encontra o campo Navio pelo label na seção Embarque
-    // Busca o TD com texto "Navio" (excluindo "Navio Feeder", "Navio Id") e pega o input do TD seguinte
+    // Utilitário: encontra o campo Navio na seção Embarque
+    // Abordagem INVERSA: itera TODOS autocompletes e verifica o contexto ao redor
     function findNavioByLabel() {
-        var embarqueSection = null;
+        // Escopo: seção Embarque (se existir)
         var viagemRef = document.querySelector('#formularioEmbarque-dsViagem');
-        if (viagemRef) {
-            embarqueSection = viagemRef.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form');
-        }
+        var embarqueSection = viagemRef ? viagemRef.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
         var scope = embarqueSection || document;
 
-        var allTds = scope.querySelectorAll('td');
-        for (var i = 0; i < allTds.length; i++) {
-            var tdText = allTds[i].textContent.trim().toLowerCase();
-            // Contém "navio" mas NÃO contém "feeder", "id", "navio/"
-            if (tdText.indexOf('navio') >= 0 && 
-                tdText.indexOf('feeder') < 0 && 
-                tdText.indexOf('navio id') < 0 && 
-                tdText.indexOf('navio/') < 0) {
-                // Pega o próximo TD (que contém o autocomplete)
-                var nextTd = allTds[i].nextElementSibling;
-                if (nextTd) {
-                    var input = nextTd.querySelector('p-autocomplete input, input.ui-autocomplete-input');
-                    if (input) {
-                        console.log('[Navio Finder] Encontrado pelo label "Navio" → input no TD seguinte');
-                        return input;
-                    }
-                }
-                // Tenta o TD na mesma coluna da próxima row
-                var tr = allTds[i].closest('tr');
-                if (tr) {
-                    var colIdx = Array.from(tr.children).indexOf(allTds[i]);
-                    if (tr.children[colIdx + 1]) {
-                        var input2 = tr.children[colIdx + 1].querySelector('p-autocomplete input, input.ui-autocomplete-input');
-                        if (input2) {
-                            console.log('[Navio Finder] Encontrado na coluna seguinte da mesma row');
-                            return input2;
-                        }
-                    }
+        console.log('[Navio Finder] Scope:', embarqueSection ? 'seção Embarque' : 'documento inteiro');
+
+        // Pega TODOS os autocompletes no escopo
+        var allInputs = scope.querySelectorAll('input.ui-autocomplete-input');
+        console.log('[Navio Finder] Total autocompletes no escopo:', allInputs.length);
+
+        for (var i = 0; i < allInputs.length; i++) {
+            var inp = allInputs[i];
+            
+            // Coleta TODOS os textos ao redor desse input
+            var td = inp.closest('td');
+            var prevTd = td && td.previousElementSibling ? td.previousElementSibling.textContent.trim() : '';
+            var sameTd = td ? td.textContent.trim() : '';
+            var tr = inp.closest('tr');
+            var prevTr = tr && tr.previousElementSibling ? tr.previousElementSibling.textContent.trim() : '';
+            
+            // Parent p-autocomplete ou span
+            var parentAC = inp.closest('p-autocomplete, p-autoComplete');
+            var parentTd = parentAC ? parentAC.closest('td') : td;
+            var parentPrevTd = parentTd && parentTd.previousElementSibling ? parentTd.previousElementSibling.textContent.trim() : '';
+
+            // Log de debug pra cada autocomplete
+            var debugTexts = [prevTd, parentPrevTd].filter(function(t) { return t.length > 0 && t.length < 60; });
+            console.log('[Navio Finder] AC[' + i + '] val="' + (inp.value || '').substring(0,15) + '" labels: ' + JSON.stringify(debugTexts));
+
+            // Checa se algum texto ao redor contém "navio" (case insensitive)
+            var allContextTexts = [
+                prevTd.toLowerCase(),
+                parentPrevTd.toLowerCase(),
+                sameTd.toLowerCase().replace((inp.value || '').toLowerCase(), '').replace(inp.placeholder || '', '')
+            ];
+
+            for (var j = 0; j < allContextTexts.length; j++) {
+                var ctx = allContextTexts[j];
+                if (ctx.indexOf('navio') >= 0 && ctx.indexOf('feeder') < 0) {
+                    console.log('[Navio Finder] MATCH! AC[' + i + '] contexto "' + ctx.substring(0,40) + '" contém "navio" sem "feeder"');
+                    return inp;
                 }
             }
         }
-        console.log('[Navio Finder] Não encontrado pelo label');
+
+        console.log('[Navio Finder] Nenhum autocomplete tem "navio" no contexto');
         return null;
     }
+
     // Listener para notificações de atualização, tracking data e navegacao
     chrome.runtime.onMessage.addListener(function(msg) {
         if (msg.action === 'updateAvailable') {
