@@ -530,13 +530,35 @@
 
     // ===== HELPERS =====
     function findAccordion(keyword) {
+        // Busca pelo texto direto do .ui-accordion-header-text (não do pai todo)
+        // O accordion Embarque tem formato: "Embarque [ORIGEM] x [DESTINO] | [ARMADOR]"
         var headers = document.querySelectorAll('.ui-accordion-header');
         for (var i = 0; i < headers.length; i++) {
             var textEl = headers[i].querySelector('.ui-accordion-header-text');
-            if (textEl && textEl.textContent.indexOf(keyword) >= 0) {
+            if (!textEl) continue;
+            var txt = textEl.textContent.trim();
+            // Match: texto que COMEÇA com "Embarque" e contém "|" (armador)
+            if (txt.indexOf(keyword) === 0 && txt.indexOf('|') > 0) {
+                console.log(TAG, 'Accordion encontrado [' + i + ']:', txt.substring(0, 50));
                 return headers[i];
             }
         }
+        // Fallback: aceita texto que COMEÇA com keyword (sem exigir pipe)
+        for (var j = 0; j < headers.length; j++) {
+            var textEl2 = headers[j].querySelector('.ui-accordion-header-text');
+            if (!textEl2) continue;
+            var txt2 = textEl2.textContent.trim();
+            if (txt2.indexOf(keyword) === 0) {
+                console.log(TAG, 'Accordion encontrado (fallback) [' + j + ']:', txt2.substring(0, 50));
+                return headers[j];
+            }
+        }
+        console.log(TAG, 'Accordion NÃO encontrado para:', keyword);
+        // Debug: lista todos os headers
+        headers.forEach(function(h, idx) {
+            var t = h.querySelector('.ui-accordion-header-text');
+            console.log(TAG, '  Header [' + idx + ']:', t ? t.textContent.trim().substring(0, 50) : '(sem texto)');
+        });
         return null;
     }
 
