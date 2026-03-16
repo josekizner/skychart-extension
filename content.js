@@ -27,20 +27,28 @@ try {
         // 1ª passada: dentro da seção Embarque
         for (var i = 0; i < allACs.length; i++) {
             var ac = allACs[i];
-            if (embarqueSection && !embarqueSection.contains(ac)) continue;
+            var inScope = !embarqueSection || embarqueSection.contains(ac);
 
             var td = ac.closest('td');
+            var parentEl = ac.parentElement;
             var sameTd = td ? td.textContent.trim().toLowerCase() : '';
             var prevTd = (td && td.previousElementSibling) ? td.previousElementSibling.textContent.trim().toLowerCase() : '';
+            var parentText = parentEl ? parentEl.textContent.trim().toLowerCase() : '';
             // Remove valor existente pra não poluir o label
             if (ac.value) {
                 sameTd = sameTd.replace(ac.value.toLowerCase(), '').trim();
                 prevTd = prevTd.replace(ac.value.toLowerCase(), '').trim();
+                parentText = parentText.replace(ac.value.toLowerCase(), '').trim();
             }
+
+            // DIAGNÓSTICO: mostra CADA AC
+            console.log('[Navio Finder] AC[' + i + '] scope=' + inScope + ' td="' + sameTd.substring(0, 40) + '" prev="' + prevTd.substring(0, 40) + '" parent="' + parentText.substring(0, 40) + '" hasTD=' + !!td);
+
+            if (!inScope) continue;
 
             if ((sameTd.indexOf('navio') >= 0 && sameTd.indexOf('feeder') < 0) ||
                 (prevTd.indexOf('navio') >= 0 && prevTd.indexOf('feeder') < 0)) {
-                console.log('[Navio Finder] Encontrado AC[' + i + '] label="' + (sameTd || prevTd).substring(0, 30) + '"');
+                console.log('[Navio Finder] MATCH AC[' + i + ']');
                 return ac;
             }
         }
