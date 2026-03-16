@@ -342,8 +342,18 @@
             console.log(TAG, 'Aba Arquivos não encontrada');
             return null;
         }
-
-        archivosTab.click();
+        // Checa se Arquivos já está aberto (no financeiro, fica aberto entre processos)
+        var accHeader = archivosTab.closest('.ui-accordion-header') || archivosTab;
+        var isAlreadyOpen = accHeader.classList.contains('ui-state-active') || 
+                            accHeader.getAttribute('aria-selected') === 'true' ||
+                            accHeader.getAttribute('aria-expanded') === 'true';
+        
+        if (isAlreadyOpen) {
+            console.log(TAG, 'Arquivos já está aberto, não clica pra não fechar');
+        } else {
+            console.log(TAG, 'Abrindo aba Arquivos...');
+            archivosTab.click();
+        }
         await delay(1500);
 
         // Busca row com "Cotação Cliente" DENTRO da seção Arquivos (não na página toda)
