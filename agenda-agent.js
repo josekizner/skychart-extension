@@ -400,12 +400,14 @@
             return;
         }
 
-        // Click to expand if collapsed
-        var isExpanded = embarqueHeader.getAttribute('aria-expanded') === 'true' ||
-                         embarqueHeader.classList.contains('ui-state-active');
-        if (!isExpanded) {
+        // Check if field already visible (accordion already expanded)
+        // aria-expanded is always null in Skychart, so check field existence instead
+        var alreadyOpen = !!document.getElementById('formularioEmbarque-dsReserva');
+        if (!alreadyOpen) {
             embarqueHeader.click();
-            console.log(TAG, 'Expandindo accordion Embarque');
+            console.log(TAG, 'Clicou accordion Embarque (index 5 confirmado)');
+        } else {
+            console.log(TAG, 'Accordion Embarque já aberto');
         }
 
         // 2. Wait for booking field to appear in DOM (Angular lazy render)
