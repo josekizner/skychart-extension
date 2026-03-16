@@ -348,12 +348,25 @@
 
         // Busca row com "Cotação Cliente" DENTRO da seção Arquivos (não na página toda)
         var targetRow = null;
-        var arquivosScope = archivosTab.nextElementSibling || document;
-        // Se o accordion header é um <a> dentro de um <div>, pega o próximo do pai
-        if (arquivosScope === document && archivosTab.parentElement) {
-            arquivosScope = archivosTab.parentElement.nextElementSibling || document;
+
+        // Encontra o content panel do accordion Arquivos
+        var arquivosScope = null;
+        // archivosTab pode ser: .ui-accordion-header (div/li), ou um <a>/<span>
+        var accHeader = archivosTab.closest('.ui-accordion-header') || archivosTab;
+        // O content vem logo depois do header no PrimeNG
+        var nextEl = accHeader.nextElementSibling;
+        if (nextEl && (nextEl.classList.contains('ui-accordion-content-wrapper') || nextEl.classList.contains('ui-accordion-content') || nextEl.querySelector('table'))) {
+            arquivosScope = nextEl;
         }
-        console.log(TAG, 'Scope de busca:', arquivosScope.tagName || 'document', 'classe:', (arquivosScope.className || '').substring(0, 40));
+        // Fallback: sobe pro parent e pega o content wrapper
+        if (!arquivosScope) {
+            var accParent = accHeader.parentElement;
+            if (accParent) {
+                arquivosScope = accParent.querySelector('.ui-accordion-content-wrapper') || accParent.querySelector('.ui-accordion-content');
+            }
+        }
+        if (!arquivosScope) arquivosScope = document;
+        console.log(TAG, 'Scope de busca:', arquivosScope.tagName || 'document', 'classes:', (arquivosScope.className || '').substring(0, 50));
 
         for (var attempt = 0; attempt < 10; attempt++) {
             var scopeRows = arquivosScope.querySelectorAll('tr');
