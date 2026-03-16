@@ -90,6 +90,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       chrome.tabs.create({ url: trackingUrl, active: true }, (tab) => {
         pendingTrackingTabs[tab.id] = skychartTabId;
         console.log("[Tracking] Tab aberta:", tab.id, "-> Skychart tab:", skychartTabId);
+
+        // Injeta o scraper programaticamente (bypass content_scripts estático que falha)
+        function injectWhenReady(tabId, changeInfo) {
+          if (tabId === tab.id && changeInfo.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(injectWhenReady);
+            console.log("[Tracking] Página carregou, injetando maersk-scraper.js em tab:", tabId);
+            chrome.scripting.executeScript({
+              target: { tabId: tabId },
+              files: ['maersk-scraper.js']
+            }).then(() => {
+              console.log("[Tracking] maersk-scraper.js injetado com sucesso");
+            }).catch((err) => {
+              console.error("[Tracking] Erro ao injetar scraper:", err);
+            });
+          }
+        }
+        chrome.tabs.onUpdated.addListener(injectWhenReady);
       });
     }
 
@@ -109,6 +126,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       pendingTrackingTabs[tab.id] = { skychartTab: skychartTabId, crossCheck: true };
       chrome.storage.local.set({ crossCheckMaerskTab: tab.id, crossCheckSkychartTab: skychartTabId });
       console.log("[Booking Cross-check] Tab visível:", tab.id, "-> Skychart tab:", skychartTabId);
+
+      // Injeta o scraper programaticamente
+      function injectWhenReady(tabId, changeInfo) {
+        if (tabId === tab.id && changeInfo.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(injectWhenReady);
+          console.log("[Booking Cross-check] Injetando maersk-scraper.js em tab:", tabId);
+          chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            files: ['maersk-scraper.js']
+          }).catch((err) => {
+            console.error("[Booking Cross-check] Erro ao injetar scraper:", err);
+          });
+        }
+      }
+      chrome.tabs.onUpdated.addListener(injectWhenReady);
     });
 
     sendResponse({ success: true });
