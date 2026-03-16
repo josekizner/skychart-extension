@@ -179,15 +179,24 @@
                 this.style.boxShadow = 'none';
             });
 
-            badge.addEventListener('click', function() {
+            badge.addEventListener('click', function(e) {
                 if (_running) {
                     showAgendaToast('Já tem uma ação em andamento!', 'warning');
                     return;
                 }
                 var processList = agendas[type];
                 if (!processList || processList.length === 0) return;
-                startBulkAction(type, processList);
+
+                // Shift+Click = testar com 1 processo apenas
+                if (e.shiftKey) {
+                    showAgendaToast('Teste: rodando só 1 processo (' + processList[0] + ')', 'info');
+                    startBulkAction(type, [processList[0]]);
+                } else {
+                    startBulkAction(type, processList);
+                }
             });
+
+            badge.title = 'Click = todos | Shift+Click = testar com 1';
 
             bar.appendChild(badge);
         });
