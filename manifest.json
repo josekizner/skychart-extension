@@ -53,14 +53,6 @@
     },
     {
       "matches": [
-        "https://www.maersk.com/tracking/*"
-      ],
-      "js": [
-        "maersk-scraper.js"
-      ]
-    },
-    {
-      "matches": [
         "https://www.serasaempreendedor.com.br/*"
       ],
       "js": [
