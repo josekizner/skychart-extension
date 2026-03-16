@@ -412,21 +412,45 @@ try {
             var viagemAnchor = document.querySelector('#formularioEmbarque-dsViagem');
             var embarqueSection = viagemAnchor ? viagemAnchor.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
 
+            console.log('[Atom Booking] Diag: ' + allACs.length + ' ACs na página, viagemAnchor=' + !!viagemAnchor + ', embarqueSection=' + !!embarqueSection);
+
             for (var ni = 0; ni < allACs.length; ni++) {
                 var ac = allACs[ni];
-                // Só aceita ACs dentro da seção Embarque
-                if (embarqueSection && !embarqueSection.contains(ac)) continue;
+                var inScope = !embarqueSection || embarqueSection.contains(ac);
 
                 var td = ac.closest('td');
                 var sameTd = td ? td.textContent.trim().toLowerCase() : '';
                 var prevTd = (td && td.previousElementSibling) ? td.previousElementSibling.textContent.trim().toLowerCase() : '';
 
+                // Log TODOS os ACs pra diagnóstico
+                console.log('[Atom Booking] AC[' + ni + '] inScope=' + inScope + ' same="' + sameTd.substring(0, 40) + '" prev="' + prevTd.substring(0, 40) + '"');
+
+                if (!inScope) continue;
+
                 // Procura label "navio" mas NÃO "feeder"
                 if ((sameTd.indexOf('navio') >= 0 && sameTd.indexOf('feeder') < 0) ||
                     (prevTd.indexOf('navio') >= 0 && prevTd.indexOf('feeder') < 0)) {
                     navioInput = ac;
-                    console.log('[Atom Booking] Navio AC encontrado pelo label (TD:', sameTd.substring(0, 30) || prevTd.substring(0, 30), ')');
+                    console.log('[Atom Booking] Navio AC encontrado! AC[' + ni + ']');
                     break;
+                }
+            }
+
+            // Fallback: se não achou com scope, tenta sem scope
+            if (!navioInput) {
+                console.log('[Atom Booking] Tentando fallback sem scope...');
+                for (var ni2 = 0; ni2 < allACs.length; ni2++) {
+                    var ac2 = allACs[ni2];
+                    var td2 = ac2.closest('td');
+                    var sameTd2 = td2 ? td2.textContent.trim().toLowerCase() : '';
+                    var prevTd2 = (td2 && td2.previousElementSibling) ? td2.previousElementSibling.textContent.trim().toLowerCase() : '';
+
+                    if ((sameTd2.indexOf('navio') >= 0 && sameTd2.indexOf('feeder') < 0) ||
+                        (prevTd2.indexOf('navio') >= 0 && prevTd2.indexOf('feeder') < 0)) {
+                        navioInput = ac2;
+                        console.log('[Atom Booking] Navio AC encontrado via fallback! AC[' + ni2 + ']');
+                        break;
+                    }
                 }
             }
 
@@ -435,7 +459,7 @@ try {
                 var r1 = await SkAgent.engine.charByChar(navioInput, booking.navio, { selectFirst: false, tabAfter: true });
                 console.log('[Atom Booking] Navio:', r1.ok ? 'OK' : 'falhou - ' + r1.reason);
             } else {
-                console.log('[Atom Booking] Navio: campo não encontrado na seção Embarque');
+                console.log('[Atom Booking] Navio: NENHUM autocomplete com label "navio" encontrado');
             }
         }
         await delay(600);
