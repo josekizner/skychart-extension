@@ -359,6 +359,38 @@
         }
     }
 
+    // ===== FIELD SNAPSHOT (safety) =====
+    function snapshotFields() {
+        var snap = {};
+        var inputs = document.querySelectorAll('input[id^="formularioEmbarque-"]');
+        inputs.forEach(function(inp) {
+            snap[inp.id] = inp.value || '';
+        });
+        return snap;
+    }
+
+    function verifySnapshot(before, after, allowedFields) {
+        // Compare before/after, report any unexpected changes
+        var issues = [];
+        for (var id in before) {
+            if (allowedFields.indexOf(id) >= 0) continue; // skip target field
+            if (before[id] !== (after[id] || '')) {
+                issues.push({ field: id, was: before[id], now: after[id] || '' });
+            }
+        }
+        return issues;
+    }
+
+    function revertFields(before, issues) {
+        issues.forEach(function(issue) {
+            var inp = document.getElementById(issue.field);
+            if (inp) {
+                fillDateField(issue.field, issue.was);
+                console.log(TAG, 'REVERTIDO:', issue.field, issue.now, '→', issue.was);
+            }
+        });
+    }
+
     // ===== CONFIRMAR EMBARQUE =====
     function actionConfirmarEmbarque(processoName, callback) {
         // 1. Find and expand Embarque accordion
@@ -376,24 +408,32 @@
             console.log(TAG, 'Expandindo accordion Embarque');
         }
 
-        setTimeout(function() {
-            // 2. Check if already confirmed
+        // 2. Wait for booking field to appear in DOM (Angular lazy render)
+        waitForField('formularioEmbarque-dsReserva', 8000, function(bookingInput) {
+            if (!bookingInput) {
+                callback({ processo: processoName, status: 'erro', msg: 'Campo booking não carregou' });
+                return;
+            }
+
+            // Take SNAPSHOT of all fields BEFORE any change
+            var beforeSnap = snapshotFields();
+            console.log(TAG, 'Snapshot tirado:', Object.keys(beforeSnap).length, 'campos');
+
+            // 3. Check if already confirmed
             var dtConfirm = document.getElementById('formularioEmbarque-dtConfirmacaoEmbarque');
             if (dtConfirm && dtConfirm.value && dtConfirm.value.trim() !== '') {
                 callback({ processo: processoName, status: 'skip', msg: 'Já confirmado: ' + dtConfirm.value });
                 return;
             }
 
-            // 3. Read booking
-            var bookingInput = document.getElementById('formularioEmbarque-dsReserva');
-            var booking = bookingInput ? (bookingInput.value || '').trim() : '';
-
+            // 4. Read booking
+            var booking = (bookingInput.value || '').trim();
             if (!booking) {
                 callback({ processo: processoName, status: 'skip', msg: 'Sem booking' });
                 return;
             }
 
-            // 4. Detect carrier from accordion header
+            // 5. Detect carrier from accordion header
             var carrier = detectCarrierFromAccordion();
             console.log(TAG, 'Booking:', booking, '| Armador:', carrier);
 
@@ -407,11 +447,10 @@
                 return;
             }
 
-            // 5. Maersk: open tracking tab and wait for scraper data
+            // 6. Maersk: open tracking tab and wait for scraper data
             var trackUrl = 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
             console.log(TAG, 'Abrindo tracking Maersk:', trackUrl);
 
-            // Listen for scraper response
             var responded = false;
             function onTrackingData(msg) {
                 if (msg.action !== 'maerskTrackingData' || responded) return;
@@ -423,28 +462,39 @@
                     return;
                 }
 
-                // Parse and fill date
                 var depDate = parseMaerskDate(msg.data.departureDate);
                 if (!depDate) {
                     callback({ processo: processoName, status: 'skip', msg: 'Data inválida: ' + msg.data.departureDate });
                     return;
                 }
 
-                // Fill confirmation date
+                // Fill ONLY the confirmation date field
+                console.log(TAG, 'Preenchendo dtConfirmacaoEmbarque =', depDate);
                 fillDateField('formularioEmbarque-dtConfirmacaoEmbarque', depDate);
 
-                // Click Atualizar
+                // SAFETY CHECK: verify only target field changed
                 setTimeout(function() {
+                    var afterSnap = snapshotFields();
+                    var issues = verifySnapshot(beforeSnap, afterSnap, ['formularioEmbarque-dtConfirmacaoEmbarque']);
+
+                    if (issues.length > 0) {
+                        console.log(TAG, 'ALERTA! Campos alterados inesperadamente:', JSON.stringify(issues));
+                        revertFields(beforeSnap, issues);
+                        showAgendaToast('Campos revertidos em ' + processoName + '!', 'error');
+                    }
+
+                    // Click Atualizar
                     clickAtualizar();
                     setTimeout(function() {
-                        callback({ processo: processoName, status: 'ok', msg: 'Confirmado: ' + depDate });
+                        var safetyMsg = issues.length > 0
+                            ? 'Confirmado: ' + depDate + ' (revertidos ' + issues.length + ' campos)'
+                            : 'Confirmado: ' + depDate;
+                        callback({ processo: processoName, status: 'ok', msg: safetyMsg });
                     }, 2000);
-                }, 500);
+                }, 300);
             }
 
             chrome.runtime.onMessage.addListener(onTrackingData);
-
-            // Open tracking tab
             chrome.runtime.sendMessage({ action: 'openTab', url: trackUrl });
 
             // Timeout after 35s
@@ -455,8 +505,27 @@
                     callback({ processo: processoName, status: 'erro', msg: 'Timeout aguardando tracking Maersk' });
                 }
             }, 35000);
+        });
+    }
 
-        }, 1000); // wait for accordion to expand
+    function waitForField(fieldId, maxWait, callback) {
+        var waited = 0;
+        var interval = 500;
+        var checker = setInterval(function() {
+            waited += interval;
+            var field = document.getElementById(fieldId);
+            if (field) {
+                clearInterval(checker);
+                console.log(TAG, 'Campo encontrado:', fieldId, '(', waited, 'ms)');
+                callback(field);
+                return;
+            }
+            if (waited >= maxWait) {
+                clearInterval(checker);
+                console.log(TAG, 'Timeout esperando campo:', fieldId);
+                callback(null);
+            }
+        }, interval);
     }
 
     // ===== HELPERS =====
