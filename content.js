@@ -15,18 +15,55 @@ try {
 
     console.log("Skychart AI: Script carregado com sucesso.");
 
-    // Utilitário: encontra o campo Navio usando seletor EXPLÍCITO do field-mapping.json
-    // Seletor obtido via Chrome DevTools → Copy Selector (nunca adivinhar)
-    var NAVIO_SELECTOR = '#opcoes-empresas-filtros > p-autocomplete > span > input';
-
+    // Utilitário: encontra o campo Navio buscando pelo LABEL dentro da seção Embarque
+    // NÃO usa seletor fixo — busca autocompletes com label "navio" (sem "feeder")
     function findNavioByLabel() {
-        // 1º: seletor explícito do field-mapping.json
-        var navioInput = document.querySelector(NAVIO_SELECTOR);
-        if (navioInput) {
-            console.log('[Navio Finder] Encontrado pelo seletor explícito:', NAVIO_SELECTOR);
-            return navioInput;
+        var allACs = document.querySelectorAll('input.ui-autocomplete-input');
+        var viagemAnchor = document.querySelector('#formularioEmbarque-dsViagem');
+        var embarqueSection = viagemAnchor ? viagemAnchor.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
+
+        console.log('[Navio Finder] ' + allACs.length + ' ACs, viagemAnchor=' + !!viagemAnchor + ', section=' + !!embarqueSection);
+
+        // 1ª passada: dentro da seção Embarque
+        for (var i = 0; i < allACs.length; i++) {
+            var ac = allACs[i];
+            if (embarqueSection && !embarqueSection.contains(ac)) continue;
+
+            var td = ac.closest('td');
+            var sameTd = td ? td.textContent.trim().toLowerCase() : '';
+            var prevTd = (td && td.previousElementSibling) ? td.previousElementSibling.textContent.trim().toLowerCase() : '';
+            // Remove valor existente pra não poluir o label
+            if (ac.value) {
+                sameTd = sameTd.replace(ac.value.toLowerCase(), '').trim();
+                prevTd = prevTd.replace(ac.value.toLowerCase(), '').trim();
+            }
+
+            if ((sameTd.indexOf('navio') >= 0 && sameTd.indexOf('feeder') < 0) ||
+                (prevTd.indexOf('navio') >= 0 && prevTd.indexOf('feeder') < 0)) {
+                console.log('[Navio Finder] Encontrado AC[' + i + '] label="' + (sameTd || prevTd).substring(0, 30) + '"');
+                return ac;
+            }
         }
-        console.log('[Navio Finder] Seletor explícito NÃO encontrou. Selector:', NAVIO_SELECTOR);
+
+        // 2ª passada: sem scope (fallback)
+        for (var j = 0; j < allACs.length; j++) {
+            var ac2 = allACs[j];
+            var td2 = ac2.closest('td');
+            var sameTd2 = td2 ? td2.textContent.trim().toLowerCase() : '';
+            var prevTd2 = (td2 && td2.previousElementSibling) ? td2.previousElementSibling.textContent.trim().toLowerCase() : '';
+            if (ac2.value) {
+                sameTd2 = sameTd2.replace(ac2.value.toLowerCase(), '').trim();
+                prevTd2 = prevTd2.replace(ac2.value.toLowerCase(), '').trim();
+            }
+
+            if ((sameTd2.indexOf('navio') >= 0 && sameTd2.indexOf('feeder') < 0) ||
+                (prevTd2.indexOf('navio') >= 0 && prevTd2.indexOf('feeder') < 0)) {
+                console.log('[Navio Finder] Encontrado via fallback AC[' + j + ']');
+                return ac2;
+            }
+        }
+
+        console.log('[Navio Finder] Nenhum AC com label "navio" encontrado');
         return null;
     }
 
