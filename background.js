@@ -96,20 +96,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (tabId === tab.id && changeInfo.status === 'complete') {
             chrome.tabs.onUpdated.removeListener(injectWhenReady);
             console.log("[Tracking] Página carregou, injetando maersk-scraper.js em tab:", tabId);
-            console.log("[Tracking] chrome.scripting disponível:", typeof chrome.scripting, !!chrome.scripting);
-            try {
-              chrome.scripting.executeScript({
-                target: { tabId: tabId },
-                files: ['maersk-scraper.js']
-              }).then(function(results) {
-                console.log("[Tracking] maersk-scraper.js injetado com sucesso, results:", results);
-              }).catch(function(err) {
-                console.error("[Tracking] Erro ao injetar scraper:", err.message || err);
-              });
-              console.log("[Tracking] executeScript chamado sem erro síncrono");
-            } catch(e) {
-              console.error("[Tracking] Exceção síncrona ao chamar executeScript:", e.message || e);
-            }
+            
+            // Teste: injeta código inline primeiro pra ver se injection funciona
+            chrome.scripting.executeScript(
+              { target: { tabId: tabId }, func: function() { console.log('[Maersk Injection Test] Inline code works!'); return 'OK'; } },
+              function(testResults) {
+                if (chrome.runtime.lastError) {
+                  console.error("[Tracking] TESTE INLINE lastError:", chrome.runtime.lastError.message);
+                  return;
+                }
+                console.log("[Tracking] TESTE INLINE OK:", testResults);
+                
+                // Agora injeta o arquivo real
+                chrome.scripting.executeScript(
+                  { target: { tabId: tabId }, files: ['maersk-scraper.js'] },
+                  function(results) {
+                    if (chrome.runtime.lastError) {
+                      console.error("[Tracking] ARQUIVO lastError:", chrome.runtime.lastError.message);
+                      return;
+                    }
+                    console.log("[Tracking] maersk-scraper.js injetado com sucesso!", results);
+                  }
+                );
+              }
+            );
           }
         }
         chrome.tabs.onUpdated.addListener(injectWhenReady);
