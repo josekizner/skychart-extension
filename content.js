@@ -658,15 +658,52 @@ try {
                     setTimeout(function() {
                         chrome.runtime.sendMessage({ action: 'closeMaerskAndReturn', maerskTab: tabs.crossCheckMaerskTab, skychartTab: tabs.crossCheckSkychartTab });
                         // Atualizar final pra salvar ETA + popup
-                        setTimeout(function() {
+                        setTimeout(async function() {
+                            // ===== VERIFICAÇÃO dos campos preenchidos =====
+                            console.log('[Atom Booking] Verificando campos antes do Atualizar final...');
+                            var verifyChecks = [
+                                { label: 'Viagem', selector: '#formularioEmbarque-dsViagem' },
+                                { label: 'ETD', selector: '#formularioEmbarque-dtPrevisaoEmbarque' },
+                                { label: 'ETA', selector: '#formularioEmbarque-dtPrevisaoAtracacao' }
+                            ];
+                            var allFieldsOk = true;
+                            for (var vc = 0; vc < verifyChecks.length; vc++) {
+                                var vChk = verifyChecks[vc];
+                                var vEl = document.querySelector(vChk.selector);
+                                var vVal = vEl ? (vEl.value || '') : '';
+                                if (vVal.length > 0) {
+                                    console.log('[Atom Booking] ✓ ' + vChk.label + ' = "' + vVal + '"');
+                                } else {
+                                    console.log('[Atom Booking] ✗ ' + vChk.label + ' VAZIO');
+                                    allFieldsOk = false;
+                                }
+                            }
+                            console.log('[Atom Booking] Verificação: ' + (allFieldsOk ? 'Todos OK' : 'Campos vazios detectados'));
+
+                            // ===== ATUALIZAR FINAL com form submit =====
                             var finalBtn = null;
                             var spans = document.querySelectorAll('span.ui-button-text.ui-clickable');
                             for (var fb = 0; fb < spans.length; fb++) {
-                                if (spans[fb].textContent.trim() === 'Atualizar') { finalBtn = spans[fb]; break; }
+                                if (spans[fb].textContent.trim() === 'Atualizar') {
+                                    finalBtn = spans[fb].closest('button') || spans[fb];
+                                    break;
+                                }
                             }
                             if (finalBtn) {
-                                console.log('[Atom Booking] Atualizar FINAL...');
+                                console.log('[Atom Booking] Atualizar FINAL: ' + finalBtn.tagName + ' type=' + (finalBtn.type || '?'));
+                                finalBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                                await delay(500);
                                 finalBtn.click();
+                                await delay(300);
+                                // Form submit
+                                var parentForm = finalBtn.closest('form');
+                                if (parentForm) {
+                                    parentForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                                    console.log('[Atom Booking] Form submit disparado');
+                                }
+                                console.log('[Atom Booking] Atualizar FINAL clicado + submit!');
+                            } else {
+                                console.log('[Atom Booking] Atualizar FINAL: botão não encontrado');
                             }
                             setTimeout(function() {
                                 showPersistentToast(crossResult.title, crossResult.html, crossResult.type);
