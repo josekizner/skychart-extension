@@ -401,11 +401,12 @@
         }
 
         // Check if field already visible (accordion already expanded)
-        // aria-expanded is always null in Skychart, so check field existence instead
         var alreadyOpen = !!document.getElementById('formularioEmbarque-dsReserva');
         if (!alreadyOpen) {
-            embarqueHeader.click();
-            console.log(TAG, 'Clicou accordion Embarque (index 5 confirmado)');
+            // PrimeNG: clicar no <a> dentro do header, NÃO no header div
+            var clickTarget = embarqueHeader.querySelector('a') || embarqueHeader;
+            clickTarget.click();
+            console.log(TAG, 'Clicou <a> do accordion Embarque');
         } else {
             console.log(TAG, 'Accordion Embarque já aberto');
         }
