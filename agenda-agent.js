@@ -460,18 +460,19 @@
                 return;
             }
 
-            // 6. Maersk: open tracking tab and wait for scraper data
-            var trackUrl = 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
-            console.log(TAG, 'Abrindo tracking Maersk:', trackUrl);
+            // 6. Maersk: usar o mesmo fluxo trackBooking que já funciona no ecossistema
+            console.log(TAG, 'Usando trackBooking existente para:', booking, 'carrier:', carrier);
 
             var responded = false;
             function onTrackingData(msg) {
-                if (msg.action !== 'maerskTrackingData' || responded) return;
+                if (msg.action !== 'trackingDataReady' || responded) return;
                 responded = true;
                 chrome.runtime.onMessage.removeListener(onTrackingData);
 
-                if (!msg.data || !msg.data.departureDate) {
-                    callback({ processo: processoName, status: 'skip', msg: 'Sem data de embarque no tracking' });
+                console.log(TAG, 'trackingDataReady recebido:', msg.data ? 'com dados' : 'sem dados', msg.error || '');
+
+                if (msg.error || !msg.data || !msg.data.departureDate) {
+                    callback({ processo: processoName, status: 'skip', msg: 'Sem data de embarque no tracking' + (msg.error ? ': ' + msg.error : '') });
                     return;
                 }
 
@@ -508,7 +509,12 @@
             }
 
             chrome.runtime.onMessage.addListener(onTrackingData);
-            chrome.runtime.sendMessage({ action: 'openTab', url: trackUrl });
+            // Usa trackBooking existente — registra pendingTrackingTabs e abre com active:true
+            chrome.runtime.sendMessage({
+                action: 'trackBooking',
+                bookingNumber: booking,
+                carrier: carrier
+            });
 
             // Timeout after 35s
             setTimeout(function() {
