@@ -8,8 +8,7 @@
     "activeTab",
     "tabs",
     "debugger",
-    "notifications",
-    "scripting"
+    "notifications"
   ],
   "host_permissions": [
     "https://app2.skychart.com.br/*",
@@ -49,6 +48,14 @@
       "css": [
         "content.css",
         "frequency-agent.css"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.maersk.com/tracking/*"
+      ],
+      "js": [
+        "maersk-scraper.js"
       ]
     },
     {
