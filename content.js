@@ -1102,16 +1102,10 @@ try {
                     vlFrete = parseBR(cells[freteCol].textContent.trim());
                 }
 
-                // Botão "..." da Descrição (col 1)
+                // Botão "..." da Descrição (col 1) — pega o BUTTON direto, não o span
                 var dotsBtn = null;
                 if (descCol >= 0 && cells[descCol]) {
-                    var spans = cells[descCol].querySelectorAll('span');
-                    for (var sp = 0; sp < spans.length; sp++) {
-                        if (spans[sp].textContent.trim() === '...') {
-                            dotsBtn = spans[sp];
-                            break;
-                        }
-                    }
+                    dotsBtn = cells[descCol].querySelector('button');
                 }
 
                 console.log('[Atom Oferta] Linha', cod, '| Armador:', armador, '| VL.Frete:', vlFrete, '| Desc btn:', !!dotsBtn);
@@ -1193,15 +1187,8 @@ try {
             return;
         }
 
-        // Clica no botão (sobe pro button pai se for span)
-        var clickTarget = dotsBtn;
-        var parentBtn = clickTarget.closest('button') || clickTarget.closest('.ui-button');
-        if (parentBtn) clickTarget = parentBtn;
-
-        clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
-        clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
-        clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-        clickTarget.click();
+        // Clica no botão direto (já é o <button>, não span)
+        dotsBtn.click();
 
         // Espera dialog VISÍVEL abrir (poll até 3s), depois lê textarea
         var pollCount = 0;
