@@ -5,10 +5,12 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemi
 
 // ===== PERFIL / PERMISSOES =====
 const PROFILES = {
-  master: ['cambio','serasa','frete','tracking','cotacao','frequencia'],
-  financeiro: ['cambio','serasa'],
-  operacional: ['tracking','frete'],
-  comercial: ['cotacao','frete','frequencia']
+  master: ['cambio','serasa','frete','tracking','cotacao','chequeio-op','chequeio-fin','frequencia','booking','demurrage'],
+  financeiro: ['cambio','serasa','chequeio-fin'],
+  'financeiro-demurrage': ['cambio','serasa','chequeio-fin','demurrage'],
+  operacional: ['tracking','frete','chequeio-op','booking'],
+  comercial: ['cotacao','frete','frequencia'],
+  demurrage: ['demurrage','tracking','frete']
 };
 
 function loadProfileFromConfig() {

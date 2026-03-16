@@ -3,9 +3,10 @@ var PROFILES = {
   financeiro: ['cambio','serasa','chequeio-fin'],
   operacional: ['tracking','frete','chequeio-op','booking'],
   comercial: ['cotacao','frete','frequencia'],
-  demurrage: ['demurrage','tracking','frete']
+  demurrage: ['demurrage','tracking','frete'],
+  'financeiro-demurrage': ['cambio','serasa','chequeio-fin','demurrage']
 };
-var LABELS = { master:'Master', financeiro:'Financeiro', operacional:'Operacional', comercial:'Comercial', demurrage:'Demurrage', custom:'Personalizado' };
+var LABELS = { master:'Master', financeiro:'Financeiro', 'financeiro-demurrage':'Financeiro + Demurrage', operacional:'Operacional', comercial:'Comercial', demurrage:'Demurrage', custom:'Personalizado' };
 var ADMIN_PWD = 'realsteel';
 
 // Load from chrome.storage FIRST (most reliable)
@@ -32,6 +33,7 @@ function showProfileSelector() {
     '<h2 style="margin:0 0 8px;font-size:18px;">Bem-vindo ao Atom</h2>' +
     '<p style="color:#999;font-size:12px;margin:0 0 20px;">Selecione seu departamento:</p>' +
     '<button class="prof-btn" data-p="financeiro" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Financeiro</button>' +
+    '<button class="prof-btn" data-p="financeiro-demurrage" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Financeiro + Demurrage</button>' +
     '<button class="prof-btn" data-p="operacional" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Operacional</button>' +
     '<button class="prof-btn" data-p="comercial" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Comercial</button>' +
     '<button class="prof-btn" data-p="demurrage" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#5c1a1a;color:#fff;font-size:14px;cursor:pointer;">Demurrage</button>' +
