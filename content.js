@@ -403,15 +403,39 @@ try {
         }
         await delay(600);
 
-        // 5b. Navio — busca pelo label "Navio:" na seção Embarque
+        // 5b. Navio — busca pelo label na seção Embarque (mesma lógica do tracking)
         if (booking.navio && typeof SkAgent !== 'undefined' && SkAgent.engine) {
-            var navioInput = findNavioByLabel();
+            var navioInput = null;
+
+            // Busca o autocomplete cujo TD vizinho contém "navio" (excluindo "feeder")
+            var allACs = document.querySelectorAll('input.ui-autocomplete-input');
+            var viagemAnchor = document.querySelector('#formularioEmbarque-dsViagem');
+            var embarqueSection = viagemAnchor ? viagemAnchor.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
+
+            for (var ni = 0; ni < allACs.length; ni++) {
+                var ac = allACs[ni];
+                // Só aceita ACs dentro da seção Embarque
+                if (embarqueSection && !embarqueSection.contains(ac)) continue;
+
+                var td = ac.closest('td');
+                var sameTd = td ? td.textContent.trim().toLowerCase() : '';
+                var prevTd = (td && td.previousElementSibling) ? td.previousElementSibling.textContent.trim().toLowerCase() : '';
+
+                // Procura label "navio" mas NÃO "feeder"
+                if ((sameTd.indexOf('navio') >= 0 && sameTd.indexOf('feeder') < 0) ||
+                    (prevTd.indexOf('navio') >= 0 && prevTd.indexOf('feeder') < 0)) {
+                    navioInput = ac;
+                    console.log('[Atom Booking] Navio AC encontrado pelo label (TD:', sameTd.substring(0, 30) || prevTd.substring(0, 30), ')');
+                    break;
+                }
+            }
+
             if (navioInput) {
                 console.log('[Atom Booking] Preenchendo navio:', booking.navio);
                 var r1 = await SkAgent.engine.charByChar(navioInput, booking.navio, { selectFirst: false, tabAfter: true });
                 console.log('[Atom Booking] Navio:', r1.ok ? 'OK' : 'falhou - ' + r1.reason);
             } else {
-                console.log('[Atom Booking] Navio: campo não encontrado pelo label');
+                console.log('[Atom Booking] Navio: campo não encontrado na seção Embarque');
             }
         }
         await delay(600);
