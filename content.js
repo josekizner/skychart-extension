@@ -408,7 +408,7 @@ try {
             var navioInput = findNavioByLabel();
             if (navioInput) {
                 console.log('[Atom Booking] Preenchendo navio:', booking.navio);
-                var r1 = await SkAgent.engine.charByChar(navioInput, booking.navio, { selectFirst: true, tabAfter: true });
+                var r1 = await SkAgent.engine.charByChar(navioInput, booking.navio, { selectFirst: false, tabAfter: true });
                 console.log('[Atom Booking] Navio:', r1.ok ? 'OK' : 'falhou - ' + r1.reason);
             } else {
                 console.log('[Atom Booking] Navio: campo não encontrado pelo label');
