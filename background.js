@@ -96,14 +96,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (tabId === tab.id && changeInfo.status === 'complete') {
             chrome.tabs.onUpdated.removeListener(injectWhenReady);
             console.log("[Tracking] Página carregou, injetando maersk-scraper.js em tab:", tabId);
-            chrome.scripting.executeScript({
-              target: { tabId: tabId },
-              files: ['maersk-scraper.js']
-            }).then(() => {
-              console.log("[Tracking] maersk-scraper.js injetado com sucesso");
-            }).catch((err) => {
-              console.error("[Tracking] Erro ao injetar scraper:", err);
-            });
+            console.log("[Tracking] chrome.scripting disponível:", typeof chrome.scripting, !!chrome.scripting);
+            try {
+              chrome.scripting.executeScript({
+                target: { tabId: tabId },
+                files: ['maersk-scraper.js']
+              }).then(function(results) {
+                console.log("[Tracking] maersk-scraper.js injetado com sucesso, results:", results);
+              }).catch(function(err) {
+                console.error("[Tracking] Erro ao injetar scraper:", err.message || err);
+              });
+              console.log("[Tracking] executeScript chamado sem erro síncrono");
+            } catch(e) {
+              console.error("[Tracking] Exceção síncrona ao chamar executeScript:", e.message || e);
+            }
           }
         }
         chrome.tabs.onUpdated.addListener(injectWhenReady);
