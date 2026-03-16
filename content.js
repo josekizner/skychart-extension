@@ -28,14 +28,17 @@ try {
         var allTds = scope.querySelectorAll('td');
         for (var i = 0; i < allTds.length; i++) {
             var tdText = allTds[i].textContent.trim().toLowerCase();
-            // Match exato: "navio" ou "navio:" mas NÃO "navio feeder", "navio id", "navio/feeder"
-            if (/^navio\s*:?\s*$/i.test(allTds[i].textContent.trim().replace(/[\u270F\u2710✏️📝]/g, '').trim())) {
+            // Contém "navio" mas NÃO contém "feeder", "id", "navio/"
+            if (tdText.indexOf('navio') >= 0 && 
+                tdText.indexOf('feeder') < 0 && 
+                tdText.indexOf('navio id') < 0 && 
+                tdText.indexOf('navio/') < 0) {
                 // Pega o próximo TD (que contém o autocomplete)
                 var nextTd = allTds[i].nextElementSibling;
                 if (nextTd) {
                     var input = nextTd.querySelector('p-autocomplete input, input.ui-autocomplete-input');
                     if (input) {
-                        console.log('[Navio Finder] Encontrado pelo label "Navio:" → input no TD seguinte');
+                        console.log('[Navio Finder] Encontrado pelo label "Navio" → input no TD seguinte');
                         return input;
                     }
                 }
@@ -43,7 +46,6 @@ try {
                 var tr = allTds[i].closest('tr');
                 if (tr) {
                     var colIdx = Array.from(tr.children).indexOf(allTds[i]);
-                    // O input pode estar no TD ao lado (colIdx + 1)
                     if (tr.children[colIdx + 1]) {
                         var input2 = tr.children[colIdx + 1].querySelector('p-autocomplete input, input.ui-autocomplete-input');
                         if (input2) {
