@@ -690,18 +690,49 @@ try {
                                 }
                             }
                             if (finalBtn) {
-                                console.log('[Atom Booking] Atualizar FINAL: ' + finalBtn.tagName + ' type=' + (finalBtn.type || '?'));
+                                console.log('[Atom Booking] Atualizar FINAL: ' + finalBtn.tagName + ' type=' + (finalBtn.type || '?') + ' disabled=' + finalBtn.disabled);
+                                
+                                // Captura timestamp ANTES do click pra verificar depois
+                                var confirmField = document.querySelector('#formularioEmbarque-dtConfirmacaoBooking, input[id*="Confirmacao"]');
+                                var tsBefore = confirmField ? confirmField.value : '';
+                                
                                 finalBtn.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                                await delay(500);
+                                await delay(800);
+                                
+                                // Clique ROBUSTO — full MouseEvent chain (Angular precisa disso)
+                                finalBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+                                await delay(50);
+                                finalBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+                                await delay(50);
+                                finalBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                                console.log('[Atom Booking] MouseEvent chain disparado');
+                                
+                                // Também click nativo + form submit
                                 finalBtn.click();
                                 await delay(300);
-                                // Form submit
                                 var parentForm = finalBtn.closest('form');
                                 if (parentForm) {
                                     parentForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
                                     console.log('[Atom Booking] Form submit disparado');
                                 }
-                                console.log('[Atom Booking] Atualizar FINAL clicado + submit!');
+                                
+                                // Verifica se o click realmente salvou (timestamp mudou?)
+                                await delay(2000);
+                                var tsAfter = confirmField ? confirmField.value : '';
+                                if (tsBefore !== tsAfter) {
+                                    console.log('[Atom Booking] ✓ Atualizar FINAL CONFIRMADO — timestamp mudou: ' + tsBefore + ' → ' + tsAfter);
+                                } else {
+                                    console.log('[Atom Booking] ⚠ Atualizar FINAL pode NÃO ter salvado — timestamp não mudou');
+                                    // Tenta 2ª vez com click direto na span
+                                    var retrySpans = document.querySelectorAll('span.ui-button-text.ui-clickable');
+                                    for (var rs = 0; rs < retrySpans.length; rs++) {
+                                        if (retrySpans[rs].textContent.trim() === 'Atualizar') {
+                                            console.log('[Atom Booking] Retry: clicando na span diretamente');
+                                            retrySpans[rs].click();
+                                            break;
+                                        }
+                                    }
+                                }
                             } else {
                                 console.log('[Atom Booking] Atualizar FINAL: botão não encontrado');
                             }
