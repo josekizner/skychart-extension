@@ -34,34 +34,34 @@ chrome.runtime.onStartup.addListener(function() {
   registerMaerskScraper();
 });
 
-// Registra maersk-scraper.js como content script dinâmico (persistente)
-// Diferente do content_scripts estático do manifest que falha com "unknown error"
-// e do executeScript que perde callbacks quando o service worker dorme
+// Registra content scripts dinâmicos para Maersk
 function registerMaerskScraper() {
-  chrome.scripting.registerContentScripts([{
-    id: 'maersk-scraper',
-    matches: ['https://www.maersk.com/tracking/*', 'https://maersk.com/tracking/*'],
-    js: ['maersk-scraper.js'],
-    runAt: 'document_idle',
-    persistAcrossSessions: true
-  }]).then(function() {
-    console.log('[Tracking] maersk-scraper.js registrado como content script dinâmico');
-  }).catch(function(err) {
-    // Já registrado — atualiza
-    if (err.message && err.message.includes('Duplicate')) {
-      chrome.scripting.updateContentScripts([{
-        id: 'maersk-scraper',
-        matches: ['https://www.maersk.com/tracking/*', 'https://maersk.com/tracking/*'],
-        js: ['maersk-scraper.js'],
-        runAt: 'document_idle',
-        persistAcrossSessions: true
-      }]).then(function() {
-        console.log('[Tracking] maersk-scraper.js atualizado (já estava registrado)');
+  // Primeiro desregistra tudo pra garantir estado limpo
+  chrome.scripting.unregisterContentScripts({ ids: ['maersk-scraper', 'maersk-test'] })
+    .catch(function() { /* ignora se não existe */ })
+    .then(function() {
+      // Registra scripts frescos
+      chrome.scripting.registerContentScripts([
+        {
+          id: 'maersk-test',
+          matches: ['https://www.maersk.com/tracking/*', 'https://maersk.com/tracking/*'],
+          js: ['maersk-test.js'],
+          runAt: 'document_start',
+          persistAcrossSessions: true
+        },
+        {
+          id: 'maersk-scraper',
+          matches: ['https://www.maersk.com/tracking/*', 'https://maersk.com/tracking/*'],
+          js: ['maersk-scraper.js'],
+          runAt: 'document_idle',
+          persistAcrossSessions: true
+        }
+      ]).then(function() {
+        console.log('[Tracking] Content scripts Maersk registrados (test + scraper)');
+      }).catch(function(err) {
+        console.error('[Tracking] Erro ao registrar scripts Maersk:', err.message || err);
       });
-    } else {
-      console.error('[Tracking] Erro ao registrar maersk-scraper:', err);
-    }
-  });
+    });
 }
 
 // ===== MESSAGE ROUTING =====
