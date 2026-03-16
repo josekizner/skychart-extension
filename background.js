@@ -25,8 +25,44 @@ function loadProfileFromConfig() {
     });
 }
 
-chrome.runtime.onInstalled.addListener(loadProfileFromConfig);
-chrome.runtime.onStartup.addListener(loadProfileFromConfig);
+chrome.runtime.onInstalled.addListener(function() {
+  loadProfileFromConfig();
+  registerMaerskScraper();
+});
+chrome.runtime.onStartup.addListener(function() {
+  loadProfileFromConfig();
+  registerMaerskScraper();
+});
+
+// Registra maersk-scraper.js como content script dinâmico (persistente)
+// Diferente do content_scripts estático do manifest que falha com "unknown error"
+// e do executeScript que perde callbacks quando o service worker dorme
+function registerMaerskScraper() {
+  chrome.scripting.registerContentScripts([{
+    id: 'maersk-scraper',
+    matches: ['https://www.maersk.com/tracking/*', 'https://maersk.com/tracking/*'],
+    js: ['maersk-scraper.js'],
+    runAt: 'document_idle',
+    persistAcrossSessions: true
+  }]).then(function() {
+    console.log('[Tracking] maersk-scraper.js registrado como content script dinâmico');
+  }).catch(function(err) {
+    // Já registrado — atualiza
+    if (err.message && err.message.includes('Duplicate')) {
+      chrome.scripting.updateContentScripts([{
+        id: 'maersk-scraper',
+        matches: ['https://www.maersk.com/tracking/*', 'https://maersk.com/tracking/*'],
+        js: ['maersk-scraper.js'],
+        runAt: 'document_idle',
+        persistAcrossSessions: true
+      }]).then(function() {
+        console.log('[Tracking] maersk-scraper.js atualizado (já estava registrado)');
+      });
+    } else {
+      console.error('[Tracking] Erro ao registrar maersk-scraper:', err);
+    }
+  });
+}
 
 // ===== MESSAGE ROUTING =====
 chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
@@ -90,39 +126,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       chrome.tabs.create({ url: trackingUrl, active: true }, (tab) => {
         pendingTrackingTabs[tab.id] = skychartTabId;
         console.log("[Tracking] Tab aberta:", tab.id, "-> Skychart tab:", skychartTabId);
-
-        // Injeta o scraper programaticamente (bypass content_scripts estático que falha)
-        function injectWhenReady(tabId, changeInfo) {
-          if (tabId === tab.id && changeInfo.status === 'complete') {
-            chrome.tabs.onUpdated.removeListener(injectWhenReady);
-            console.log("[Tracking] Página carregou, injetando maersk-scraper.js em tab:", tabId);
-            
-            // Teste: injeta código inline primeiro pra ver se injection funciona
-            chrome.scripting.executeScript(
-              { target: { tabId: tabId }, func: function() { console.log('[Maersk Injection Test] Inline code works!'); return 'OK'; } },
-              function(testResults) {
-                if (chrome.runtime.lastError) {
-                  console.error("[Tracking] TESTE INLINE lastError:", chrome.runtime.lastError.message);
-                  return;
-                }
-                console.log("[Tracking] TESTE INLINE OK:", testResults);
-                
-                // Agora injeta o arquivo real
-                chrome.scripting.executeScript(
-                  { target: { tabId: tabId }, files: ['maersk-scraper.js'] },
-                  function(results) {
-                    if (chrome.runtime.lastError) {
-                      console.error("[Tracking] ARQUIVO lastError:", chrome.runtime.lastError.message);
-                      return;
-                    }
-                    console.log("[Tracking] maersk-scraper.js injetado com sucesso!", results);
-                  }
-                );
-              }
-            );
-          }
-        }
-        chrome.tabs.onUpdated.addListener(injectWhenReady);
+        // maersk-scraper.js será injetado automaticamente pelo registerContentScripts
       });
     }
 
@@ -142,21 +146,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       pendingTrackingTabs[tab.id] = { skychartTab: skychartTabId, crossCheck: true };
       chrome.storage.local.set({ crossCheckMaerskTab: tab.id, crossCheckSkychartTab: skychartTabId });
       console.log("[Booking Cross-check] Tab visível:", tab.id, "-> Skychart tab:", skychartTabId);
-
-      // Injeta o scraper programaticamente
-      function injectWhenReady(tabId, changeInfo) {
-        if (tabId === tab.id && changeInfo.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(injectWhenReady);
-          console.log("[Booking Cross-check] Injetando maersk-scraper.js em tab:", tabId);
-          chrome.scripting.executeScript({
-            target: { tabId: tabId },
-            files: ['maersk-scraper.js']
-          }).catch((err) => {
-            console.error("[Booking Cross-check] Erro ao injetar scraper:", err);
-          });
-        }
-      }
-      chrome.tabs.onUpdated.addListener(injectWhenReady);
+      // maersk-scraper.js será injetado automaticamente pelo registerContentScripts
     });
 
     sendResponse({ success: true });
