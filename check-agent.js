@@ -545,15 +545,27 @@
                          'custos no destino', 'custos na origem', 'informações adicionais',
                          'volume', 'equip/embalagem', 'commodity', 'observações', 'observacoes'];
 
-        console.log(TAG, 'PDF linhas totais:', lines.length);
+        // Encontra a PRIMEIRA opção no PDF (pode ser Opção 1, 2, 3...)
+        var firstOpcaoNum = 0;
+        for (var fo = 0; fo < lines.length; fo++) {
+            var opcaoMatch = lines[fo].match(/^Op[çc][ãa]o\s*:?\s*(\d+)/i) || lines[fo].match(/^Opção\s*:?\s*(\d+)/i);
+            if (opcaoMatch) {
+                firstOpcaoNum = parseInt(opcaoMatch[1]);
+                console.log(TAG, 'Primeira opção detectada: Opção', firstOpcaoNum, '(linha', fo + ')');
+                break;
+            }
+        }
 
         for (var m = 0; m < lines.length; m++) {
             var line = lines[m];
 
-            // Para de parsear quando encontrar "Opção 2" ou posterior (só usa Opção 1)
-            if (line.match(/^Opção\s*[2-9]/i) || line.match(/^Opcao\s*[2-9]/i) || line.match(/^Op[çc][ãa]o\s*[2-9]/i)) {
-                console.log(TAG, 'Parando parse na', line, '(linha', m + ')');
-                break;
+            // Para quando encontrar a PRÓXIMA opção (não a primeira)
+            if (firstOpcaoNum > 0) {
+                var nextOpcao = lines[m].match(/^Op[çc][ãa]o\s*:?\s*(\d+)/i) || lines[m].match(/^Opção\s*:?\s*(\d+)/i);
+                if (nextOpcao && parseInt(nextOpcao[1]) > firstOpcaoNum) {
+                    console.log(TAG, 'Parando parse na', line, '(linha', m + ')');
+                    break;
+                }
             }
 
             // Pula linhas que começam com "Total" (totais, não taxas)
