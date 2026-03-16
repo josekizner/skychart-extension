@@ -1988,43 +1988,18 @@ try {
     }
 
     function detectCarrier() {
-        // Tenta detectar o armador pelo campo Armador na tela do Skychart
+        // Pega o armador do header do accordion "Embarque" no Skychart
+        // Formato: "Embarque [ORIGEM] x [DESTINO] | [ARMADOR]"
+        // Elemento: .ui-accordion-header-text (index que contém "Embarque")
         var armadorField = '';
-        var allLabels = document.querySelectorAll('label, span, td');
-        for (var i = 0; i < allLabels.length; i++) {
-            var txt = (allLabels[i].textContent || '').trim();
-            if (txt.match(/^(Embarque|Armador|Navegação|Cia\.?\s*Marítima)/i)) {
-                // Próximo campo, ou select, ou td do lado
-                var next = allLabels[i].nextElementSibling;
-                if (next) {
-                    armadorField = (next.value || next.textContent || '').trim();
-                    break;
-                }
-                // Tenta parent->next
-                var parent = allLabels[i].parentElement;
-                if (parent && parent.nextElementSibling) {
-                    armadorField = (parent.nextElementSibling.value || parent.nextElementSibling.textContent || '').trim();
-                    break;
-                }
+        var headers = document.querySelectorAll('.ui-accordion-header-text');
+        for (var i = 0; i < headers.length; i++) {
+            var txt = (headers[i].textContent || '').trim();
+            if (txt.indexOf('Embarque') === 0 && txt.indexOf('|') > 0) {
+                armadorField = txt.split('|').pop().trim();
+                console.log('[Tracking] Armador detectado do accordion:', armadorField);
+                break;
             }
-        }
-
-        // Tenta selects com nome de armador
-        if (!armadorField) {
-            var selects = document.querySelectorAll('select');
-            for (var s = 0; s < selects.length; s++) {
-                var opt = selects[s].options[selects[s].selectedIndex];
-                var optText = opt ? (opt.textContent || '').toUpperCase() : '';
-                if (optText.match(/MAERSK|MSC|CMA|HAPAG|EVERGREEN|COSCO|HMM|HYUNDAI|ONE|OCEAN NETWORK|PIL|PACIFIC|ZIM|OOCL|YANG MING|YML/)) {
-                    armadorField = optText;
-                    break;
-                }
-            }
-        }
-
-        // Fallback: scan page text
-        if (!armadorField) {
-            armadorField = document.body.innerText || '';
         }
 
         var arm = armadorField.toUpperCase();
