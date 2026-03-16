@@ -28,6 +28,30 @@ function loadProfileFromConfig() {
 chrome.runtime.onInstalled.addListener(loadProfileFromConfig);
 chrome.runtime.onStartup.addListener(loadProfileFromConfig);
 
+// ===== MESSAGE ROUTING =====
+chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+    // Open a new tab (used by agenda agent)
+    if (msg.action === 'openTab') {
+        chrome.tabs.create({ url: msg.url, active: false });
+        sendResponse({ ok: true });
+        return;
+    }
+
+    // Route maerskTrackingData from Maersk scraper tab back to Skychart tab
+    if (msg.action === 'maerskTrackingData') {
+        chrome.tabs.query({ url: 'https://app2.skychart.com.br/*' }, function(tabs) {
+            tabs.forEach(function(tab) {
+                chrome.tabs.sendMessage(tab.id, msg);
+            });
+        });
+        // Close the Maersk tracking tab after scraping
+        if (sender.tab && sender.tab.id) {
+            setTimeout(function() { chrome.tabs.remove(sender.tab.id); }, 2000);
+        }
+        return;
+    }
+});
+
 // ===== AUTO-UPDATE COM AUTO-RELOAD =====
 const CURRENT_VERSION = "2.4.0";
 const UPDATE_CHECK_URL = "https://raw.githubusercontent.com/josekizner/skychart-extension/main/version.json";

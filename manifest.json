@@ -41,6 +41,7 @@
         "agentic-loop.js",
         "check-agent.js",
         "frequency-agent.js",
+        "agenda-agent.js",
         "content.js",
         "health-check.js"
       ],
