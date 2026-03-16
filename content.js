@@ -15,6 +15,48 @@ try {
 
     console.log("Skychart AI: Script carregado com sucesso.");
 
+    // Utilitário: encontra o campo Navio pelo label na seção Embarque
+    // Busca o TD com texto "Navio" (excluindo "Navio Feeder", "Navio Id") e pega o input do TD seguinte
+    function findNavioByLabel() {
+        var embarqueSection = null;
+        var viagemRef = document.querySelector('#formularioEmbarque-dsViagem');
+        if (viagemRef) {
+            embarqueSection = viagemRef.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form');
+        }
+        var scope = embarqueSection || document;
+
+        var allTds = scope.querySelectorAll('td');
+        for (var i = 0; i < allTds.length; i++) {
+            var tdText = allTds[i].textContent.trim().toLowerCase();
+            // Match exato: "navio" ou "navio:" mas NÃO "navio feeder", "navio id", "navio/feeder"
+            if (/^navio\s*:?\s*$/i.test(allTds[i].textContent.trim().replace(/[\u270F\u2710✏️📝]/g, '').trim())) {
+                // Pega o próximo TD (que contém o autocomplete)
+                var nextTd = allTds[i].nextElementSibling;
+                if (nextTd) {
+                    var input = nextTd.querySelector('p-autocomplete input, input.ui-autocomplete-input');
+                    if (input) {
+                        console.log('[Navio Finder] Encontrado pelo label "Navio:" → input no TD seguinte');
+                        return input;
+                    }
+                }
+                // Tenta o TD na mesma coluna da próxima row
+                var tr = allTds[i].closest('tr');
+                if (tr) {
+                    var colIdx = Array.from(tr.children).indexOf(allTds[i]);
+                    // O input pode estar no TD ao lado (colIdx + 1)
+                    if (tr.children[colIdx + 1]) {
+                        var input2 = tr.children[colIdx + 1].querySelector('p-autocomplete input, input.ui-autocomplete-input');
+                        if (input2) {
+                            console.log('[Navio Finder] Encontrado na coluna seguinte da mesma row');
+                            return input2;
+                        }
+                    }
+                }
+            }
+        }
+        console.log('[Navio Finder] Não encontrado pelo label');
+        return null;
+    }
     // Listener para notificações de atualização, tracking data e navegacao
     chrome.runtime.onMessage.addListener(function(msg) {
         if (msg.action === 'updateAvailable') {
@@ -387,17 +429,15 @@ try {
         }
         await delay(600);
 
-        // 5b. Navio — AC[10] confirmado pelo usuário (borda VERDE)
+        // 5b. Navio — busca pelo label "Navio:" na seção Embarque
         if (booking.navio && typeof SkAgent !== 'undefined' && SkAgent.engine) {
-            var allPacs = document.querySelectorAll('p-autocomplete');
-            var navioAC = allPacs[10]; // AC[10] = campo Navio confirmado
-            var navioInput = navioAC ? navioAC.querySelector('input') : null;
+            var navioInput = findNavioByLabel();
             if (navioInput) {
-                console.log('[Atom Booking] Preenchendo navio (AC[10]):', booking.navio);
+                console.log('[Atom Booking] Preenchendo navio:', booking.navio);
                 var r1 = await SkAgent.engine.charByChar(navioInput, booking.navio, { selectFirst: true, tabAfter: true });
                 console.log('[Atom Booking] Navio:', r1.ok ? 'OK' : 'falhou - ' + r1.reason);
             } else {
-                console.log('[Atom Booking] Navio: AC[10] não encontrado');
+                console.log('[Atom Booking] Navio: campo não encontrado pelo label');
             }
         }
         await delay(600);
@@ -2244,31 +2284,13 @@ try {
             return found;
         }
 
-        // ===== 1. NAVIO — Autocomplete =====
+        // ===== 1. NAVIO — busca pelo label "Navio:" =====
         if (!stopped()) {
             SkDebug.log('Navio', 'EXEC', ' ' + data.vessel);
-            var navioInput = null;
+            var navioInput = findNavioByLabel();
 
-            // Seção embarque (pra validar memória)
-            var viagemRef = document.querySelector('#formularioEmbarque-dsViagem');
-            var embarqueSec = viagemRef ? viagemRef.closest('.ui-accordion-content-wrapper, .ui-accordion-content, .ui-panel-content, form') : null;
-
-            // TENTATIVA 1: AC[10] confirmado pelo usuário (campo Navio = borda VERDE)
-            var allPacsT = document.querySelectorAll('p-autocomplete');
-            if (allPacsT[10]) {
-                var ac10inp = allPacsT[10].querySelector('input');
-                if (ac10inp && embarqueSec && embarqueSec.contains(ac10inp)) {
-                    navioInput = ac10inp;
-                    SkDebug.log('Navio', 'OK', ' AC[10] confirmado');
-                }
-            }
-
-            // TENTATIVA 2: Auto-diagnóstico (fallback)
-            if (!navioInput) navioInput = diagnoseAndFind('navio', 'feeder');
-
-            // TENTATIVA 3: Pede ajuda
             if (!navioInput) {
-                SkDebug.log('Navio', 'INFO', ' Não achei. Clique no campo Navio!');
+                SkDebug.log('Navio', 'INFO', ' Não achei pelo label. Clique no campo Navio!');
                 navioInput = await askUserForField('Navio');
             }
 
