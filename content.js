@@ -3941,47 +3941,33 @@ try {
     // ========================================================================
     (function injectZechart() {
         function applyZechart() {
-            // Acha o logo do Skychart no header
-            var logo = document.querySelector('.logo-header img, .header-logo img, nav img[alt*="sky" i], .toolbar img, header img');
-            if (!logo) {
-                // Tenta achar pela src do logo
-                var allImgs = document.querySelectorAll('img');
-                for (var li = 0; li < allImgs.length; li++) {
-                    if ((allImgs[li].src || '').toLowerCase().indexOf('skychart') >= 0 || 
-                        (allImgs[li].alt || '').toLowerCase().indexOf('skychart') >= 0) {
-                        logo = allImgs[li];
-                        break;
-                    }
-                }
-            }
+            // O logo do Skychart é um <figure class="logo">
+            var logo = document.querySelector('figure.logo');
             if (!logo || logo.dataset.zechart) return;
             logo.dataset.zechart = '1';
 
-            // Wrapper pra posicionar o risco e a logo
-            var wrapper = logo.parentElement;
-            if (!wrapper) return;
-            wrapper.style.position = 'relative';
-            wrapper.style.display = 'inline-flex';
-            wrapper.style.alignItems = 'center';
+            // Posiciona relative pra colocar o risco por cima
+            logo.style.position = 'relative';
 
             // Risco vermelho graffiti por cima do logo original
             var risco = document.createElement('div');
             risco.style.cssText = 'position:absolute;top:45%;left:-5%;width:110%;height:4px;background:linear-gradient(90deg,transparent 0%,#ff1744 8%,#ff1744 92%,transparent 100%);transform:rotate(-3deg);z-index:999;pointer-events:none;border-radius:2px;box-shadow:0 0 6px rgba(255,23,68,0.5);';
-            wrapper.appendChild(risco);
+            logo.appendChild(risco);
 
             // Segundo risco mais fino pra parecer pichação
             var risco2 = document.createElement('div');
             risco2.style.cssText = 'position:absolute;top:55%;left:0%;width:100%;height:2px;background:linear-gradient(90deg,transparent 0%,#ff1744 12%,#ff1744 88%,transparent 100%);transform:rotate(1deg);z-index:999;pointer-events:none;opacity:0.7;';
-            wrapper.appendChild(risco2);
+            logo.appendChild(risco2);
 
-            // Logo Zéchart ao lado
+            // Logo Zéchart ao lado — insere como irmão do figure.logo
             var zechartImg = document.createElement('img');
             zechartImg.src = chrome.runtime.getURL('zechart-logo.png');
-            zechartImg.style.cssText = 'height:32px;margin-left:8px;filter:brightness(1.1) contrast(1.2);vertical-align:middle;transition:transform 0.3s;cursor:pointer;';
+            zechartImg.style.cssText = 'height:36px;margin-left:10px;vertical-align:middle;transition:transform 0.3s;cursor:pointer;position:relative;z-index:999;';
             zechartImg.title = 'Zéchart — web softwares que funcionam de verdade 😎';
             zechartImg.onmouseenter = function() { zechartImg.style.transform = 'scale(1.15) rotate(-2deg)'; };
             zechartImg.onmouseleave = function() { zechartImg.style.transform = 'scale(1)'; };
-            wrapper.parentElement.insertBefore(zechartImg, wrapper.nextSibling);
+            logo.parentElement.insertBefore(zechartImg, logo.nextSibling);
+            console.log('[Zéchart] Pichação aplicada com sucesso! 😎');
         }
 
         // Tenta injetar logo + retry (Angular pode demorar)
