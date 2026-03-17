@@ -21,7 +21,8 @@
             '  <div class="dm-logo">D</div>',
             '  <span class="dm-title">DEMURRAGE</span>',
             '  <span class="dm-badge" id="dm-badge">—</span>',
-            '  <span class="dm-collapse" id="dm-collapse" style="display:none;">▼</span>',
+            '  <span class="dm-minimize" id="dm-minimize" title="Minimizar" style="display:none;">−</span>',
+            '  <span class="dm-collapse" id="dm-collapse" title="Recolher" style="display:none;">▼</span>',
             '</div>',
             '<div id="dm-content"></div>'
         ].join('\n');
@@ -29,15 +30,33 @@
         document.body.appendChild(bar);
         injectStyles();
 
+        // Click na barra = toggle expanded/collapsed
         document.querySelector('#atom-demurrage-bar .dm-bar-inner').addEventListener('click', function(e) {
-            if (e.target.id === 'dm-collapse') return;
-            togglePanel();
+            if (e.target.id === 'dm-collapse' || e.target.id === 'dm-minimize') return;
+            var bar = document.getElementById('atom-demurrage-bar');
+            if (bar.classList.contains('mini')) {
+                // De mini → expandido
+                bar.classList.remove('mini');
+                expandPanel();
+            } else {
+                togglePanel();
+            }
         });
 
+        // ▼ = recolhe pra barra
         document.getElementById('dm-collapse').addEventListener('click', function(e) {
             e.stopPropagation();
             collapsePanel();
         });
+
+        // − = minimiza pra só o "D" arrastável
+        document.getElementById('dm-minimize').addEventListener('click', function(e) {
+            e.stopPropagation();
+            miniMode();
+        });
+
+        // Drag no modo mini
+        initDrag(bar);
 
         console.log(TAG, 'Barra criada');
         loadData();
@@ -55,8 +74,10 @@
 
     function expandPanel() {
         var bar = document.getElementById('atom-demurrage-bar');
+        bar.classList.remove('mini');
         bar.classList.add('expanded');
         document.getElementById('dm-collapse').style.display = '';
+        document.getElementById('dm-minimize').style.display = '';
         if (_data) {
             renderTable(_data);
         } else {
@@ -67,7 +88,47 @@
     function collapsePanel() {
         var bar = document.getElementById('atom-demurrage-bar');
         bar.classList.remove('expanded');
+        bar.classList.remove('mini');
         document.getElementById('dm-collapse').style.display = 'none';
+        document.getElementById('dm-minimize').style.display = 'none';
+        // Reset inline styles from resize/drag
+        bar.style.width = '';
+        bar.style.height = '';
+    }
+
+    function miniMode() {
+        var bar = document.getElementById('atom-demurrage-bar');
+        bar.classList.remove('expanded');
+        bar.classList.add('mini');
+        document.getElementById('dm-collapse').style.display = 'none';
+        document.getElementById('dm-minimize').style.display = 'none';
+        bar.style.width = '';
+        bar.style.height = '';
+    }
+
+    // Drag (funciona só no mini mode)
+    function initDrag(bar) {
+        var isDragging = false, startX, startY, startLeft, startBottom;
+        bar.addEventListener('mousedown', function(e) {
+            if (!bar.classList.contains('mini')) return;
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            var rect = bar.getBoundingClientRect();
+            startLeft = rect.left;
+            startBottom = window.innerHeight - rect.bottom;
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            var dx = e.clientX - startX;
+            var dy = e.clientY - startY;
+            bar.style.left = (startLeft + dx) + 'px';
+            bar.style.bottom = (startBottom - dy) + 'px';
+        });
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
     }
 
     // ===== FETCH =====
@@ -76,65 +137,56 @@
         content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando dados...</div>';
         console.log(TAG, 'Enviando fetchDemurrageData pro background...');
 
+        var loaded = false;
+
         // Limpa dados antigos do storage
         chrome.storage.local.remove(['demurrageData', 'demurrageTimestamp']);
+
+        function onDataLoaded(data) {
+            if (loaded) return; // Já carregou por outro caminho
+            loaded = true;
+            _data = data;
+            updateBadge(_data);
+            renderTable(_data);
+            console.log(TAG, 'Dados carregados:', _data.length, 'registros');
+        }
 
         // Pede pro background buscar os dados (ele salva no storage)
         try {
             chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
                 if (chrome.runtime.lastError) {
-                    console.log(TAG, 'sendMessage error (ignorando, vamos ler do storage):', chrome.runtime.lastError.message);
+                    console.log(TAG, 'sendMessage error (aguardando storage):', chrome.runtime.lastError.message);
                 }
-                // Se recebeu ACK com dados, ótimo — lê do storage
+                if (loaded) return;
                 if (response && response.fromStorage) {
-                    console.log(TAG, 'ACK recebido! Lendo', response.count, 'processos do storage...');
-                    readFromStorage();
+                    console.log(TAG, 'ACK recebido! Lendo do storage...');
+                    chrome.storage.local.get(['demurrageData'], function(d) {
+                        if (d.demurrageData && d.demurrageData.length > 0) {
+                            onDataLoaded(d.demurrageData);
+                        }
+                    });
                 }
-                // Se recebeu erro direto, mostra
                 else if (response && !response.success) {
-                    showError(response.error || 'Erro desconhecido');
+                    if (!loaded) showError(response.error || 'Erro desconhecido');
                 }
-                // Se não recebeu nada (port closed), fallback pro polling
             });
         } catch(e) {
-            console.log(TAG, 'sendMessage falhou, vamos poll o storage:', e.message);
+            console.log(TAG, 'sendMessage falhou, aguardando storage:', e.message);
         }
 
-        // Poll storage a cada 2s por até 30s (fallback se sendResponse falhar)
-        var pollCount = 0;
+        // Poll storage a cada 2s — sem mostrar erro, espera até carregar
         var pollInterval = setInterval(function() {
-            pollCount++;
-            chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
-                if (d.demurrageData && d.demurrageData.length > 0) {
-                    clearInterval(pollInterval);
-                    console.log(TAG, 'Dados encontrados no storage!', d.demurrageData.length, 'processos');
-                    _data = d.demurrageData;
-                    updateBadge(_data);
-                    renderTable(_data);
-                }
-            });
-            if (pollCount >= 15) { // 30s
-                clearInterval(pollInterval);
-                console.log(TAG, '⚠ Timeout 30s — dados não apareceram no storage');
-                showError('Timeout: servidor não respondeu em 30s');
-            }
-        }, 2000);
-
-        function readFromStorage() {
+            if (loaded) { clearInterval(pollInterval); return; }
             chrome.storage.local.get(['demurrageData'], function(d) {
                 if (d.demurrageData && d.demurrageData.length > 0) {
-                    _data = d.demurrageData;
-                    updateBadge(_data);
-                    renderTable(_data);
-                    console.log(TAG, 'Dados carregados do storage:', _data.length, 'registros');
-                } else {
-                    // Storage ainda vazio, aguarda o poll
-                    console.log(TAG, 'Storage vazio, aguardando poll...');
+                    clearInterval(pollInterval);
+                    onDataLoaded(d.demurrageData);
                 }
             });
-        }
+        }, 2000);
 
         function showError(msg) {
+            if (loaded) return;
             content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">' + msg +
                 '<br><button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button></div>';
             var retryBtn = document.getElementById('dm-retry');
@@ -584,7 +636,23 @@
             '.dm-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }',
             '.dm-badge.danger { background: rgba(239,68,68,0.2); color: #fca5a5; }',
             '.dm-badge.ok { background: rgba(34,197,94,0.15); color: #86efac; }',
-            '.dm-collapse { color: #fca5a5; cursor: pointer; font-size: 10px; margin-left: auto; }',
+            '.dm-collapse { color: #fca5a5; cursor: pointer; font-size: 10px; margin-left: 4px; }',
+            '.dm-minimize { color: #94a3b8; cursor: pointer; font-size: 14px; font-weight: 700; margin-left: auto; padding: 0 4px; transition: color 0.15s; }',
+            '.dm-minimize:hover { color: #fca5a5; }',
+            '#atom-demurrage-bar.mini {',
+            '  height: auto !important; width: auto !important;',
+            '  border-radius: 50%; cursor: grab; padding: 0;',
+            '}',
+            '#atom-demurrage-bar.mini .dm-bar-inner { padding: 0; gap: 0; justify-content: center; }',
+            '#atom-demurrage-bar.mini .dm-title,',
+            '#atom-demurrage-bar.mini .dm-badge,',
+            '#atom-demurrage-bar.mini .dm-collapse,',
+            '#atom-demurrage-bar.mini .dm-minimize,',
+            '#atom-demurrage-bar.mini #dm-content { display: none !important; }',
+            '#atom-demurrage-bar.mini .dm-logo {',
+            '  width: 30px; height: 30px; font-size: 14px; border-radius: 50%;',
+            '}',
+            '#atom-demurrage-bar.mini:active { cursor: grabbing; }',
             '',
             '.dm-summary { display: flex; gap: 6px; padding: 8px 12px; flex-wrap: wrap; }',
             '.dm-tag { padding: 3px 8px; border-radius: 10px; font-size: 9px; font-weight: 600; }',
