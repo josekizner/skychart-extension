@@ -1004,6 +1004,44 @@ Os valores estão corretos? Responda APENAS com JSON:
     return true;
   }
 
+  // ===== FIREBASE: Serasa Score compartilhado =====
+  if (request.action === 'saveSerasaScore') {
+    const key = encodeURIComponent(request.clientKey);
+    const payload = {
+      score: request.score,
+      limiteCredito: request.limiteCredito || null,
+      savedBy: request.savedBy || 'unknown',
+      savedAt: new Date().toISOString()
+    };
+    fetch(`${FIREBASE_URL}/serasa/${key}.json`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    })
+      .then(r => r.json())
+      .then(() => {
+        console.log('[Firebase] Serasa score salvo para', request.clientKey);
+        try { sendResponse({ success: true }); } catch(e) {}
+      })
+      .catch(err => {
+        console.error('[Firebase] Erro ao salvar Serasa:', err);
+        try { sendResponse({ success: false, error: err.message }); } catch(e) {}
+      });
+    return true;
+  }
+
+  if (request.action === 'getSerasaScore') {
+    const key = encodeURIComponent(request.clientKey);
+    fetch(`${FIREBASE_URL}/serasa/${key}.json`)
+      .then(r => r.json())
+      .then(data => {
+        try { sendResponse({ success: true, data: data }); } catch(e) {}
+      })
+      .catch(err => {
+        try { sendResponse({ success: false, error: err.message }); } catch(e) {}
+      });
+    return true;
+  }
+
   // ===== DEMURRAGE AGENT: Busca operacional + equipamento e calcula risco =====
   // Logic copied EXACTLY from dashboard api.service.ts processData()
   if (request.action === "fetchDemurrageData") {

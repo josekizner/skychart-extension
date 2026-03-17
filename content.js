@@ -3630,6 +3630,17 @@ try {
                 };
                 chrome.storage.local.set(saveData);
                 SkDebug.log('Serasa', 'OK', ' Score salvo: ' + storageKey);
+
+                // Salva no Firebase pra todos verem
+                try {
+                    chrome.runtime.sendMessage({
+                        action: 'saveSerasaScore',
+                        clientKey: storageKey,
+                        score: parseInt(serasaData.score) || 0,
+                        limiteCredito: serasaData.limiteCredito
+                    }, function() { if (chrome.runtime.lastError) {} });
+                    SkDebug.log('Serasa', 'OK', ' Score enviado pro Firebase');
+                } catch(e) {}
             }
         } catch(e) { /* ignora erro de storage */ }
 
@@ -3674,7 +3685,6 @@ try {
                 score = data[storageKey].score;
             }
 
-            // Se não tem no storage, tenta ler do dsObservacao (se visível)
             if (!score) {
                 var dsObs = document.querySelector('#dsObservacao');
                 if (dsObs) {
@@ -3684,8 +3694,30 @@ try {
                 }
             }
 
-            if (!score) return;
-            injectScoreBadge(score);
+            if (score) {
+                injectScoreBadge(score);
+                return;
+            }
+
+            // Fallback: checa Firebase (score de outro colega)
+            try {
+                chrome.runtime.sendMessage({ action: 'getSerasaScore', clientKey: storageKey }, function(response) {
+                    if (chrome.runtime.lastError) return;
+                    if (response && response.success && response.data && response.data.score) {
+                        var fbScore = parseInt(response.data.score);
+                        if (fbScore > 0) {
+                            // Salva localmente pra próxima vez ser instantâneo
+                            var backfill = {};
+                            backfill[storageKey] = { score: fbScore, limiteCredito: response.data.limiteCredito, data: response.data.savedAt };
+                            chrome.storage.local.set(backfill);
+                            if (!document.getElementById('sk-serasa-badge')) {
+                                injectScoreBadge(fbScore);
+                            }
+                            SkDebug.log('Serasa', 'OK', ' Score ' + fbScore + ' carregado do Firebase');
+                        }
+                    }
+                });
+            } catch(e) {}
         });
     }
 
