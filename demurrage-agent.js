@@ -624,9 +624,32 @@
                 var proc = btn.getAttribute('data-proc');
                 if (!proc) return;
                 var isResolved = btn.classList.contains('resolved');
-                btn.textContent = '...';
-                btn.style.pointerEvents = 'none';
-                resolveProcess(proc, !isResolved);
+
+                // Se já tá em modo confirmar, executa
+                if (btn.dataset.confirming === 'true') {
+                    btn.dataset.confirming = '';
+                    btn.textContent = '...';
+                    btn.style.pointerEvents = 'none';
+                    resolveProcess(proc, !isResolved);
+                    return;
+                }
+
+                // Primeiro click: pede confirmação
+                btn.dataset.confirming = 'true';
+                var original = btn.textContent;
+                btn.textContent = isResolved ? 'Reabrir?' : 'Confirmar?';
+                btn.style.fontSize = '8px';
+                btn.classList.add('confirming');
+
+                // Reset após 3s se não confirmar
+                setTimeout(function() {
+                    if (btn.dataset.confirming === 'true') {
+                        btn.dataset.confirming = '';
+                        btn.textContent = original;
+                        btn.style.fontSize = '';
+                        btn.classList.remove('confirming');
+                    }
+                }, 3000);
             });
         });
     }
