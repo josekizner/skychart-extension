@@ -975,9 +975,17 @@ Os valores estão corretos? Responda APENAS com JSON:
       return isNaN(d.getTime()) ? null : d;
     }
 
+    console.log('[Demurrage] Recebido fetchDemurrageData, buscando APIs...');
+    
     Promise.all([
-      fetch(`${API_BASE}/operacional`, { headers }).then(r => r.json()),
-      fetch(`${API_BASE}/equipamento`, { headers }).then(r => r.json())
+      fetch(`${API_BASE}/operacional`, { headers }).then(r => {
+        console.log('[Demurrage] API operacional:', r.status, r.statusText);
+        return r.json();
+      }),
+      fetch(`${API_BASE}/equipamento`, { headers }).then(r => {
+        console.log('[Demurrage] API equipamento:', r.status, r.statusText);
+        return r.json();
+      })
     ])
     .then(([opJson, eqJson]) => {
       const operacional = opJson.data || opJson || [];

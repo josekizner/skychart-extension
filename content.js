@@ -3941,14 +3941,15 @@ try {
     // ========================================================================
     (function injectZechart() {
         function applyZechart() {
+            // Só pra master
             if (!_isCtxOk()) return;
-            chrome.storage.local.get(['userProfile', 'zechartOff'], function(d) {
+            chrome.storage.local.get(['userProfile'], function(d) {
                 var isMaster = !d.userProfile || d.userProfile === 'master';
                 if (!isMaster) return;
-                doApply(!!d.zechartOff);
+                doApply();
             });
         }
-        function doApply(isOff) {
+        function doApply() {
             var logo = document.querySelector('figure.logo');
             if (!logo || logo.dataset.zechart) return;
             logo.dataset.zechart = '1';
@@ -3956,78 +3957,54 @@ try {
             logo.style.position = 'relative';
             logo.style.overflow = 'visible';
 
-            // Container pra tudo que é Zéchart (facilita toggle)
-            var zecId = 'sk-zechart-container';
-            var existing = document.getElementById(zecId);
-            if (existing) return;
-
-            // X vermelho
+            // X GRANDE vermelho por cima do logo — duas linhas cruzadas grossas
             var risco1 = document.createElement('div');
-            risco1.className = 'zec-risco';
-            risco1.style.cssText = 'position:absolute;top:50%;left:-5%;width:110%;height:6px;background:#ff1744;transform:rotate(-15deg);transform-origin:center;z-index:999;pointer-events:none;border-radius:3px;box-shadow:0 0 8px rgba(255,23,68,0.6);margin-top:-3px;';
+            risco1.style.cssText = 'position:absolute;top:0;left:-5%;width:110%;height:6px;background:#ff1744;transform:rotate(-15deg);transform-origin:center;z-index:999;pointer-events:none;border-radius:3px;box-shadow:0 0 8px rgba(255,23,68,0.6);top:50%;margin-top:-3px;';
             logo.appendChild(risco1);
 
             var risco2 = document.createElement('div');
-            risco2.className = 'zec-risco';
-            risco2.style.cssText = 'position:absolute;top:50%;left:-5%;width:110%;height:6px;background:#ff1744;transform:rotate(15deg);transform-origin:center;z-index:999;pointer-events:none;border-radius:3px;box-shadow:0 0 8px rgba(255,23,68,0.6);margin-top:-3px;';
+            risco2.style.cssText = 'position:absolute;top:0;left:-5%;width:110%;height:6px;background:#ff1744;transform:rotate(15deg);transform-origin:center;z-index:999;pointer-events:none;border-radius:3px;box-shadow:0 0 8px rgba(255,23,68,0.6);top:50%;margin-top:-3px;';
             logo.appendChild(risco2);
 
-            // SVG Zéchart
+            // SVG "Zéchart" grandão com fundo transparente e sombra 3D
             var svgNS = 'http://www.w3.org/2000/svg';
             var svg = document.createElementNS(svgNS, 'svg');
-            svg.id = zecId;
             svg.setAttribute('width', '200');
             svg.setAttribute('height', '50');
             svg.setAttribute('viewBox', '0 0 200 50');
             svg.style.cssText = 'margin-left:12px;vertical-align:middle;cursor:pointer;transition:transform 0.3s;position:relative;z-index:999;overflow:visible;';
+            svg.setAttribute('title', 'Zéchart — web softwares que funcionam de verdade');
 
+            // Sombra 3D
             var shadow = document.createElementNS(svgNS, 'text');
-            shadow.setAttribute('x', '4'); shadow.setAttribute('y', '38');
+            shadow.setAttribute('x', '4');
+            shadow.setAttribute('y', '38');
             shadow.setAttribute('font-family', 'Impact, Haettenschweiler, Arial Black, sans-serif');
-            shadow.setAttribute('font-size', '42'); shadow.setAttribute('fill', '#222');
-            shadow.setAttribute('font-weight', 'bold'); shadow.setAttribute('letter-spacing', '1');
+            shadow.setAttribute('font-size', '42');
+            shadow.setAttribute('fill', '#222');
+            shadow.setAttribute('font-weight', 'bold');
+            shadow.setAttribute('letter-spacing', '1');
             shadow.textContent = 'Zéchart';
             svg.appendChild(shadow);
 
+            // Texto principal branco
             var text = document.createElementNS(svgNS, 'text');
-            text.setAttribute('x', '2'); text.setAttribute('y', '36');
+            text.setAttribute('x', '2');
+            text.setAttribute('y', '36');
             text.setAttribute('font-family', 'Impact, Haettenschweiler, Arial Black, sans-serif');
-            text.setAttribute('font-size', '42'); text.setAttribute('fill', '#ffffff');
-            text.setAttribute('stroke', '#333'); text.setAttribute('stroke-width', '1.5');
-            text.setAttribute('font-weight', 'bold'); text.setAttribute('letter-spacing', '1');
+            text.setAttribute('font-size', '42');
+            text.setAttribute('fill', '#ffffff');
+            text.setAttribute('stroke', '#333');
+            text.setAttribute('stroke-width', '1.5');
+            text.setAttribute('font-weight', 'bold');
+            text.setAttribute('letter-spacing', '1');
             text.textContent = 'Zéchart';
             svg.appendChild(text);
 
             svg.onmouseenter = function() { svg.style.transform = 'scale(1.1) rotate(-1deg)'; };
             svg.onmouseleave = function() { svg.style.transform = 'scale(1)'; };
 
-            // Botão toggle (olho) — clica pra ligar/desligar
-            var toggleBtn = document.createElement('span');
-            toggleBtn.id = 'sk-zechart-toggle';
-            toggleBtn.style.cssText = 'margin-left:8px;cursor:pointer;font-size:16px;vertical-align:middle;opacity:0.6;transition:opacity 0.2s;z-index:999;position:relative;user-select:none;';
-            toggleBtn.title = 'Ligar/Desligar Zéchart';
-
-            function setVisibility(off) {
-                risco1.style.display = off ? 'none' : '';
-                risco2.style.display = off ? 'none' : '';
-                svg.style.display = off ? 'none' : '';
-                toggleBtn.textContent = off ? '👁️' : '🙈';
-                toggleBtn.title = off ? 'Ativar Zéchart' : 'Desativar Zéchart';
-            }
-
-            setVisibility(isOff);
-
-            toggleBtn.onclick = function() {
-                chrome.storage.local.get(['zechartOff'], function(d) {
-                    var newState = !d.zechartOff;
-                    chrome.storage.local.set({ zechartOff: newState });
-                    setVisibility(newState);
-                });
-            };
-            toggleBtn.onmouseenter = function() { toggleBtn.style.opacity = '1'; };
-            toggleBtn.onmouseleave = function() { toggleBtn.style.opacity = '0.6'; };
-
-            // Flex no parent
+            // Garante que o parent do logo é flex pra ficar lado a lado
             var logoParent = logo.parentElement;
             if (logoParent) {
                 logoParent.style.display = 'flex';
@@ -4035,8 +4012,7 @@ try {
                 logoParent.style.flexWrap = 'nowrap';
             }
             logoParent.insertBefore(svg, logo.nextSibling);
-            svg.parentElement.insertBefore(toggleBtn, svg.nextSibling);
-            console.log('[Zéchart] Pichação aplicada (' + (isOff ? 'OFF' : 'ON') + ') 😎');
+            console.log('[Zéchart] Pichação aplicada com sucesso! 😎');
         }
 
         setTimeout(applyZechart, 2000);

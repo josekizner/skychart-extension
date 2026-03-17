@@ -74,17 +74,58 @@
     function loadData() {
         var content = document.getElementById('dm-content');
         content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando dados...</div>';
+        console.log(TAG, 'Enviando fetchDemurrageData pro background...');
 
-        chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
-            if (response && response.success) {
-                _data = response.data;
-                updateBadge(_data);
-                renderTable(_data);
-                console.log(TAG, 'Dados carregados:', _data.length, 'registros');
-            } else {
-                content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">Erro: ' + (response ? response.error : 'sem resposta') + '</div>';
-            }
-        });
+        var responded = false;
+        
+        // Timeout de 15s
+        var timeout = setTimeout(function() {
+            if (responded) return;
+            responded = true;
+            console.log(TAG, '⚠ Timeout — background não respondeu em 15s');
+            content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">' +
+                'Timeout: servidor não respondeu em 15s.<br>' +
+                '<button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button>' +
+                '</div>';
+            var retryBtn = document.getElementById('dm-retry');
+            if (retryBtn) retryBtn.onclick = function() { loadData(); };
+        }, 15000);
+
+        try {
+            chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
+                if (responded) return;
+                responded = true;
+                clearTimeout(timeout);
+                
+                if (chrome.runtime.lastError) {
+                    console.log(TAG, 'Erro sendMessage:', chrome.runtime.lastError.message);
+                    content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">Erro: ' + chrome.runtime.lastError.message + 
+                        '<br><button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button></div>';
+                    var retryBtn = document.getElementById('dm-retry');
+                    if (retryBtn) retryBtn.onclick = function() { loadData(); };
+                    return;
+                }
+                
+                if (response && response.success) {
+                    _data = response.data;
+                    updateBadge(_data);
+                    renderTable(_data);
+                    console.log(TAG, 'Dados carregados:', _data.length, 'registros');
+                } else {
+                    var errMsg = response ? response.error : 'sem resposta do background';
+                    console.log(TAG, 'Erro na resposta:', errMsg);
+                    content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">Erro: ' + errMsg + 
+                        '<br><button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button></div>';
+                    var retryBtn = document.getElementById('dm-retry');
+                    if (retryBtn) retryBtn.onclick = function() { loadData(); };
+                }
+            });
+        } catch(e) {
+            responded = true;
+            clearTimeout(timeout);
+            console.log(TAG, 'Erro ao enviar mensagem:', e.message);
+            content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">Extensão desconectada. Recarregue a página.</div>';
+        }
     }
 
     function updateBadge(data) {
