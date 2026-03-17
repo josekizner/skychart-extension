@@ -151,58 +151,75 @@
 
         _lastLoadTimestamp = Date.now();
 
-        // Feedback visual — CSS spin ao invés de emoji
+        // Feedback visual
         if (refreshBtn) { refreshBtn.classList.add('spinning'); refreshBtn.style.pointerEvents = 'none'; }
+        content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando...</div>';
 
-        // Carrega lista de resolvidos do Firebase
-        try {
-            chrome.runtime.sendMessage({ action: 'getDemurrageResolved' }, function(response) {
-                if (chrome.runtime.lastError) return;
-                if (response && response.success && response.data) {
-                    _resolvedMap = response.data;
-                    console.log(TAG, 'Resolvidos (Firebase):', Object.keys(_resolvedMap).length);
-                }
-            });
-        } catch(e) {}
+        // PASSO 1: Carrega resolvidos do Firebase PRIMEIRO, depois renderiza
+        var resolvedLoaded = false;
+        function onResolvedLoaded() {
+            if (resolvedLoaded) return;
+            resolvedLoaded = true;
 
-        // 1. CACHE-FIRST
-        if (!forceRefresh) {
-            chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
-                if (d.demurrageData && d.demurrageData.length > 0) {
-                    _data = d.demurrageData;
-                    updateBadge(getActiveData());
-                    renderTable(_data);
-                    console.log(TAG, 'Cache:', _data.length, 'registros');
-                } else {
-                    content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando dados pela primeira vez...</div>';
-                }
-            });
-        } else {
-            content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Atualizando...</div>';
+            // PASSO 2: Mostra cache ou loading
+            if (!forceRefresh) {
+                chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
+                    if (d.demurrageData && d.demurrageData.length > 0) {
+                        _data = d.demurrageData;
+                        updateBadge(getActiveData());
+                        renderTable(_data);
+                        console.log(TAG, 'Cache:', _data.length, 'registros, resolvidos:', Object.keys(_resolvedMap).length);
+                    } else {
+                        content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando dados pela primeira vez...</div>';
+                    }
+                });
+            } else {
+                content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Atualizando...</div>';
+            }
+
+            // PASSO 3: Busca dados novos da API em background
+            fetchFromAPI();
         }
 
-        // 2. REFRESH da API
+        // Firebase: busca resolvidos (timeout 3s se não responder)
         try {
-            chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
-                if (chrome.runtime.lastError) console.log(TAG, 'sendMessage error:', chrome.runtime.lastError.message);
-                if (response && response.fromStorage) { applyNewData(); }
-                else if (response && !response.success) {
-                    resetRefreshBtn();
-                    if (!_data) showError(response.error || 'Erro ao buscar dados');
+            chrome.runtime.sendMessage({ action: 'getDemurrageResolved' }, function(response) {
+                if (chrome.runtime.lastError) { onResolvedLoaded(); return; }
+                if (response && response.success && response.data) {
+                    _resolvedMap = response.data;
+                    console.log(TAG, 'Firebase resolvidos:', Object.keys(_resolvedMap).length);
                 }
+                onResolvedLoaded();
             });
-        } catch(e) { console.log(TAG, 'sendMessage falhou:', e.message); }
+        } catch(e) { onResolvedLoaded(); }
 
-        // 3. POLL fallback
-        var pollInterval = setInterval(function() {
-            chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
-                if (d.demurrageTimestamp && d.demurrageTimestamp > _lastLoadTimestamp) {
-                    clearInterval(pollInterval);
-                    applyNewData();
-                }
-            });
-        }, 3000);
-        setTimeout(function() { clearInterval(pollInterval); resetRefreshBtn(); }, 120000);
+        // Fallback: se Firebase demorar mais de 3s, segue sem
+        setTimeout(onResolvedLoaded, 3000);
+
+        function fetchFromAPI() {
+            // REFRESH da API
+            try {
+                chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
+                    if (chrome.runtime.lastError) console.log(TAG, 'sendMessage error:', chrome.runtime.lastError.message);
+                    if (response && response.fromStorage) { applyNewData(); }
+                    else if (response && !response.success) {
+                        resetRefreshBtn();
+                        if (!_data) showError(response.error || 'Erro ao buscar dados');
+                    }
+                });
+            } catch(e) { console.log(TAG, 'sendMessage falhou:', e.message); }
+
+            // POLL fallback
+            var pollInterval = setInterval(function() {
+                chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
+                    if (d.demurrageTimestamp && d.demurrageTimestamp > _lastLoadTimestamp) {
+                        clearInterval(pollInterval);
+                        applyNewData();
+                    }
+                });
+            }, 3000);
+            setTimeout(function() { clearInterval(pollInterval); resetRefreshBtn(); }, 120000);
+        }
 
         function applyNewData() {
             chrome.storage.local.get(['demurrageData'], function(d) {
@@ -684,32 +701,36 @@
         }
 
         var today = new Date().toLocaleDateString('pt-BR');
-        var subject = 'Demurrage - Processos em Risco (' + today + ')';
-
-        var body = 'Bom dia!\n\n';
-        body += 'Segue relatório de demurrage com ' + riskItems.length + ' processo(s) em risco:\n\n';
+        var lines = [];
+        lines.push('Demurrage - Processos em Risco (' + today + ')');
+        lines.push('');
+        lines.push('Bom dia!');
+        lines.push('');
+        lines.push('Segue relatório com ' + riskItems.length + ' processo(s) em risco:');
+        lines.push('');
 
         riskItems.forEach(function(p) {
             var statusLabel = p.status === 'expirado' ? 'EXPIRADO (-' + p.diasAtrasados + 'd)' : 'ALERTA (' + p.diasRestantes + 'd restantes)';
-            body += p.processo + ' - ' + (p.cliente || '?') + '\n';
-            body += '   Armador: ' + (p.armador || '-') + ' | Containers: ' + (p.qtdContainers || '-') + '\n';
-            body += '   Atracacao: ' + (p.atracacao || '-') + ' | FT: ' + (p.freeTime || 0) + 'd | Vencimento: ' + (p.freeTimeEnd || '-') + '\n';
-            body += '   Status: ' + statusLabel + '\n\n';
+            lines.push(p.processo + ' - ' + (p.cliente || '?'));
+            lines.push('  Armador: ' + (p.armador || '-') + ' | Containers: ' + (p.qtdContainers || '-'));
+            lines.push('  Atracacao: ' + (p.atracacao || '-') + ' | FT: ' + (p.freeTime || 0) + 'd | Vencimento: ' + (p.freeTimeEnd || '-'));
+            lines.push('  Status: ' + statusLabel);
+            lines.push('');
         });
 
-        body += 'Total: ' + riskItems.length + ' processos em risco\n';
-        body += 'Gerado por ATOM - Mond Shipping';
+        lines.push('Total: ' + riskItems.length + ' processos em risco');
+        lines.push('Gerado por ATOM - Mond Shipping');
 
-        var to = 'gabriela.cordeiro@mondshipping.com.br,raphaela.germano@mondshipping.com.br';
-
-        // Compõe direto no Outlook Web
-        var composeUrl = 'https://outlook.office.com/mail/deeplink/compose'
-            + '?to=' + encodeURIComponent(to)
-            + '&subject=' + encodeURIComponent(subject)
-            + '&body=' + encodeURIComponent(body);
-
-        window.open(composeUrl, '_blank');
-        console.log(TAG, 'Relatório aberto no Outlook Web —', riskItems.length, 'processos');
+        var report = lines.join('\n');
+        navigator.clipboard.writeText(report).then(function() {
+            // Mostra toast de sucesso
+            var toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999999;padding:10px 20px;background:#22c55e;color:#fff;border-radius:8px;font-size:12px;font-family:Segoe UI,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);animation:dm-fadeIn 0.3s ease;';
+            toast.textContent = 'Relatório copiado! Cole no email com Ctrl+V';
+            document.body.appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 4000);
+            console.log(TAG, 'Relatório copiado —', riskItems.length, 'processos');
+        });
     }
 
     // ===== ABRIR PROCESSO NO SKYCHART =====
