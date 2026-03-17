@@ -696,41 +696,123 @@
         var active = getActiveData();
         var riskItems = active.filter(function(p) { return p.status === 'expirado' || p.status === 'alerta'; });
         if (riskItems.length === 0) {
-            alert('Não há processos em risco para enviar.');
+            showDmToast('Não há processos em risco para enviar.', '#f87171');
             return;
         }
 
         var today = new Date().toLocaleDateString('pt-BR');
-        var lines = [];
-        lines.push('Demurrage - Processos em Risco (' + today + ')');
-        lines.push('');
-        lines.push('Bom dia!');
-        lines.push('');
-        lines.push('Segue relatório com ' + riskItems.length + ' processo(s) em risco:');
-        lines.push('');
+        var to = 'gabriela.cordeiro@mondshipping.com.br;raphaela.germano@mondshipping.com.br';
+        var subject = 'Demurrage - Processos em Risco (' + today + ')';
 
-        riskItems.forEach(function(p) {
-            var statusLabel = p.status === 'expirado' ? 'EXPIRADO (-' + p.diasAtrasados + 'd)' : 'ALERTA (' + p.diasRestantes + 'd restantes)';
-            lines.push(p.processo + ' - ' + (p.cliente || '?'));
-            lines.push('  Armador: ' + (p.armador || '-') + ' | Containers: ' + (p.qtdContainers || '-'));
-            lines.push('  Atracacao: ' + (p.atracacao || '-') + ' | FT: ' + (p.freeTime || 0) + 'd | Vencimento: ' + (p.freeTimeEnd || '-'));
-            lines.push('  Status: ' + statusLabel);
-            lines.push('');
+        // Monta HTML do body
+        var bodyHtml = '<p>Bom dia!</p>';
+        bodyHtml += '<p>Segue relat&oacute;rio com <b>' + riskItems.length + '</b> processo(s) em risco:</p>';
+        bodyHtml += '<table style="border-collapse:collapse;font-family:Segoe UI,sans-serif;font-size:12px;width:100%;">';
+        bodyHtml += '<tr style="background:#1e293b;color:#f1f5f9;">';
+        bodyHtml += '<th style="padding:6px 8px;text-align:left;">Processo</th>';
+        bodyHtml += '<th style="padding:6px 8px;text-align:left;">Cliente</th>';
+        bodyHtml += '<th style="padding:6px 8px;text-align:left;">Armador</th>';
+        bodyHtml += '<th style="padding:6px 8px;text-align:center;">Cntrs</th>';
+        bodyHtml += '<th style="padding:6px 8px;text-align:left;">Vencimento</th>';
+        bodyHtml += '<th style="padding:6px 8px;text-align:left;">Status</th>';
+        bodyHtml += '</tr>';
+
+        riskItems.forEach(function(p, i) {
+            var bg = i % 2 === 0 ? '#f8fafc' : '#e2e8f0';
+            var statusColor = p.status === 'expirado' ? '#dc2626' : '#f59e0b';
+            var statusLabel = p.status === 'expirado' ? 'EXPIRADO (-' + p.diasAtrasados + 'd)' : 'ALERTA (' + p.diasRestantes + 'd)';
+            bodyHtml += '<tr style="background:' + bg + ';">';
+            bodyHtml += '<td style="padding:5px 8px;font-weight:600;">' + (p.processo || '?') + '</td>';
+            bodyHtml += '<td style="padding:5px 8px;">' + (p.cliente || '?') + '</td>';
+            bodyHtml += '<td style="padding:5px 8px;">' + (p.armador || '-') + '</td>';
+            bodyHtml += '<td style="padding:5px 8px;text-align:center;">' + (p.qtdContainers || '-') + '</td>';
+            bodyHtml += '<td style="padding:5px 8px;">' + (p.freeTimeEnd || '-') + '</td>';
+            bodyHtml += '<td style="padding:5px 8px;color:' + statusColor + ';font-weight:600;">' + statusLabel + '</td>';
+            bodyHtml += '</tr>';
         });
 
-        lines.push('Total: ' + riskItems.length + ' processos em risco');
-        lines.push('Gerado por ATOM - Mond Shipping');
+        bodyHtml += '</table>';
+        bodyHtml += '<p style="font-size:11px;color:#64748b;margin-top:12px;">Total: ' + riskItems.length + ' processos em risco<br>Gerado por ATOM &mdash; Mond Shipping</p>';
 
-        var report = lines.join('\n');
-        navigator.clipboard.writeText(report).then(function() {
-            // Mostra toast de sucesso
-            var toast = document.createElement('div');
-            toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999999;padding:10px 20px;background:#22c55e;color:#fff;border-radius:8px;font-size:12px;font-family:Segoe UI,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);animation:dm-fadeIn 0.3s ease;';
-            toast.textContent = 'Relatório copiado! Cole no email com Ctrl+V';
-            document.body.appendChild(toast);
-            setTimeout(function() { toast.remove(); }, 4000);
-            console.log(TAG, 'Relatório copiado —', riskItems.length, 'processos');
-        });
+        showDmToast('Abrindo email...', '#6C63FF');
+
+        // 1. Clica no botão "Novo email" do Outlook
+        var newMailBtn = document.querySelector('button[aria-label*="mail"], button[aria-label*="email"], button[aria-label*="Novo"], button[aria-label*="New"]');
+        if (!newMailBtn) {
+            // Tenta por texto
+            var btns = document.querySelectorAll('button');
+            for (var i = 0; i < btns.length; i++) {
+                var txt = btns[i].textContent.trim();
+                if (txt === 'Novo email' || txt === 'New mail' || txt === 'Novo' || txt === 'New email') {
+                    newMailBtn = btns[i];
+                    break;
+                }
+            }
+        }
+        if (!newMailBtn) {
+            // Fallback: usa atalho Ctrl+N do Outlook Web
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }));
+        } else {
+            newMailBtn.click();
+        }
+
+        // 2. Espera o compose form aparecer e preenche
+        var attempts = 0;
+        var fillInterval = setInterval(function() {
+            attempts++;
+            if (attempts > 30) { // 6 segundos
+                clearInterval(fillInterval);
+                showDmToast('Compose não abriu. Tente manualmente.', '#f87171');
+                return;
+            }
+
+            // Procura o campo de assunto (indica que compose abriu)
+            var subjectInput = document.querySelector('input[aria-label*="assunto"], input[aria-label*="ubject"], input[aria-label*="Assunto"], input[aria-label*="Subject"]');
+            if (!subjectInput) return;
+
+            clearInterval(fillInterval);
+
+            // Preenche assunto
+            subjectInput.focus();
+            subjectInput.value = subject;
+            subjectInput.dispatchEvent(new Event('input', { bubbles: true }));
+            subjectInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+            // Preenche destinatário
+            setTimeout(function() {
+                var toField = document.querySelector('input[aria-label*="Para"], input[aria-label*="To"], div[aria-label*="Para"] input, div[aria-label*="To"] input');
+                if (toField) {
+                    toField.focus();
+                    toField.value = to;
+                    toField.dispatchEvent(new Event('input', { bubbles: true }));
+                    // Simula Enter pra confirmar cada destinatário
+                    toField.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+                }
+
+                // Preenche body
+                setTimeout(function() {
+                    var bodyDiv = document.querySelector('div[aria-label*="corpo"], div[aria-label*="body"], div[aria-label*="Corpo"], div[aria-label*="Body"], div[role="textbox"][contenteditable="true"]');
+                    if (bodyDiv) {
+                        bodyDiv.focus();
+                        bodyDiv.innerHTML = bodyHtml;
+                        bodyDiv.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    showDmToast('Relatório preenchido! Revise e envie.', '#22c55e');
+                    console.log(TAG, 'Email compose preenchido —', riskItems.length, 'processos');
+                }, 500);
+            }, 500);
+        }, 200);
+    }
+
+    function showDmToast(msg, color) {
+        var old = document.getElementById('dm-toast');
+        if (old) old.remove();
+        var toast = document.createElement('div');
+        toast.id = 'dm-toast';
+        toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999999;padding:10px 20px;background:' + (color || '#22c55e') + ';color:#fff;border-radius:8px;font-size:12px;font-family:Segoe UI,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(function() { toast.remove(); }, 4000);
     }
 
     // ===== ABRIR PROCESSO NO SKYCHART =====
