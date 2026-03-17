@@ -1042,7 +1042,17 @@ Os valores estão corretos? Responda APENAS com JSON:
           // Has equipment data — use it
           const mainEquip = equipmentsList[0];
           freeTime = mainEquip.NR_FREE_TIME_NOSSO || 0;
-          dataDevolucao = parseDate(mainEquip.DT_DEVOLUCAO);
+          
+          // Verifica DT_DEVOLUCAO de TODOS os containers
+          const devolvidos = equipmentsList.filter(e => parseDate(e.DT_DEVOLUCAO));
+          const todosDevolvidos = devolvidos.length > 0 && devolvidos.length === equipmentsList.length;
+          
+          if (todosDevolvidos) {
+            // Pega a data de devolução mais recente (último container devolvido)
+            const datas = devolvidos.map(e => parseDate(e.DT_DEVOLUCAO)).filter(d => d);
+            dataDevolucao = new Date(Math.max.apply(null, datas));
+          }
+          
           if (dataDevolucao) dataDevolucao.setHours(0, 0, 0, 0);
           allContainers = equipmentsList
             .map(e => e.DS_IDENTIFICACAO)
@@ -1061,6 +1071,7 @@ Os valores estão corretos? Responda APENAS com JSON:
         let status;
 
         if (dataDevolucao) {
+          // Todos containers devolvidos → finalizado
           const timeDiff = freeTimeEnd.getTime() - dataDevolucao.getTime();
           daysRemaining = Math.floor(timeDiff / (1000 * 3600 * 24));
           status = 'finalizado';
