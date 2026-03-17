@@ -107,7 +107,8 @@
       "resources": [
         "lib/pdf.worker.min.js",
         "page-inject.js",
-        "modules/*.json"
+        "modules/*.json",
+        "zechart-logo.png"
       ],
       "matches": [
         "https://app2.skychart.com.br/*"
