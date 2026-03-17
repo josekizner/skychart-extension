@@ -77,9 +77,9 @@ if exist "%INSTALL_DIR%\.git" (
 echo.
 echo [3/5] Selecione o perfil do colaborador:
 echo.
-echo   1 - Financeiro (Cambio + Serasa)
-echo   2 - Financeiro + Demurrage
-echo   3 - Operacional (Tracking + Frete)
+echo   1 - Financeiro (Cambio + Serasa + Chequeio)
+echo   2 - Financeiro + Demurrage + Chequeio
+echo   3 - Operacional (Tracking + Frete + Chequeio)
 echo   4 - Comercial (Cotacao + Frete)
 echo   5 - Demurrage
 echo   6 - Master (Todos os modulos)
