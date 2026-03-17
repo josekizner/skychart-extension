@@ -676,7 +676,8 @@
 
     // ===== ENVIAR RELATÓRIO POR E-MAIL =====
     function sendEmailReport() {
-        var riskItems = _data.filter(function(p) { return p.status === 'expirado' || p.status === 'alerta'; });
+        var active = getActiveData();
+        var riskItems = active.filter(function(p) { return p.status === 'expirado' || p.status === 'alerta'; });
         if (riskItems.length === 0) {
             alert('Não há processos em risco para enviar.');
             return;
@@ -687,27 +688,28 @@
 
         var body = 'Bom dia!\n\n';
         body += 'Segue relatório de demurrage com ' + riskItems.length + ' processo(s) em risco:\n\n';
-        body += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
 
         riskItems.forEach(function(p) {
-            var statusLabel = p.status === 'expirado' ? '🔴 EXPIRADO (-' + p.diasAtrasados + 'd)' : '🟡 ALERTA (' + p.diasRestantes + 'd restantes)';
-            body += '\n📦 ' + p.processo + ' — ' + (p.cliente || '?') + '\n';
-            body += '   Armador: ' + (p.armador || '—') + '\n';
-            body += '   Atracação: ' + (p.atracacao || '—') + ' | Free Time: ' + (p.freeTime || 0) + 'd | Vencimento: ' + (p.freeTimeEnd || '—') + '\n';
-            body += '   Containers: ' + (p.qtdContainers || '—') + ' | Booking: ' + (p.booking || '—') + '\n';
-            body += '   Status: ' + statusLabel + '\n';
-            body += '   ─────────────────────────────────────\n';
+            var statusLabel = p.status === 'expirado' ? 'EXPIRADO (-' + p.diasAtrasados + 'd)' : 'ALERTA (' + p.diasRestantes + 'd restantes)';
+            body += p.processo + ' - ' + (p.cliente || '?') + '\n';
+            body += '   Armador: ' + (p.armador || '-') + ' | Containers: ' + (p.qtdContainers || '-') + '\n';
+            body += '   Atracacao: ' + (p.atracacao || '-') + ' | FT: ' + (p.freeTime || 0) + 'd | Vencimento: ' + (p.freeTimeEnd || '-') + '\n';
+            body += '   Status: ' + statusLabel + '\n\n';
         });
 
-        body += '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
         body += 'Total: ' + riskItems.length + ' processos em risco\n';
-        body += 'Gerado por: ATOM — Mond Shipping\n';
+        body += 'Gerado por ATOM - Mond Shipping';
 
         var to = 'gabriela.cordeiro@mondshipping.com.br,raphaela.germano@mondshipping.com.br';
-        var mailto = 'mailto:' + to + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
 
-        window.open(mailto, '_blank');
-        console.log(TAG, 'Relatório enviado para', to, '—', riskItems.length, 'processos');
+        // Compõe direto no Outlook Web
+        var composeUrl = 'https://outlook.office.com/mail/deeplink/compose'
+            + '?to=' + encodeURIComponent(to)
+            + '&subject=' + encodeURIComponent(subject)
+            + '&body=' + encodeURIComponent(body);
+
+        window.open(composeUrl, '_blank');
+        console.log(TAG, 'Relatório aberto no Outlook Web —', riskItems.length, 'processos');
     }
 
     // ===== ABRIR PROCESSO NO SKYCHART =====
