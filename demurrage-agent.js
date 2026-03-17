@@ -21,6 +21,7 @@
             '  <div class="dm-logo">D</div>',
             '  <span class="dm-title">DEMURRAGE</span>',
             '  <span class="dm-badge" id="dm-badge">—</span>',
+            '  <span class="dm-refresh" id="dm-refresh" title="Atualizar dados" style="display:none;">⟳</span>',
             '  <span class="dm-minimize" id="dm-minimize" title="Minimizar" style="display:none;">−</span>',
             '  <span class="dm-collapse" id="dm-collapse" title="Recolher" style="display:none;">▼</span>',
             '</div>',
@@ -32,7 +33,7 @@
 
         // Click na barra = toggle expanded/collapsed
         document.querySelector('#atom-demurrage-bar .dm-bar-inner').addEventListener('click', function(e) {
-            if (e.target.id === 'dm-collapse' || e.target.id === 'dm-minimize') return;
+            if (e.target.id === 'dm-collapse' || e.target.id === 'dm-minimize' || e.target.id === 'dm-refresh') return;
             var bar = document.getElementById('atom-demurrage-bar');
             if (bar.classList.contains('mini')) {
                 // De mini → expandido
@@ -53,6 +54,12 @@
         document.getElementById('dm-minimize').addEventListener('click', function(e) {
             e.stopPropagation();
             miniMode();
+        });
+
+        // ⟳ = força refresh da API
+        document.getElementById('dm-refresh').addEventListener('click', function(e) {
+            e.stopPropagation();
+            loadData(true);
         });
 
         // Drag no modo mini
@@ -78,6 +85,7 @@
         bar.classList.add('expanded');
         document.getElementById('dm-collapse').style.display = '';
         document.getElementById('dm-minimize').style.display = '';
+        document.getElementById('dm-refresh').style.display = '';
         if (_data) {
             renderTable(_data);
         } else {
@@ -91,6 +99,7 @@
         bar.classList.remove('mini');
         document.getElementById('dm-collapse').style.display = 'none';
         document.getElementById('dm-minimize').style.display = 'none';
+        document.getElementById('dm-refresh').style.display = 'none';
         // Reset inline styles from resize/drag
         bar.style.width = '';
         bar.style.height = '';
@@ -132,89 +141,85 @@
     }
 
     // ===== FETCH =====
+    var _lastLoadTimestamp = 0;
+
     function loadData(forceRefresh) {
         var content = document.getElementById('dm-content');
+        var refreshBtn = document.getElementById('dm-refresh');
         console.log(TAG, 'loadData chamado, forceRefresh:', !!forceRefresh);
 
-        // 1. CACHE-FIRST: mostra dados salvos instantaneamente
+        // Marca o timestamp antes de pedir dados novos
+        _lastLoadTimestamp = Date.now();
+
+        // Feedback visual no botão refresh
+        if (refreshBtn) { refreshBtn.textContent = '⏳'; refreshBtn.style.pointerEvents = 'none'; }
+
+        // 1. CACHE-FIRST: mostra dados salvos instantaneamente (se não é forceRefresh)
         if (!forceRefresh) {
             chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
                 if (d.demurrageData && d.demurrageData.length > 0) {
                     _data = d.demurrageData;
                     updateBadge(_data);
                     renderTable(_data);
-
-                    // Mostra há quanto tempo foi atualizado
                     var age = d.demurrageTimestamp ? Math.round((Date.now() - d.demurrageTimestamp) / 60000) : null;
-                    var ageText = age !== null ? (age < 1 ? 'agora' : age + ' min atrás') : '';
-                    console.log(TAG, 'Cache carregado:', _data.length, 'registros,', ageText);
-
-                    // Adiciona badge de cache
-                    var badge = document.getElementById('dm-badge');
-                    if (badge && ageText) {
-                        badge.title = 'Atualizado ' + ageText;
-                    }
+                    console.log(TAG, 'Cache:', _data.length, 'registros,', age, 'min atrás');
                 } else {
-                    // Sem cache — mostra loading
-                    content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando dados pela primeira vez... pode demorar</div>';
+                    content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando dados pela primeira vez...</div>';
                 }
             });
         } else {
-            content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Atualizando...</div>';
+            content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Atualizando da API...</div>';
         }
 
-        // 2. REFRESH EM BACKGROUND: busca dados novos da API
+        // 2. REFRESH: pede dados novos da API
         try {
             chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
                 if (chrome.runtime.lastError) {
                     console.log(TAG, 'sendMessage error:', chrome.runtime.lastError.message);
                 }
                 if (response && response.fromStorage) {
-                    console.log(TAG, 'Dados novos prontos! Atualizando...');
-                    chrome.storage.local.get(['demurrageData'], function(d) {
-                        if (d.demurrageData && d.demurrageData.length > 0) {
-                            _data = d.demurrageData;
-                            updateBadge(_data);
-                            renderTable(_data);
-                            // Atualiza badge
-                            var badge = document.getElementById('dm-badge');
-                            if (badge) badge.title = 'Atualizado agora';
-                        }
-                    });
+                    console.log(TAG, 'API respondeu! Atualizando tabela...');
+                    applyNewData();
                 }
                 else if (response && !response.success) {
                     console.log(TAG, 'Erro na API:', response.error);
-                    // Se já tem cache, não mostra erro — mantém dados antigos
-                    if (!_data) {
-                        showError(response.error || 'Erro ao buscar dados');
-                    }
+                    resetRefreshBtn();
+                    if (!_data) showError(response.error || 'Erro ao buscar dados');
                 }
             });
         } catch(e) {
             console.log(TAG, 'sendMessage falhou:', e.message);
         }
 
-        // 3. POLL como fallback (caso sendResponse falhe)
+        // 3. POLL: checa storage a cada 3s até dados novos chegarem
         var pollInterval = setInterval(function() {
             chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
-                if (d.demurrageTimestamp && d.demurrageTimestamp > (Date.now() - 5000)) {
-                    // Dados novos (menos de 5s)
+                if (d.demurrageTimestamp && d.demurrageTimestamp > _lastLoadTimestamp) {
                     clearInterval(pollInterval);
-                    if (d.demurrageData && d.demurrageData.length > 0) {
-                        _data = d.demurrageData;
-                        updateBadge(_data);
-                        renderTable(_data);
-                        console.log(TAG, 'Dados atualizados via poll:', _data.length);
-                    }
+                    applyNewData();
                 }
             });
         }, 3000);
+        setTimeout(function() { clearInterval(pollInterval); resetRefreshBtn(); }, 120000);
 
-        // Para o poll depois de 2 minutos (evita rodar pra sempre)
-        setTimeout(function() { clearInterval(pollInterval); }, 120000);
+        function applyNewData() {
+            chrome.storage.local.get(['demurrageData'], function(d) {
+                if (d.demurrageData && d.demurrageData.length > 0) {
+                    _data = d.demurrageData;
+                    updateBadge(_data);
+                    renderTable(_data);
+                    console.log(TAG, '✅ Dados atualizados:', _data.length, 'registros');
+                }
+                resetRefreshBtn();
+            });
+        }
+
+        function resetRefreshBtn() {
+            if (refreshBtn) { refreshBtn.textContent = '⟳'; refreshBtn.style.pointerEvents = ''; }
+        }
 
         function showError(msg) {
-            if (_data) return; // Tem cache, não mostra erro
+            if (_data) return;
             content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">' + msg +
                 '<br><button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button></div>';
             var retryBtn = document.getElementById('dm-retry');
@@ -665,7 +670,9 @@
             '.dm-badge.danger { background: rgba(239,68,68,0.2); color: #fca5a5; }',
             '.dm-badge.ok { background: rgba(34,197,94,0.15); color: #86efac; }',
             '.dm-collapse { color: #fca5a5; cursor: pointer; font-size: 10px; margin-left: 4px; }',
-            '.dm-minimize { color: #94a3b8; cursor: pointer; font-size: 14px; font-weight: 700; margin-left: auto; padding: 0 4px; transition: color 0.15s; }',
+            '.dm-refresh { color: #94a3b8; cursor: pointer; font-size: 13px; margin-left: auto; padding: 0 4px; transition: all 0.2s; }',
+            '.dm-refresh:hover { color: #6C63FF; transform: rotate(90deg); }',
+            '.dm-minimize { color: #94a3b8; cursor: pointer; font-size: 14px; font-weight: 700; margin-left: 2px; padding: 0 4px; transition: color 0.15s; }',
             '.dm-minimize:hover { color: #fca5a5; }',
             '#atom-demurrage-bar.mini {',
             '  height: auto !important; width: auto !important;',
