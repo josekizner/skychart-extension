@@ -3995,14 +3995,10 @@ try {
             svg.onmouseenter = function() { svg.style.transform = 'scale(1.1) rotate(-1deg)'; };
             svg.onmouseleave = function() { svg.style.transform = 'scale(1)'; };
 
-            // Garante que o parent do logo é flex pra ficar lado a lado
-            var logoParent = logo.parentElement;
-            if (logoParent) {
-                logoParent.style.display = 'flex';
-                logoParent.style.alignItems = 'center';
-                logoParent.style.flexWrap = 'nowrap';
-            }
-            logoParent.insertBefore(svg, logo.nextSibling);
+            // Insere SVG logo depois do figure.logo SEM mexer no layout do parent
+            logo.style.display = 'inline-block';
+            svg.style.display = 'inline-block';
+            logo.after(svg);
             console.log('[Zéchart] Pichação aplicada com sucesso! 😎');
         }
 
