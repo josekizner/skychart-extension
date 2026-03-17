@@ -3937,6 +3937,87 @@ try {
     setTimeout(scanTable, 1000);
 
     // ========================================================================
+    // DEMURRAGE → ABRIR PROCESSO (verifica se tem processo pendente no storage)
+    // ========================================================================
+    (function checkPendingDemurrageProcess() {
+        // Só executa em páginas do Skychart operacional
+        if (location.href.indexOf('skychart.com.br') < 0) return;
+
+        setTimeout(function() {
+            chrome.storage.local.get(['pendingDemurrageProcess'], function(d) {
+                if (!d.pendingDemurrageProcess) return;
+                var processo = d.pendingDemurrageProcess;
+                // Limpa imediatamente pra não repetir
+                chrome.storage.local.remove('pendingDemurrageProcess');
+                console.log('[Atom Demurrage] Abrindo processo:', processo);
+                openPendingProcess(processo);
+            });
+        }, 3000); // Espera 3s pro Angular carregar
+
+        async function openPendingProcess(processo) {
+            showToast('Demurrage: Abrindo processo ' + processo + '...', 'info', 5000);
+
+            // 1. Ctrl+Space → abre busca flutuante
+            document.dispatchEvent(new KeyboardEvent('keydown', {
+                key: ' ', code: 'Space', keyCode: 32, ctrlKey: true, bubbles: true
+            }));
+            await delay(1000);
+
+            // 2. Busca o campo de input
+            var searchInput = document.querySelector('#floating-search');
+            if (!searchInput) {
+                // Retry
+                document.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: ' ', code: 'Space', keyCode: 32, ctrlKey: true, bubbles: true
+                }));
+                await delay(1500);
+                searchInput = document.querySelector('#floating-search');
+            }
+
+            if (!searchInput) {
+                showToast('Campo de busca não abriu. Pressione Ctrl+Space e busque: ' + processo, 'warning', 8000);
+                return;
+            }
+
+            // 3. Digita char-by-char
+            searchInput.focus();
+            searchInput.value = '';
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            await delay(300);
+
+            for (var ci = 0; ci < processo.length; ci++) {
+                searchInput.value += processo[ci];
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: processo[ci], bubbles: true }));
+                searchInput.dispatchEvent(new KeyboardEvent('keyup', { key: processo[ci], bubbles: true }));
+                await delay(80);
+            }
+
+            showToast('Buscando ' + processo + '...', 'info', 3000);
+            await delay(2000);
+
+            // 4. Clica no resultado
+            var dropdownItems = document.querySelectorAll('.autocomplete-list li, .pesquisa-overlay li, span.match');
+            var matchFound = false;
+            for (var di = 0; di < dropdownItems.length; di++) {
+                var itemText = dropdownItems[di].textContent || '';
+                if (itemText.indexOf(processo) >= 0) {
+                    dropdownItems[di].click();
+                    var parentLi = dropdownItems[di].closest('li');
+                    if (parentLi) parentLi.click();
+                    matchFound = true;
+                    showToast('Processo ' + processo + ' aberto!', 'success', 3000);
+                    break;
+                }
+            }
+
+            if (!matchFound) {
+                showToast('Processo ' + processo + ' não encontrado. Selecione manualmente.', 'warning', 8000);
+            }
+        }
+    })();
+
+    // ========================================================================
     // ZÉCHART — Pichação satirica sobre o logo SKY CHART
     // ========================================================================
     (function injectZechart() {

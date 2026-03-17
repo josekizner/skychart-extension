@@ -254,7 +254,26 @@
 
     function sortItems(items, col, dir) {
         return items.slice().sort(function(a, b) {
-            var va = a[col], vb = b[col];
+            var va, vb;
+
+            // Status: usa valor numérico (expirado = negativo, alerta/ok = positivo)
+            if (col === 'diasRestantes') {
+                va = a.status === 'expirado' ? -(a.diasAtrasados || 0) : (a.diasRestantes || 0);
+                vb = b.status === 'expirado' ? -(b.diasAtrasados || 0) : (b.diasRestantes || 0);
+                return dir === 'asc' ? va - vb : vb - va;
+            }
+
+            // Datas (DD/MM/YYYY) → converte pra Date
+            if (col === 'atracacao' || col === 'freeTimeEnd') {
+                va = parseDate(a[col]);
+                vb = parseDate(b[col]);
+                if (va && vb) return dir === 'asc' ? va - vb : vb - va;
+                if (va) return dir === 'asc' ? -1 : 1;
+                if (vb) return dir === 'asc' ? 1 : -1;
+                return 0;
+            }
+
+            va = a[col]; vb = b[col];
             if (va == null) va = '';
             if (vb == null) vb = '';
             if (typeof va === 'number' && typeof vb === 'number') {
@@ -266,6 +285,13 @@
             if (va > vb) return dir === 'asc' ? 1 : -1;
             return 0;
         });
+
+        function parseDate(str) {
+            if (!str || str === '—') return null;
+            var parts = str.split('/');
+            if (parts.length !== 3) return null;
+            return new Date(parts[2], parts[1] - 1, parts[0]).getTime();
+        }
     }
 
     // ===== TRACKING URL (same as process-list.component.ts) =====
