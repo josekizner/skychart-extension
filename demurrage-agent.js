@@ -132,65 +132,93 @@
     }
 
     // ===== FETCH =====
-    function loadData() {
+    function loadData(forceRefresh) {
         var content = document.getElementById('dm-content');
-        content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando dados...</div>';
-        console.log(TAG, 'Enviando fetchDemurrageData pro background...');
+        console.log(TAG, 'loadData chamado, forceRefresh:', !!forceRefresh);
 
-        var loaded = false;
+        // 1. CACHE-FIRST: mostra dados salvos instantaneamente
+        if (!forceRefresh) {
+            chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
+                if (d.demurrageData && d.demurrageData.length > 0) {
+                    _data = d.demurrageData;
+                    updateBadge(_data);
+                    renderTable(_data);
 
-        // Limpa dados antigos do storage
-        chrome.storage.local.remove(['demurrageData', 'demurrageTimestamp']);
+                    // Mostra há quanto tempo foi atualizado
+                    var age = d.demurrageTimestamp ? Math.round((Date.now() - d.demurrageTimestamp) / 60000) : null;
+                    var ageText = age !== null ? (age < 1 ? 'agora' : age + ' min atrás') : '';
+                    console.log(TAG, 'Cache carregado:', _data.length, 'registros,', ageText);
 
-        function onDataLoaded(data) {
-            if (loaded) return; // Já carregou por outro caminho
-            loaded = true;
-            _data = data;
-            updateBadge(_data);
-            renderTable(_data);
-            console.log(TAG, 'Dados carregados:', _data.length, 'registros');
+                    // Adiciona badge de cache
+                    var badge = document.getElementById('dm-badge');
+                    if (badge && ageText) {
+                        badge.title = 'Atualizado ' + ageText;
+                    }
+                } else {
+                    // Sem cache — mostra loading
+                    content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando dados pela primeira vez... pode demorar</div>';
+                }
+            });
+        } else {
+            content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Atualizando...</div>';
         }
 
-        // Pede pro background buscar os dados (ele salva no storage)
+        // 2. REFRESH EM BACKGROUND: busca dados novos da API
         try {
             chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
                 if (chrome.runtime.lastError) {
-                    console.log(TAG, 'sendMessage error (aguardando storage):', chrome.runtime.lastError.message);
+                    console.log(TAG, 'sendMessage error:', chrome.runtime.lastError.message);
                 }
-                if (loaded) return;
                 if (response && response.fromStorage) {
-                    console.log(TAG, 'ACK recebido! Lendo do storage...');
+                    console.log(TAG, 'Dados novos prontos! Atualizando...');
                     chrome.storage.local.get(['demurrageData'], function(d) {
                         if (d.demurrageData && d.demurrageData.length > 0) {
-                            onDataLoaded(d.demurrageData);
+                            _data = d.demurrageData;
+                            updateBadge(_data);
+                            renderTable(_data);
+                            // Atualiza badge
+                            var badge = document.getElementById('dm-badge');
+                            if (badge) badge.title = 'Atualizado agora';
                         }
                     });
                 }
                 else if (response && !response.success) {
-                    if (!loaded) showError(response.error || 'Erro desconhecido');
+                    console.log(TAG, 'Erro na API:', response.error);
+                    // Se já tem cache, não mostra erro — mantém dados antigos
+                    if (!_data) {
+                        showError(response.error || 'Erro ao buscar dados');
+                    }
                 }
             });
         } catch(e) {
-            console.log(TAG, 'sendMessage falhou, aguardando storage:', e.message);
+            console.log(TAG, 'sendMessage falhou:', e.message);
         }
 
-        // Poll storage a cada 2s — sem mostrar erro, espera até carregar
+        // 3. POLL como fallback (caso sendResponse falhe)
         var pollInterval = setInterval(function() {
-            if (loaded) { clearInterval(pollInterval); return; }
-            chrome.storage.local.get(['demurrageData'], function(d) {
-                if (d.demurrageData && d.demurrageData.length > 0) {
+            chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
+                if (d.demurrageTimestamp && d.demurrageTimestamp > (Date.now() - 5000)) {
+                    // Dados novos (menos de 5s)
                     clearInterval(pollInterval);
-                    onDataLoaded(d.demurrageData);
+                    if (d.demurrageData && d.demurrageData.length > 0) {
+                        _data = d.demurrageData;
+                        updateBadge(_data);
+                        renderTable(_data);
+                        console.log(TAG, 'Dados atualizados via poll:', _data.length);
+                    }
                 }
             });
-        }, 2000);
+        }, 3000);
+
+        // Para o poll depois de 2 minutos (evita rodar pra sempre)
+        setTimeout(function() { clearInterval(pollInterval); }, 120000);
 
         function showError(msg) {
-            if (loaded) return;
+            if (_data) return; // Tem cache, não mostra erro
             content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">' + msg +
                 '<br><button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button></div>';
             var retryBtn = document.getElementById('dm-retry');
-            if (retryBtn) retryBtn.onclick = function() { loadData(); };
+            if (retryBtn) retryBtn.onclick = function() { loadData(true); };
         }
     }
 

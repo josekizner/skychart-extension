@@ -977,13 +977,24 @@ Os valores estão corretos? Responda APENAS com JSON:
 
     console.log('[Demurrage] Recebido fetchDemurrageData, buscando APIs...');
     
+    // Timeout de 15s pra cada fetch (evita ficar pendurado pra sempre)
+    function fetchWithTimeout(url, opts, timeoutMs) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs || 15000);
+      return fetch(url, { ...opts, signal: controller.signal })
+        .then(r => { clearTimeout(timer); return r; })
+        .catch(err => { clearTimeout(timer); throw err; });
+    }
+
     Promise.all([
-      fetch(`${API_BASE}/operacional`, { headers }).then(r => {
+      fetchWithTimeout(`${API_BASE}/operacional`, { headers }, 15000).then(r => {
         console.log('[Demurrage] API operacional:', r.status, r.statusText);
+        if (!r.ok) throw new Error('API operacional retornou ' + r.status);
         return r.json();
       }),
-      fetch(`${API_BASE}/equipamento`, { headers }).then(r => {
+      fetchWithTimeout(`${API_BASE}/equipamento`, { headers }, 15000).then(r => {
         console.log('[Demurrage] API equipamento:', r.status, r.statusText);
+        if (!r.ok) throw new Error('API equipamento retornou ' + r.status);
         return r.json();
       })
     ])
