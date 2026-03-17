@@ -177,11 +177,12 @@
         html.push('<span class="dm-tag gray dm-tag-filter" data-filter="finalizado">' + finalizado.length + ' Finalizados</span>');
         html.push('</div>');
 
-        // Filter buttons
+        // Filter buttons + email
         html.push('<div class="dm-filters">');
         html.push('<button class="dm-filter-btn active" data-filter="risk">Em Risco</button>');
         html.push('<button class="dm-filter-btn" data-filter="all">Todos</button>');
         html.push('<button class="dm-filter-btn" data-filter="ok">OK</button>');
+        html.push('<button class="dm-email-btn" id="dm-send-email" title="Enviar relatório por e-mail">✉ Enviar Relatório</button>');
         html.push('</div>');
 
         // Default: em risco
@@ -324,7 +325,9 @@
 
             h.push('<tr class="dm-row ' + p.status + '" data-idx="' + i + '">');
             h.push('<td class="dm-arrow">▶</td>');
-            h.push('<td class="dm-proc dm-copy" data-copy="' + (p.processo || '') + '" title="Clique para copiar">' + (p.processo || '?') + '</td>');
+            h.push('<td class="dm-proc"><span class="dm-proc-name">' + (p.processo || '?') + '</span>' +
+                '<button class="dm-btn-copy" data-copy="' + (p.processo || '') + '" title="Copiar processo">📋</button>' +
+                '<button class="dm-btn-open" data-proc="' + (p.processo || '') + '" title="Abrir no Skychart">↗</button></td>');
             h.push('<td class="dm-cli">' + (p.cliente || '?') + '</td>');
             h.push('<td>' + (p.armador || '—') + '</td>');
             h.push('<td style="text-align:center;">' + (p.qtdContainers || '—') + '</td>');
@@ -381,20 +384,36 @@
                 }
             });
         });
-        // Bind copy on process cells
-        content.querySelectorAll('.dm-copy').forEach(function(el) {
-            el.addEventListener('click', function(e) {
+        // Bind copy buttons
+        content.querySelectorAll('.dm-btn-copy').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
                 e.stopPropagation();
-                var text = el.getAttribute('data-copy');
+                var text = btn.getAttribute('data-copy');
                 if (!text) return;
                 navigator.clipboard.writeText(text).then(function() {
-                    var orig = el.textContent;
-                    el.textContent = '✓ Copiado!';
-                    el.style.color = '#86efac';
-                    setTimeout(function() { el.textContent = orig; el.style.color = ''; }, 1500);
+                    btn.textContent = '✓';
+                    btn.style.color = '#86efac';
+                    setTimeout(function() { btn.textContent = '📋'; btn.style.color = ''; }, 1500);
                 });
             });
         });
+        // Bind open-in-skychart buttons
+        content.querySelectorAll('.dm-btn-open').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var proc = btn.getAttribute('data-proc');
+                if (!proc) return;
+                openProcessInSkychart(proc);
+            });
+        });
+        // Bind email button
+        var emailBtn = content.querySelector('#dm-send-email');
+        if (emailBtn) {
+            emailBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                sendEmailReport();
+            });
+        }
         // Prevent booking links from toggling row
         content.querySelectorAll('.dm-booking-link').forEach(function(a) {
             a.addEventListener('click', function(e) { e.stopPropagation(); });
@@ -418,6 +437,54 @@
                 bindRowClicks(content);
                 bindSortHeaders(content);
             });
+        });
+    }
+
+    // ===== ENVIAR RELATÓRIO POR E-MAIL =====
+    function sendEmailReport() {
+        var riskItems = _data.filter(function(p) { return p.status === 'expirado' || p.status === 'alerta'; });
+        if (riskItems.length === 0) {
+            alert('Não há processos em risco para enviar.');
+            return;
+        }
+
+        var today = new Date().toLocaleDateString('pt-BR');
+        var subject = 'Demurrage - Processos em Risco (' + today + ')';
+
+        var body = 'Bom dia!\n\n';
+        body += 'Segue relatório de demurrage com ' + riskItems.length + ' processo(s) em risco:\n\n';
+        body += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+
+        riskItems.forEach(function(p) {
+            var statusLabel = p.status === 'expirado' ? '🔴 EXPIRADO (-' + p.diasAtrasados + 'd)' : '🟡 ALERTA (' + p.diasRestantes + 'd restantes)';
+            body += '\n📦 ' + p.processo + ' — ' + (p.cliente || '?') + '\n';
+            body += '   Armador: ' + (p.armador || '—') + '\n';
+            body += '   Atracação: ' + (p.atracacao || '—') + ' | Free Time: ' + (p.freeTime || 0) + 'd | Vencimento: ' + (p.freeTimeEnd || '—') + '\n';
+            body += '   Containers: ' + (p.qtdContainers || '—') + ' | Booking: ' + (p.booking || '—') + '\n';
+            body += '   Status: ' + statusLabel + '\n';
+            body += '   ─────────────────────────────────────\n';
+        });
+
+        body += '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+        body += 'Total: ' + riskItems.length + ' processos em risco\n';
+        body += 'Gerado por: ATOM — Mond Shipping\n';
+
+        var to = 'gabriela.cordeiro@mondshipping.com.br,raphaela.germano@mondshipping.com.br';
+        var mailto = 'mailto:' + to + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+
+        window.open(mailto, '_blank');
+        console.log(TAG, 'Relatório enviado para', to, '—', riskItems.length, 'processos');
+    }
+
+    // ===== ABRIR PROCESSO NO SKYCHART =====
+    function openProcessInSkychart(processo) {
+        if (!processo) return;
+        // Abre na aba operacional do Skychart
+        var url = 'https://app2.skychart.com.br/skyline-mond-83474/#/app/operacional';
+        window.open(url, '_blank');
+        // Armazena o processo pra o content.js preencher
+        chrome.storage.local.set({ pendingDemurrageProcess: processo }, function() {
+            console.log(TAG, 'Processo', processo, 'salvo — Skychart vai abrir e preencher');
         });
     }
 
@@ -497,6 +564,20 @@
             '}',
             '.dm-filter-btn.active { background: rgba(239,68,68,0.15); color: #fca5a5; border-color: rgba(239,68,68,0.4); }',
             '.dm-filter-btn:hover { background: rgba(239,68,68,0.1); }',
+            '.dm-email-btn {',
+            '  padding: 3px 10px; border: 1px solid rgba(108,99,255,0.3); border-radius: 6px;',
+            '  background: rgba(108,99,255,0.1); color: #a5b4fc; font-size: 10px; cursor: pointer;',
+            '  font-family: inherit; transition: all 0.15s; margin-left: auto;',
+            '}',
+            '.dm-email-btn:hover { background: rgba(108,99,255,0.2); color: #c4b5fd; }',
+            '',
+            '.dm-btn-copy, .dm-btn-open {',
+            '  background: none; border: none; cursor: pointer; font-size: 11px;',
+            '  padding: 0 3px; opacity: 0.4; transition: all 0.15s; vertical-align: middle;',
+            '}',
+            '.dm-btn-copy:hover, .dm-btn-open:hover { opacity: 1; transform: scale(1.2); }',
+            '.dm-proc { color: #e2e8f0 !important; font-weight: 600; white-space: nowrap; }',
+            '.dm-proc-name { margin-right: 4px; }',
             '',
             '.dm-table-wrap { max-height: 320px; overflow-y: auto; padding: 0 6px 8px; scrollbar-width: thin; scrollbar-color: rgba(239,68,68,0.2) transparent; }',
             '.dm-table-wrap::-webkit-scrollbar { width: 4px; }',
@@ -514,9 +595,6 @@
             '.dm-row:hover { background: rgba(239,68,68,0.06); }',
             '.dm-row.selected { background: rgba(239,68,68,0.1); }',
             '.dm-row td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #cbd5e1; }',
-            '.dm-proc { color: #e2e8f0 !important; font-weight: 600; }',
-            '.dm-copy { cursor: copy !important; transition: color 0.15s; }',
-            '.dm-copy:hover { color: #fca5a5 !important; }',
             '.dm-cli { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
             '.dm-cnt { color: #94a3b8 !important; font-family: Consolas, monospace; font-size: 9px; }',
             '.dm-booking-link { color: #60a5fa; text-decoration: none; font-weight: 600; transition: all 0.15s; }',
