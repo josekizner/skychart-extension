@@ -3941,6 +3941,15 @@ try {
     // ========================================================================
     (function injectZechart() {
         function applyZechart() {
+            // Só pra master
+            if (!_isCtxOk()) return;
+            chrome.storage.local.get(['userProfile'], function(d) {
+                var isMaster = !d.userProfile || d.userProfile === 'master';
+                if (!isMaster) return;
+                doApply();
+            });
+        }
+        function doApply() {
             var logo = document.querySelector('figure.logo');
             if (!logo || logo.dataset.zechart) return;
             logo.dataset.zechart = '1';
@@ -3995,10 +4004,14 @@ try {
             svg.onmouseenter = function() { svg.style.transform = 'scale(1.1) rotate(-1deg)'; };
             svg.onmouseleave = function() { svg.style.transform = 'scale(1)'; };
 
-            // Insere SVG logo depois do figure.logo SEM mexer no layout do parent
-            logo.style.display = 'inline-block';
-            svg.style.display = 'inline-block';
-            logo.after(svg);
+            // Garante que o parent do logo é flex pra ficar lado a lado
+            var logoParent = logo.parentElement;
+            if (logoParent) {
+                logoParent.style.display = 'flex';
+                logoParent.style.alignItems = 'center';
+                logoParent.style.flexWrap = 'nowrap';
+            }
+            logoParent.insertBefore(svg, logo.nextSibling);
             console.log('[Zéchart] Pichação aplicada com sucesso! 😎');
         }
 
