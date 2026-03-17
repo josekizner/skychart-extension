@@ -950,6 +950,60 @@ Os valores estão corretos? Responda APENAS com JSON:
     return true;
   }
 
+  // ===== FIREBASE: Sync de processos resolvidos (demurrage) =====
+  const FIREBASE_URL = 'https://mond-atom-default-rtdb.firebaseio.com';
+
+  if (request.action === 'getDemurrageResolved') {
+    fetch(`${FIREBASE_URL}/demurrage/resolved.json`)
+      .then(r => r.json())
+      .then(data => {
+        try { sendResponse({ success: true, data: data || {} }); } catch(e) {}
+      })
+      .catch(err => {
+        console.error('[Firebase] Erro ao ler resolved:', err);
+        try { sendResponse({ success: false, error: err.message }); } catch(e) {}
+      });
+    return true;
+  }
+
+  if (request.action === 'setDemurrageResolved') {
+    const proc = request.processo;
+    const payload = {
+      resolvedAt: new Date().toISOString(),
+      resolvedBy: request.user || 'unknown',
+      motivo: request.motivo || 'CNTR devolvido (manual)'
+    };
+    fetch(`${FIREBASE_URL}/demurrage/resolved/${encodeURIComponent(proc.replace(/\//g, '_'))}.json`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    })
+      .then(r => r.json())
+      .then(() => {
+        console.log('[Firebase] Processo', proc, 'marcado como resolvido');
+        try { sendResponse({ success: true }); } catch(e) {}
+      })
+      .catch(err => {
+        console.error('[Firebase] Erro ao salvar resolved:', err);
+        try { sendResponse({ success: false, error: err.message }); } catch(e) {}
+      });
+    return true;
+  }
+
+  if (request.action === 'removeDemurrageResolved') {
+    const proc = request.processo;
+    fetch(`${FIREBASE_URL}/demurrage/resolved/${encodeURIComponent(proc.replace(/\//g, '_'))}.json`, {
+      method: 'DELETE'
+    })
+      .then(() => {
+        console.log('[Firebase] Processo', proc, 'desmarcado');
+        try { sendResponse({ success: true }); } catch(e) {}
+      })
+      .catch(err => {
+        try { sendResponse({ success: false, error: err.message }); } catch(e) {}
+      });
+    return true;
+  }
+
   // ===== DEMURRAGE AGENT: Busca operacional + equipamento e calcula risco =====
   // Logic copied EXACTLY from dashboard api.service.ts processData()
   if (request.action === "fetchDemurrageData") {

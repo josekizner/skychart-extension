@@ -5,6 +5,7 @@
 
     var TAG = '[Demurrage]';
     var _data = null;
+    var _resolvedMap = {}; // Firebase: processos marcados como resolvidos
 
     function isContextValid() {
         try { return !!chrome.runtime && !!chrome.runtime.id; } catch(e) { return false; }
@@ -148,50 +149,51 @@
         var refreshBtn = document.getElementById('dm-refresh');
         console.log(TAG, 'loadData chamado, forceRefresh:', !!forceRefresh);
 
-        // Marca o timestamp antes de pedir dados novos
         _lastLoadTimestamp = Date.now();
 
-        // Feedback visual no botão refresh
-        if (refreshBtn) { refreshBtn.textContent = '⏳'; refreshBtn.style.pointerEvents = 'none'; }
+        // Feedback visual — CSS spin ao invés de emoji
+        if (refreshBtn) { refreshBtn.classList.add('spinning'); refreshBtn.style.pointerEvents = 'none'; }
 
-        // 1. CACHE-FIRST: mostra dados salvos instantaneamente (se não é forceRefresh)
+        // Carrega lista de resolvidos do Firebase
+        try {
+            chrome.runtime.sendMessage({ action: 'getDemurrageResolved' }, function(response) {
+                if (chrome.runtime.lastError) return;
+                if (response && response.success && response.data) {
+                    _resolvedMap = response.data;
+                    console.log(TAG, 'Resolvidos (Firebase):', Object.keys(_resolvedMap).length);
+                }
+            });
+        } catch(e) {}
+
+        // 1. CACHE-FIRST
         if (!forceRefresh) {
             chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
                 if (d.demurrageData && d.demurrageData.length > 0) {
                     _data = d.demurrageData;
-                    updateBadge(_data);
+                    updateBadge(getActiveData());
                     renderTable(_data);
-                    var age = d.demurrageTimestamp ? Math.round((Date.now() - d.demurrageTimestamp) / 60000) : null;
-                    console.log(TAG, 'Cache:', _data.length, 'registros,', age, 'min atrás');
+                    console.log(TAG, 'Cache:', _data.length, 'registros');
                 } else {
                     content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando dados pela primeira vez...</div>';
                 }
             });
         } else {
-            content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Atualizando da API...</div>';
+            content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Atualizando...</div>';
         }
 
-        // 2. REFRESH: pede dados novos da API
+        // 2. REFRESH da API
         try {
             chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
-                if (chrome.runtime.lastError) {
-                    console.log(TAG, 'sendMessage error:', chrome.runtime.lastError.message);
-                }
-                if (response && response.fromStorage) {
-                    console.log(TAG, 'API respondeu! Atualizando tabela...');
-                    applyNewData();
-                }
+                if (chrome.runtime.lastError) console.log(TAG, 'sendMessage error:', chrome.runtime.lastError.message);
+                if (response && response.fromStorage) { applyNewData(); }
                 else if (response && !response.success) {
-                    console.log(TAG, 'Erro na API:', response.error);
                     resetRefreshBtn();
                     if (!_data) showError(response.error || 'Erro ao buscar dados');
                 }
             });
-        } catch(e) {
-            console.log(TAG, 'sendMessage falhou:', e.message);
-        }
+        } catch(e) { console.log(TAG, 'sendMessage falhou:', e.message); }
 
-        // 3. POLL: checa storage a cada 3s até dados novos chegarem
+        // 3. POLL fallback
         var pollInterval = setInterval(function() {
             chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
                 if (d.demurrageTimestamp && d.demurrageTimestamp > _lastLoadTimestamp) {
@@ -206,16 +208,16 @@
             chrome.storage.local.get(['demurrageData'], function(d) {
                 if (d.demurrageData && d.demurrageData.length > 0) {
                     _data = d.demurrageData;
-                    updateBadge(_data);
+                    updateBadge(getActiveData());
                     renderTable(_data);
-                    console.log(TAG, '✅ Dados atualizados:', _data.length, 'registros');
+                    console.log(TAG, 'Dados atualizados:', _data.length);
                 }
                 resetRefreshBtn();
             });
         }
 
         function resetRefreshBtn() {
-            if (refreshBtn) { refreshBtn.textContent = '⟳'; refreshBtn.style.pointerEvents = ''; }
+            if (refreshBtn) { refreshBtn.classList.remove('spinning'); refreshBtn.style.pointerEvents = ''; }
         }
 
         function showError(msg) {
@@ -225,6 +227,35 @@
             var retryBtn = document.getElementById('dm-retry');
             if (retryBtn) retryBtn.onclick = function() { loadData(true); };
         }
+    }
+
+    // Filtra processos resolvidos
+    function getActiveData() {
+        if (!_data) return [];
+        return _data.filter(function(p) {
+            var key = (p.processo || '').replace(/\//g, '_');
+            return !_resolvedMap[key];
+        });
+    }
+
+    // Marca/desmarca processo como resolvido no Firebase
+    function resolveProcess(processo, resolve) {
+        var action = resolve ? 'setDemurrageResolved' : 'removeDemurrageResolved';
+        chrome.runtime.sendMessage({ action: action, processo: processo }, function(response) {
+            if (chrome.runtime.lastError) return;
+            if (response && response.success) {
+                var key = processo.replace(/\//g, '_');
+                if (resolve) {
+                    _resolvedMap[key] = { resolvedAt: new Date().toISOString() };
+                } else {
+                    delete _resolvedMap[key];
+                }
+                // Re-render
+                updateBadge(getActiveData());
+                renderTable(_data);
+                console.log(TAG, processo, resolve ? 'resolvido' : 'reaberto');
+            }
+        });
     }
 
     function updateBadge(data) {
@@ -260,31 +291,35 @@
     function renderTable(data) {
         var content = document.getElementById('dm-content');
 
-        // Count by process status
-        var expirados = data.filter(function(p) { return p.status === 'expirado'; });
-        var alerta = data.filter(function(p) { return p.status === 'alerta'; });
-        var ok = data.filter(function(p) { return p.status === 'ok'; });
-        var finalizado = data.filter(function(p) { return p.status === 'finalizado'; });
+        // Filtra resolvidos
+        var active = getActiveData();
+
+        // Count by process status (só ativos)
+        var expirados = active.filter(function(p) { return p.status === 'expirado'; });
+        var alerta = active.filter(function(p) { return p.status === 'alerta'; });
+        var ok = active.filter(function(p) { return p.status === 'ok'; });
+        var nResolved = Object.keys(_resolvedMap).length;
 
         var html = [];
 
-        // Summary (clickable as filters)
+        // Summary
         html.push('<div class="dm-summary">');
         html.push('<span class="dm-tag red dm-tag-filter" data-filter="expirado">' + expirados.length + ' Expirados</span>');
         html.push('<span class="dm-tag yellow dm-tag-filter" data-filter="alerta">' + alerta.length + ' Alerta</span>');
         html.push('<span class="dm-tag green dm-tag-filter" data-filter="ok">' + ok.length + ' OK</span>');
-        html.push('<span class="dm-tag gray dm-tag-filter" data-filter="finalizado">' + finalizado.length + ' Finalizados</span>');
+        if (nResolved > 0) html.push('<span class="dm-tag blue dm-tag-filter" data-filter="resolved">' + nResolved + ' Resolvidos</span>');
         html.push('</div>');
 
-        // Filter buttons + email
+        // Filter buttons
         html.push('<div class="dm-filters">');
         html.push('<button class="dm-filter-btn active" data-filter="risk">Em Risco</button>');
         html.push('<button class="dm-filter-btn" data-filter="all">Todos</button>');
         html.push('<button class="dm-filter-btn" data-filter="ok">OK</button>');
+        if (nResolved > 0) html.push('<button class="dm-filter-btn" data-filter="resolved">Resolvidos</button>');
         html.push('<button class="dm-email-btn" id="dm-send-email" title="Enviar relatório por e-mail">✉ Enviar Relatório</button>');
         html.push('</div>');
 
-        // Default: em risco
+        // Default: em risco (só ativos)
         var riskItems = expirados.concat(alerta);
         _currentItems = riskItems.slice();
         _sortCol = '';
@@ -312,7 +347,8 @@
                 var f = btn.getAttribute('data-filter');
                 if (f === 'risk') applyFilter(expirados.concat(alerta));
                 else if (f === 'ok') applyFilter(ok.slice());
-                else applyFilter(data.filter(function(p) { return p.status !== 'finalizado'; }));
+                else if (f === 'resolved') applyFilter(getResolvedItems());
+                else applyFilter(active.slice());
             });
         });
 
@@ -326,15 +362,24 @@
                 if (f === 'expirado') applyFilter(expirados.slice());
                 else if (f === 'alerta') applyFilter(alerta.slice());
                 else if (f === 'ok') applyFilter(ok.slice());
-                else if (f === 'finalizado') applyFilter(finalizado.slice());
+                else if (f === 'resolved') applyFilter(getResolvedItems());
             });
         });
 
         bindRowClicks(content);
         bindSortHeaders(content);
+        bindResolveButtons(content);
 
         // Init resize handle
         initResize();
+
+        function getResolvedItems() {
+            if (!_data) return [];
+            return _data.filter(function(p) {
+                var key = (p.processo || '').replace(/\//g, '_');
+                return !!_resolvedMap[key];
+            });
+        }
     }
 
     function sortItems(items, col, dir) {
@@ -415,7 +460,8 @@
             { key: 'atracacao', label: 'Atracação', sortable: true },
             { key: 'freeTime', label: 'FT', sortable: true },
             { key: 'freeTimeEnd', label: 'Vencimento', sortable: true },
-            { key: 'diasRestantes', label: 'Status', sortable: true }
+            { key: 'diasRestantes', label: 'Status', sortable: true },
+            { key: '', label: '', sortable: false }
         ];
 
         var h = [];
@@ -448,7 +494,10 @@
             var ftDisplay = p.freeTime > 0 ? p.freeTime + 'd' : '—';
             var ftEndDisplay = p.freeTime > 0 ? (p.freeTimeEnd || '—') : '—';
 
-            h.push('<tr class="dm-row ' + p.status + '" data-idx="' + i + '">');
+            var isResolved = _resolvedMap[(p.processo || '').replace(/\//g, '_')];
+            var rowCls = 'dm-row ' + p.status + (isResolved ? ' resolved' : '');
+
+            h.push('<tr class="' + rowCls + '" data-idx="' + i + '">');
             h.push('<td class="dm-arrow">▶</td>');
             h.push('<td class="dm-proc"><span class="dm-proc-name">' + (p.processo || '?') + '</span>' +
                 '<button class="dm-btn-copy" data-copy="' + (p.processo || '') + '" title="Copiar processo">📋</button>' +
@@ -460,11 +509,18 @@
             h.push('<td>' + ftDisplay + '</td>');
             h.push('<td>' + ftEndDisplay + '</td>');
             h.push('<td><span class="' + statusCls + '">' + statusText + '</span></td>');
+            h.push('<td class="dm-resolve-td">');
+            if (isResolved) {
+                h.push('<button class="dm-btn-resolve resolved" data-proc="' + (p.processo || '') + '" title="Reabrir">↩</button>');
+            } else {
+                h.push('<button class="dm-btn-resolve" data-proc="' + (p.processo || '') + '" title="Marcar como devolvido">✓</button>');
+            }
+            h.push('</td>');
             h.push('</tr>');
 
             // Expandable detail row
             h.push('<tr class="dm-detail" id="dm-detail-' + i + '" style="display:none;">');
-            h.push('<td colspan="9">');
+            h.push('<td colspan="10">');
             h.push('<div class="dm-cntr-wrap">');
             h.push('<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;display:flex;gap:12px;align-items:center;">');
             var trackUrl = getTrackingUrl(p.armador, p.booking);
@@ -542,6 +598,20 @@
         // Prevent booking links from toggling row
         content.querySelectorAll('.dm-booking-link').forEach(function(a) {
             a.addEventListener('click', function(e) { e.stopPropagation(); });
+        });
+    }
+
+    function bindResolveButtons(content) {
+        content.querySelectorAll('.dm-btn-resolve').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var proc = btn.getAttribute('data-proc');
+                if (!proc) return;
+                var isResolved = btn.classList.contains('resolved');
+                btn.textContent = '...';
+                btn.style.pointerEvents = 'none';
+                resolveProcess(proc, !isResolved);
+            });
         });
     }
 
@@ -672,6 +742,8 @@
             '.dm-collapse { color: #fca5a5; cursor: pointer; font-size: 10px; margin-left: 4px; }',
             '.dm-refresh { color: #94a3b8; cursor: pointer; font-size: 13px; margin-left: auto; padding: 0 4px; transition: all 0.2s; }',
             '.dm-refresh:hover { color: #6C63FF; transform: rotate(90deg); }',
+            '.dm-refresh.spinning { animation: dm-spin 1s linear infinite; pointer-events: none; color: #6C63FF; }',
+            '@keyframes dm-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }',
             '.dm-minimize { color: #94a3b8; cursor: pointer; font-size: 14px; font-weight: 700; margin-left: 2px; padding: 0 4px; transition: color 0.15s; }',
             '.dm-minimize:hover { color: #fca5a5; }',
             '#atom-demurrage-bar.mini {',
@@ -683,6 +755,7 @@
             '#atom-demurrage-bar.mini .dm-badge,',
             '#atom-demurrage-bar.mini .dm-collapse,',
             '#atom-demurrage-bar.mini .dm-minimize,',
+            '#atom-demurrage-bar.mini .dm-refresh,',
             '#atom-demurrage-bar.mini #dm-content { display: none !important; }',
             '#atom-demurrage-bar.mini .dm-logo {',
             '  width: 30px; height: 30px; font-size: 14px; border-radius: 50%;',
@@ -697,7 +770,15 @@
             '.dm-tag.red { background: rgba(239,68,68,0.15); color: #fca5a5; }',
             '.dm-tag.yellow { background: rgba(245,158,11,0.15); color: #fbbf24; }',
             '.dm-tag.green { background: rgba(34,197,94,0.15); color: #86efac; }',
+            '.dm-tag.blue { background: rgba(99,102,241,0.15); color: #a5b4fc; }',
             '.dm-tag.gray { background: rgba(148,163,184,0.1); color: #94a3b8; }',
+            '',
+            '.dm-btn-resolve { background: none; border: 1px solid rgba(134,239,172,0.3); color: #86efac; cursor: pointer; padding: 1px 5px; border-radius: 4px; font-size: 10px; transition: all 0.15s; }',
+            '.dm-btn-resolve:hover { background: rgba(34,197,94,0.2); border-color: #86efac; }',
+            '.dm-btn-resolve.resolved { border-color: rgba(148,163,184,0.3); color: #94a3b8; }',
+            '.dm-btn-resolve.resolved:hover { background: rgba(239,68,68,0.15); border-color: #fca5a5; color: #fca5a5; }',
+            '.dm-row.resolved { opacity: 0.4; }',
+            '.dm-row.resolved .dm-proc-name { text-decoration: line-through; }',
             '',
             '.dm-filters { display: flex; gap: 4px; padding: 0 12px 6px; }',
             '.dm-filter-btn {',
