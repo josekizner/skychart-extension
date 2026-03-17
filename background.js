@@ -1097,7 +1097,10 @@ Os valores estão corretos? Responda APENAS com JSON:
         ok: results.filter(r => r.status === 'ok').length,
         finalizado: results.filter(r => r.status === 'finalizado').length
       });
-      sendResponse({ success: true, data: results });
+      // Filtra finalizados pra não estourar o Chrome IPC (eram 1089 de 1134)
+      var activeResults = results.filter(r => r.status !== 'finalizado');
+      console.log('[Demurrage] Enviando', activeResults.length, 'processos ativos (sem finalizados)');
+      sendResponse({ success: true, data: activeResults });
     })
     .catch(err => {
       console.error('[Demurrage] Erro ao buscar dados:', err);
