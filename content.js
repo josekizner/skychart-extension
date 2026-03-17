@@ -3941,36 +3941,64 @@ try {
     // ========================================================================
     (function injectZechart() {
         function applyZechart() {
-            // O logo do Skychart é um <figure class="logo">
             var logo = document.querySelector('figure.logo');
             if (!logo || logo.dataset.zechart) return;
             logo.dataset.zechart = '1';
 
-            // Posiciona relative pra colocar o risco por cima
             logo.style.position = 'relative';
+            logo.style.overflow = 'visible';
 
-            // Risco vermelho graffiti por cima do logo original
-            var risco = document.createElement('div');
-            risco.style.cssText = 'position:absolute;top:45%;left:-5%;width:110%;height:4px;background:linear-gradient(90deg,transparent 0%,#ff1744 8%,#ff1744 92%,transparent 100%);transform:rotate(-3deg);z-index:999;pointer-events:none;border-radius:2px;box-shadow:0 0 6px rgba(255,23,68,0.5);';
-            logo.appendChild(risco);
+            // X GRANDE vermelho por cima do logo — duas linhas cruzadas grossas
+            var risco1 = document.createElement('div');
+            risco1.style.cssText = 'position:absolute;top:0;left:-5%;width:110%;height:6px;background:#ff1744;transform:rotate(-15deg);transform-origin:center;z-index:999;pointer-events:none;border-radius:3px;box-shadow:0 0 8px rgba(255,23,68,0.6);top:50%;margin-top:-3px;';
+            logo.appendChild(risco1);
 
-            // Segundo risco mais fino pra parecer pichação
             var risco2 = document.createElement('div');
-            risco2.style.cssText = 'position:absolute;top:55%;left:0%;width:100%;height:2px;background:linear-gradient(90deg,transparent 0%,#ff1744 12%,#ff1744 88%,transparent 100%);transform:rotate(1deg);z-index:999;pointer-events:none;opacity:0.7;';
+            risco2.style.cssText = 'position:absolute;top:0;left:-5%;width:110%;height:6px;background:#ff1744;transform:rotate(15deg);transform-origin:center;z-index:999;pointer-events:none;border-radius:3px;box-shadow:0 0 8px rgba(255,23,68,0.6);top:50%;margin-top:-3px;';
             logo.appendChild(risco2);
 
-            // Logo Zéchart ao lado — insere como irmão do figure.logo
-            var zechartImg = document.createElement('img');
-            zechartImg.src = chrome.runtime.getURL('zechart-logo.png');
-            zechartImg.style.cssText = 'height:36px;margin-left:10px;vertical-align:middle;transition:transform 0.3s;cursor:pointer;position:relative;z-index:999;';
-            zechartImg.title = 'Zéchart — web softwares que funcionam de verdade 😎';
-            zechartImg.onmouseenter = function() { zechartImg.style.transform = 'scale(1.15) rotate(-2deg)'; };
-            zechartImg.onmouseleave = function() { zechartImg.style.transform = 'scale(1)'; };
-            logo.parentElement.insertBefore(zechartImg, logo.nextSibling);
+            // SVG "Zéchart" grandão com fundo transparente e sombra 3D
+            var svgNS = 'http://www.w3.org/2000/svg';
+            var svg = document.createElementNS(svgNS, 'svg');
+            svg.setAttribute('width', '200');
+            svg.setAttribute('height', '50');
+            svg.setAttribute('viewBox', '0 0 200 50');
+            svg.style.cssText = 'margin-left:12px;vertical-align:middle;cursor:pointer;transition:transform 0.3s;position:relative;z-index:999;overflow:visible;';
+            svg.setAttribute('title', 'Zéchart — web softwares que funcionam de verdade');
+
+            // Sombra 3D
+            var shadow = document.createElementNS(svgNS, 'text');
+            shadow.setAttribute('x', '4');
+            shadow.setAttribute('y', '38');
+            shadow.setAttribute('font-family', 'Impact, Haettenschweiler, Arial Black, sans-serif');
+            shadow.setAttribute('font-size', '42');
+            shadow.setAttribute('fill', '#222');
+            shadow.setAttribute('font-weight', 'bold');
+            shadow.setAttribute('letter-spacing', '1');
+            shadow.textContent = 'Zéchart';
+            svg.appendChild(shadow);
+
+            // Texto principal branco
+            var text = document.createElementNS(svgNS, 'text');
+            text.setAttribute('x', '2');
+            text.setAttribute('y', '36');
+            text.setAttribute('font-family', 'Impact, Haettenschweiler, Arial Black, sans-serif');
+            text.setAttribute('font-size', '42');
+            text.setAttribute('fill', '#ffffff');
+            text.setAttribute('stroke', '#333');
+            text.setAttribute('stroke-width', '1.5');
+            text.setAttribute('font-weight', 'bold');
+            text.setAttribute('letter-spacing', '1');
+            text.textContent = 'Zéchart';
+            svg.appendChild(text);
+
+            svg.onmouseenter = function() { svg.style.transform = 'scale(1.1) rotate(-1deg)'; };
+            svg.onmouseleave = function() { svg.style.transform = 'scale(1)'; };
+
+            logo.parentElement.insertBefore(svg, logo.nextSibling);
             console.log('[Zéchart] Pichação aplicada com sucesso! 😎');
         }
 
-        // Tenta injetar logo + retry (Angular pode demorar)
         setTimeout(applyZechart, 2000);
         setTimeout(applyZechart, 5000);
         setTimeout(applyZechart, 10000);
