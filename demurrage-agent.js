@@ -76,55 +76,69 @@
         content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando dados...</div>';
         console.log(TAG, 'Enviando fetchDemurrageData pro background...');
 
-        var responded = false;
-        
-        // Timeout de 15s
-        var timeout = setTimeout(function() {
-            if (responded) return;
-            responded = true;
-            console.log(TAG, '⚠ Timeout — background não respondeu em 15s');
-            content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">' +
-                'Timeout: servidor não respondeu em 15s.<br>' +
-                '<button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button>' +
-                '</div>';
-            var retryBtn = document.getElementById('dm-retry');
-            if (retryBtn) retryBtn.onclick = function() { loadData(); };
-        }, 15000);
+        // Limpa dados antigos do storage
+        chrome.storage.local.remove(['demurrageData', 'demurrageTimestamp']);
 
+        // Pede pro background buscar os dados (ele salva no storage)
         try {
             chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
-                if (responded) return;
-                responded = true;
-                clearTimeout(timeout);
-                
                 if (chrome.runtime.lastError) {
-                    console.log(TAG, 'Erro sendMessage:', chrome.runtime.lastError.message);
-                    content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">Erro: ' + chrome.runtime.lastError.message + 
-                        '<br><button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button></div>';
-                    var retryBtn = document.getElementById('dm-retry');
-                    if (retryBtn) retryBtn.onclick = function() { loadData(); };
-                    return;
+                    console.log(TAG, 'sendMessage error (ignorando, vamos ler do storage):', chrome.runtime.lastError.message);
                 }
-                
-                if (response && response.success) {
-                    _data = response.data;
-                    updateBadge(_data);
-                    renderTable(_data);
-                    console.log(TAG, 'Dados carregados:', _data.length, 'registros');
-                } else {
-                    var errMsg = response ? response.error : 'sem resposta do background';
-                    console.log(TAG, 'Erro na resposta:', errMsg);
-                    content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">Erro: ' + errMsg + 
-                        '<br><button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button></div>';
-                    var retryBtn = document.getElementById('dm-retry');
-                    if (retryBtn) retryBtn.onclick = function() { loadData(); };
+                // Se recebeu ACK com dados, ótimo — lê do storage
+                if (response && response.fromStorage) {
+                    console.log(TAG, 'ACK recebido! Lendo', response.count, 'processos do storage...');
+                    readFromStorage();
                 }
+                // Se recebeu erro direto, mostra
+                else if (response && !response.success) {
+                    showError(response.error || 'Erro desconhecido');
+                }
+                // Se não recebeu nada (port closed), fallback pro polling
             });
         } catch(e) {
-            responded = true;
-            clearTimeout(timeout);
-            console.log(TAG, 'Erro ao enviar mensagem:', e.message);
-            content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">Extensão desconectada. Recarregue a página.</div>';
+            console.log(TAG, 'sendMessage falhou, vamos poll o storage:', e.message);
+        }
+
+        // Poll storage a cada 2s por até 30s (fallback se sendResponse falhar)
+        var pollCount = 0;
+        var pollInterval = setInterval(function() {
+            pollCount++;
+            chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
+                if (d.demurrageData && d.demurrageData.length > 0) {
+                    clearInterval(pollInterval);
+                    console.log(TAG, 'Dados encontrados no storage!', d.demurrageData.length, 'processos');
+                    _data = d.demurrageData;
+                    updateBadge(_data);
+                    renderTable(_data);
+                }
+            });
+            if (pollCount >= 15) { // 30s
+                clearInterval(pollInterval);
+                console.log(TAG, '⚠ Timeout 30s — dados não apareceram no storage');
+                showError('Timeout: servidor não respondeu em 30s');
+            }
+        }, 2000);
+
+        function readFromStorage() {
+            chrome.storage.local.get(['demurrageData'], function(d) {
+                if (d.demurrageData && d.demurrageData.length > 0) {
+                    _data = d.demurrageData;
+                    updateBadge(_data);
+                    renderTable(_data);
+                    console.log(TAG, 'Dados carregados do storage:', _data.length, 'registros');
+                } else {
+                    // Storage ainda vazio, aguarda o poll
+                    console.log(TAG, 'Storage vazio, aguardando poll...');
+                }
+            });
+        }
+
+        function showError(msg) {
+            content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">' + msg +
+                '<br><button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button></div>';
+            var retryBtn = document.getElementById('dm-retry');
+            if (retryBtn) retryBtn.onclick = function() { loadData(); };
         }
     }
 
