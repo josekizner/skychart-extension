@@ -336,6 +336,7 @@
             if (tableDiv) tableDiv.innerHTML = buildTableInner(_currentItems);
             bindRowClicks(content);
             bindSortHeaders(content);
+            bindResolveButtons(content);
         }
 
         // Bind filter buttons
@@ -460,6 +461,7 @@
             { key: 'atracacao', label: 'Atracação', sortable: true },
             { key: 'freeTime', label: 'FT', sortable: true },
             { key: 'freeTimeEnd', label: 'Vencimento', sortable: true },
+            { key: 'devolucao', label: 'Devolução', sortable: true },
             { key: 'diasRestantes', label: 'Status', sortable: true },
             { key: '', label: '', sortable: false }
         ];
@@ -508,6 +510,20 @@
             h.push('<td>' + (p.atracacao || '—') + '</td>');
             h.push('<td>' + ftDisplay + '</td>');
             h.push('<td>' + ftEndDisplay + '</td>');
+
+            // Coluna devolução: usa data da API ou data Firebase
+            var devolDisplay = '—';
+            if (p.devolucao) {
+                devolDisplay = p.devolucao;
+            } else if (isResolved && _resolvedMap[(p.processo || '').replace(/\//g, '_')]) {
+                var rd = _resolvedMap[(p.processo || '').replace(/\//g, '_')].resolvedAt;
+                if (rd) {
+                    var d = new Date(rd);
+                    devolDisplay = '<span style="color:#a5b4fc;">' + d.toLocaleDateString('pt-BR') + '</span>';
+                }
+            }
+            h.push('<td>' + devolDisplay + '</td>');
+
             h.push('<td><span class="' + statusCls + '">' + statusText + '</span></td>');
             h.push('<td class="dm-resolve-td">');
             if (isResolved) {
@@ -520,7 +536,7 @@
 
             // Expandable detail row
             h.push('<tr class="dm-detail" id="dm-detail-' + i + '" style="display:none;">');
-            h.push('<td colspan="10">');
+            h.push('<td colspan="11">');
             h.push('<div class="dm-cntr-wrap">');
             h.push('<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;display:flex;gap:12px;align-items:center;">');
             var trackUrl = getTrackingUrl(p.armador, p.booking);
@@ -552,8 +568,8 @@
     function bindRowClicks(content) {
         content.querySelectorAll('.dm-row').forEach(function(row) {
             row.addEventListener('click', function(e) {
-                // Don't toggle if clicking copy or link
-                if (e.target.classList.contains('dm-copy') || e.target.tagName === 'A') return;
+                // Don't toggle if clicking buttons
+                if (e.target.closest('.dm-btn-resolve') || e.target.closest('.dm-btn-copy') || e.target.closest('.dm-btn-open') || e.target.tagName === 'A') return;
                 var idx = row.getAttribute('data-idx');
                 var detail = document.getElementById('dm-detail-' + idx);
                 if (detail) {

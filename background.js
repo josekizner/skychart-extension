@@ -1151,6 +1151,7 @@ Os valores estão corretos? Responda APENAS com JSON:
           atracacao: dataAtracacao.toLocaleDateString('pt-BR'),
           freeTime: freeTime,
           freeTimeEnd: freeTimeEnd.toLocaleDateString('pt-BR'),
+          devolucao: dataDevolucao ? dataDevolucao.toLocaleDateString('pt-BR') : '',
           diasRestantes: Math.max(0, daysRemaining),
           diasAtrasados: Math.max(0, -daysRemaining),
           status: status,
