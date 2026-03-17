@@ -3957,25 +3957,61 @@ try {
         async function openPendingProcess(processo) {
             showToast('Demurrage: Abrindo processo ' + processo + '...', 'info', 5000);
 
+            // Helper: espera elemento aparecer no DOM via MutationObserver
+            function waitForElement(selector, matchText, timeoutMs) {
+                return new Promise(function(resolve) {
+                    timeoutMs = timeoutMs || 10000;
+                    // Checa se já existe
+                    var existing = findMatch(selector, matchText);
+                    if (existing) { resolve(existing); return; }
+
+                    var resolved = false;
+                    var observer = new MutationObserver(function() {
+                        var el = findMatch(selector, matchText);
+                        if (el && !resolved) {
+                            resolved = true;
+                            observer.disconnect();
+                            resolve(el);
+                        }
+                    });
+                    observer.observe(document.body, { childList: true, subtree: true });
+
+                    setTimeout(function() {
+                        if (!resolved) {
+                            resolved = true;
+                            observer.disconnect();
+                            resolve(null);
+                        }
+                    }, timeoutMs);
+                });
+            }
+
+            function findMatch(selector, matchText) {
+                var els = document.querySelectorAll(selector);
+                if (!matchText) return els[0] || null;
+                for (var i = 0; i < els.length; i++) {
+                    if ((els[i].textContent || '').indexOf(matchText) >= 0) return els[i];
+                }
+                return null;
+            }
+
             // 1. Ctrl+Space → abre busca flutuante
             document.dispatchEvent(new KeyboardEvent('keydown', {
                 key: ' ', code: 'Space', keyCode: 32, ctrlKey: true, bubbles: true
             }));
-            await delay(1000);
 
-            // 2. Busca o campo de input
-            var searchInput = document.querySelector('#floating-search');
+            // 2. Espera o campo de busca aparecer no DOM (até 5s)
+            var searchInput = await waitForElement('#floating-search', null, 5000);
             if (!searchInput) {
-                // Retry
+                // Retry Ctrl+Space
                 document.dispatchEvent(new KeyboardEvent('keydown', {
                     key: ' ', code: 'Space', keyCode: 32, ctrlKey: true, bubbles: true
                 }));
-                await delay(1500);
-                searchInput = document.querySelector('#floating-search');
+                searchInput = await waitForElement('#floating-search', null, 5000);
             }
 
             if (!searchInput) {
-                showToast('Campo de busca não abriu. Pressione Ctrl+Space e busque: ' + processo, 'warning', 8000);
+                showToast('Campo de busca não abriu. Ctrl+Space e busque: ' + processo, 'warning', 8000);
                 return;
             }
 
@@ -3983,36 +4019,29 @@ try {
             searchInput.focus();
             searchInput.value = '';
             searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-            await delay(300);
+            await delay(200);
 
             for (var ci = 0; ci < processo.length; ci++) {
                 searchInput.value += processo[ci];
                 searchInput.dispatchEvent(new Event('input', { bubbles: true }));
                 searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: processo[ci], bubbles: true }));
                 searchInput.dispatchEvent(new KeyboardEvent('keyup', { key: processo[ci], bubbles: true }));
-                await delay(80);
+                await delay(60);
             }
 
             showToast('Buscando ' + processo + '...', 'info', 3000);
-            await delay(2000);
 
-            // 4. Clica no resultado
-            var dropdownItems = document.querySelectorAll('.autocomplete-list li, .pesquisa-overlay li, span.match');
-            var matchFound = false;
-            for (var di = 0; di < dropdownItems.length; di++) {
-                var itemText = dropdownItems[di].textContent || '';
-                if (itemText.indexOf(processo) >= 0) {
-                    dropdownItems[di].click();
-                    var parentLi = dropdownItems[di].closest('li');
-                    if (parentLi) parentLi.click();
-                    matchFound = true;
-                    showToast('Processo ' + processo + ' aberto!', 'success', 3000);
-                    break;
-                }
-            }
+            // 4. Espera o dropdown com o processo aparecer no DOM (até 10s)
+            var matchItem = await waitForElement('.autocomplete-list li, .pesquisa-overlay li, span.match', processo, 10000);
 
-            if (!matchFound) {
-                showToast('Processo ' + processo + ' não encontrado. Selecione manualmente.', 'warning', 8000);
+            if (matchItem) {
+                matchItem.click();
+                var parentLi = matchItem.closest('li');
+                if (parentLi && parentLi !== matchItem) parentLi.click();
+                showToast('Processo ' + processo + ' aberto!', 'success', 3000);
+                console.log('[Atom Demurrage] Processo', processo, 'selecionado via DOM observer');
+            } else {
+                showToast('Processo ' + processo + ' não encontrado no dropdown.', 'warning', 8000);
             }
         }
     })();
