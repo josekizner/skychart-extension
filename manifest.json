@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Atom - Multiagentes | Mond Shipping",
-  "version": "2.2",
+  "version": "2.3",
   "description": "Plataforma de multiagentes inteligentes para automação de processos Mond Shipping.",
   "permissions": [
     "storage",
@@ -20,7 +20,8 @@
     "https://outlook.office.com/*",
     "https://outlook.office365.com/*",
     "https://outlook.cloud.microsoft/*",
-    "https://www.hmm21.com/*"
+    "https://www.hmm21.com/*",
+    "https://mond-atom-default-rtdb.firebaseio.com/*"
   ],
   "background": {
     "service_worker": "background.js"
