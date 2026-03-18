@@ -2,14 +2,54 @@
 const CURRENT_VERSION = chrome.runtime.getManifest().version;
 const _FIREBASE_BASE = 'https://mond-atom-default-rtdb.firebaseio.com';
 
-// Quando instala ou atualiza, publica versão no Firebase
-chrome.runtime.onInstalled.addListener(() => {
+// Quando instala ou atualiza, publica versão e re-injeta scripts
+chrome.runtime.onInstalled.addListener((details) => {
+  // Publica versão no Firebase
   fetch(`${_FIREBASE_BASE}/system/latestVersion.json`, {
     method: 'PUT',
     body: JSON.stringify(CURRENT_VERSION)
   }).then(() => console.log('[AutoReload] Versão publicada:', CURRENT_VERSION))
     .catch(() => {});
+
+  // Re-injeta content scripts em todas as abas abertas (sem precisar F5)
+  if (details.reason === 'update' || details.reason === 'install') {
+    reinjectContentScripts();
+  }
 });
+
+function reinjectContentScripts() {
+  // Lê os content_scripts do manifest
+  var manifest = chrome.runtime.getManifest();
+  var contentScripts = manifest.content_scripts || [];
+
+  contentScripts.forEach(function(cs) {
+    var patterns = cs.matches || [];
+    // Busca abas que correspondem aos patterns
+    patterns.forEach(function(pattern) {
+      chrome.tabs.query({ url: pattern }, function(tabs) {
+        if (chrome.runtime.lastError || !tabs) return;
+        tabs.forEach(function(tab) {
+          // Injeta JS
+          if (cs.js && cs.js.length > 0) {
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: cs.js
+            }).then(() => {
+              console.log('[ReInject] JS injetado em', tab.url.substring(0, 50));
+            }).catch(() => {}); // silencioso se falhar
+          }
+          // Injeta CSS
+          if (cs.css && cs.css.length > 0) {
+            chrome.scripting.insertCSS({
+              target: { tabId: tab.id },
+              files: cs.css
+            }).catch(() => {});
+          }
+        });
+      });
+    });
+  });
+}
 
 // Checa versão a cada 5 minutos
 function checkForUpdate() {
