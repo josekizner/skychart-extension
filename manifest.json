@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Atom - Multiagentes | Mond Shipping",
-  "version": "2.4",
+  "version": "2.5",
   "description": "Plataforma de multiagentes inteligentes para automação de processos Mond Shipping.",
   "permissions": [
     "storage",
