@@ -24,9 +24,9 @@ function checkForUpdate() {
     .catch(() => {}); // silencioso
 }
 
-// Primeira checagem 30s após start, depois a cada 5 min
-setTimeout(checkForUpdate, 30000);
-setInterval(checkForUpdate, 5 * 60 * 1000);
+// Primeira checagem 15s após start, depois a cada 1 min
+setTimeout(checkForUpdate, 15000);
+setInterval(checkForUpdate, 60 * 1000);
 
 // API config
 const _b = 'QUl6YVN5QTVwOU41a1hLQ1hYRm9aZ3FZcl9HMjNwTkFLZERHYUhV';
