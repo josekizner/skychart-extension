@@ -2,7 +2,7 @@
 // CHECK AGENT — Cotação vs Custos/Itens
 // Compara oferta PDF com aba Custos (operacional) ou Itens (financeiro)
 // ============================================================
-(function() {
+(function () {
     'use strict';
 
     var TAG = '[Check Agent]';
@@ -10,7 +10,7 @@
 
     // Guard: detecta se a extensão foi recarregada (evita "Extension context invalidated")
     function isContextValid() {
-        try { return !!chrome.runtime && !!chrome.runtime.id; } catch(e) { return false; }
+        try { return !!chrome.runtime && !!chrome.runtime.id; } catch (e) { return false; }
     }
 
     // Detecta qual módulo estamos
@@ -22,13 +22,13 @@
 
     // Listener: background manda clicar o download (padrão Serasa)
     try {
-        chrome.runtime.onMessage.addListener(function(request) {
+        chrome.runtime.onMessage.addListener(function (request) {
             if (request.action === 'clickCheckDownload' && window._checkDlBtn) {
                 console.log(TAG, 'Background pediu clique no download');
                 window._checkDlBtn.click();
             }
         });
-    } catch(e) { console.log(TAG, 'Context invalidated (listener), ignorando.'); }
+    } catch (e) { console.log(TAG, 'Context invalidated (listener), ignorando.'); }
 
     // ===== OBSERVER: Detecta quando Custos/Itens é aberto =====
     // Cache de permissões (atualiza a cada 10s ou no primeiro check)
@@ -44,7 +44,7 @@
             return;
         }
         try {
-            chrome.storage.local.get(['enabledAgents', 'userProfile'], function(d) {
+            chrome.storage.local.get(['enabledAgents', 'userProfile'], function (d) {
                 // Master ou sem perfil definido = tudo liberado
                 if (!d.userProfile || d.userProfile === 'master' || !d.enabledAgents) {
                     _allowedAgents = ['chequeio-op', 'chequeio-fin'];
@@ -55,10 +55,10 @@
                 var needed = modulo === 'operacional' ? 'chequeio-op' : 'chequeio-fin';
                 callback(_allowedAgents.indexOf(needed) >= 0);
             });
-        } catch(e) { console.log(TAG, 'Context invalidated (storage), ignorando.'); }
+        } catch (e) { console.log(TAG, 'Context invalidated (storage), ignorando.'); }
     }
 
-    var observer = new MutationObserver(function() {
+    var observer = new MutationObserver(function () {
         // Guard: se extensão recarregou, para de observar
         if (!isContextValid()) {
             observer.disconnect();
@@ -70,12 +70,12 @@
             checkBtnInjected = false;
         }
         if (checkBtnInjected) return;
-        
+
         var modulo = getModulo();
         if (!modulo) return;
 
         // Verifica permissão do perfil antes de injetar
-        checkPermission(modulo, function(allowed) {
+        checkPermission(modulo, function (allowed) {
             if (!allowed) return;
 
             if (modulo === 'operacional') {
@@ -134,10 +134,10 @@
         btn.id = 'sk-check-btn';
         btn.textContent = 'Chequeio';
         btn.style.cssText = 'margin-left:10px;padding:6px 18px;background:linear-gradient(135deg,#6C63FF,#4ECDC4);color:#fff;border:none;border-radius:6px;font-weight:bold;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(108,99,255,0.3);transition:all 0.2s;';
-        btn.onmouseenter = function() { btn.style.transform = 'scale(1.05)'; btn.style.boxShadow = '0 4px 15px rgba(108,99,255,0.5)'; };
-        btn.onmouseleave = function() { btn.style.transform = 'scale(1)'; btn.style.boxShadow = '0 2px 8px rgba(108,99,255,0.3)'; };
+        btn.onmouseenter = function () { btn.style.transform = 'scale(1.05)'; btn.style.boxShadow = '0 4px 15px rgba(108,99,255,0.5)'; };
+        btn.onmouseleave = function () { btn.style.transform = 'scale(1)'; btn.style.boxShadow = '0 2px 8px rgba(108,99,255,0.3)'; };
 
-        btn.addEventListener('click', function(e) {
+        btn.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
             runCheck();
@@ -157,7 +157,7 @@
         // 1. Lê tabela de Custos/Itens
         var custos = readCustosTable(modulo);
         console.log(TAG, 'Itens lidos:', custos.length, 'linhas');
-        custos.forEach(function(c) {
+        custos.forEach(function (c) {
             console.log(TAG, '  Item:', c.taxa, '|', c.moeda, '|', c.totalVenda);
         });
 
@@ -179,7 +179,7 @@
         updateLoadingPanel('Analisando cotação...');
         var cotacaoItems = parseCotacaoPDF(pdfText);
         console.log(TAG, 'Cotação parseada:', cotacaoItems.length, 'itens');
-        cotacaoItems.forEach(function(c) {
+        cotacaoItems.forEach(function (c) {
             console.log(TAG, '  Cotação:', c.taxa, '|', c.moeda, '|', c.valor);
         });
 
@@ -193,8 +193,8 @@
 
         // Analytics: registra checagem
         try {
-            var erros = results.filter(function(r) { return r.status === 'error' || r.status === 'warning'; }).length;
-            var acertos = results.filter(function(r) { return r.status === 'success' || r.status === 'ok'; }).length;
+            var erros = results.filter(function (r) { return r.status === 'error' || r.status === 'warning'; }).length;
+            var acertos = results.filter(function (r) { return r.status === 'success' || r.status === 'ok'; }).length;
             AtomAnalytics.log('check', 'chequeio_concluido', {
                 modulo: modulo,
                 totalItens: custos.length,
@@ -202,24 +202,24 @@
                 itensOk: acertos,
                 taxaAcerto: custos.length > 0 ? Math.round((acertos / custos.length) * 100) : 0
             });
-        } catch(e) {}
+        } catch (e) { }
     }
 
     // ===== LÊ TABELA DE CUSTOS (operacional) OU ITENS (financeiro) =====
     function readCustosTable(modulo) {
         var items = [];
-        
+
         // PrimeNG datatable usa DUAS tabelas separadas:
         // Header: ui-datatable-scrollable-header-box > table (THs)
         // Body:   ui-datatable-scrollable-table-wrapper > table (TDs)
-        
+
         var headerTable = null;
         var allTables = document.querySelectorAll('table');
 
         for (var t = 0; t < allTables.length; t++) {
             var headers = allTables[t].querySelectorAll('th');
             if (headers.length < 5) continue;
-            
+
             var colNames = [];
             for (var h = 0; h < headers.length; h++) {
                 colNames.push((headers[h].textContent || '').trim().toLowerCase());
@@ -279,18 +279,18 @@
         // Encontra a tabela BODY (irmã do header)
         var bodyTable = null;
         var headerBox = headerTable.closest('.ui-datatable-scrollable-header-box, .ui-datatable-scrollable-header');
-        
+
         if (headerBox) {
             var datatableContainer = headerBox.parentElement;
             if (datatableContainer) datatableContainer = datatableContainer.parentElement;
             if (!datatableContainer) datatableContainer = headerBox.parentElement;
-            
+
             var bodyWrapper = datatableContainer ? datatableContainer.querySelector('.ui-datatable-scrollable-table-wrapper') : null;
             if (bodyWrapper) {
                 bodyTable = bodyWrapper.querySelector('table');
             }
         }
-        
+
         if (!bodyTable) {
             // Fallback: próxima tabela com TDs
             var foundHeader = false;
@@ -357,10 +357,10 @@
         }
         // Checa se Arquivos já está aberto (no financeiro, fica aberto entre processos)
         var accHeader = archivosTab.closest('.ui-accordion-header') || archivosTab;
-        var isAlreadyOpen = accHeader.classList.contains('ui-state-active') || 
-                            accHeader.getAttribute('aria-selected') === 'true' ||
-                            accHeader.getAttribute('aria-expanded') === 'true';
-        
+        var isAlreadyOpen = accHeader.classList.contains('ui-state-active') ||
+            accHeader.getAttribute('aria-selected') === 'true' ||
+            accHeader.getAttribute('aria-expanded') === 'true';
+
         if (isAlreadyOpen) {
             console.log(TAG, 'Arquivos já está aberto, não clica pra não fechar');
         } else {
@@ -393,7 +393,7 @@
 
         for (var attempt = 0; attempt < 15; attempt++) {
             var scopeRows = arquivosScope.querySelectorAll('tr');
-            
+
             // Se scope está vazio, o accordion pode não ter expandido — re-clica
             if (scopeRows.length === 0) {
                 if (attempt > 0 && attempt % 3 === 0) {
@@ -470,10 +470,10 @@
             console.log(TAG, 'Sem link direto, usando captureNewTabUrl...');
             window._checkDlBtn = dlBtn;
 
-            var urlResponse = await new Promise(function(resolve) {
+            var urlResponse = await new Promise(function (resolve) {
                 chrome.runtime.sendMessage(
                     { action: 'captureNewTabUrl_check' },
-                    function(response) { resolve(response); }
+                    function (response) { resolve(response); }
                 );
             });
 
@@ -502,9 +502,9 @@
             var blob = await resp.blob();
             console.log(TAG, 'PDF blob:', blob.size, 'bytes, tipo:', blob.type);
 
-            var base64 = await new Promise(function(resolve) {
+            var base64 = await new Promise(function (resolve) {
                 var reader = new FileReader();
-                reader.onload = function() { resolve(reader.result.split(',')[1]); };
+                reader.onload = function () { resolve(reader.result.split(',')[1]); };
                 reader.readAsDataURL(blob);
             });
 
@@ -520,7 +520,7 @@
             for (var pg = 1; pg <= pdfDoc.numPages; pg++) {
                 var page = await pdfDoc.getPage(pg);
                 var textContent = await page.getTextContent();
-                var pageText = textContent.items.map(function(item) { return item.str; }).join('\n');
+                var pageText = textContent.items.map(function (item) { return item.str; }).join('\n');
                 fullText += pageText + '\n\n';
             }
 
@@ -559,14 +559,14 @@
 
         // Abordagem: pega todas as linhas, procura cada ocorrência de USD/BRL standalone
         // Pra cada uma, olha pra trás pra achar o nome da taxa, e pra frente pra achar os números
-        var lines = allLines.map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
-        
+        var lines = allLines.map(function (l) { return l.trim(); }).filter(function (l) { return l.length > 0; });
+
         // Palavras que NÃO são nomes de taxa
-        var skipWords = ['taxa', 'tipo de cobrança', 'tipo de cobranca', 'equipamento', 'moeda', 
-                         'mínimo', 'minimo', 'valor unitário', 'valor unitario', 'total',
-                         'por container', 'por bl', 'por ton', '-', 'custos de frete', 
-                         'custos no destino', 'custos na origem', 'informações adicionais',
-                         'volume', 'equip/embalagem', 'commodity', 'observações', 'observacoes'];
+        var skipWords = ['taxa', 'tipo de cobrança', 'tipo de cobranca', 'equipamento', 'moeda',
+            'mínimo', 'minimo', 'valor unitário', 'valor unitario', 'total',
+            'por container', 'por bl', 'por ton', '-', 'custos de frete',
+            'custos no destino', 'custos na origem', 'informações adicionais',
+            'volume', 'equip/embalagem', 'commodity', 'observações', 'observacoes'];
 
         // Encontra a PRIMEIRA opção no PDF (pode ser Opção 1, 2, 3...)
         var firstOpcaoNum = 0;
@@ -598,7 +598,7 @@
             if (line !== 'USD' && line !== 'BRL' && line !== '%') continue;
 
             var moeda = line;
-            
+
             // Olha PRA TRÁS pra achar o nome da taxa (máx 5 linhas)
             // Pattern PDF normal: [Taxa] → [Tipo de Cobrança] → [Moeda] → [números]
             // Pattern PDF LCL:    [Taxa] → [Tipo de Cobrança] → [Equipamento] → [Moeda] → [números]
@@ -606,7 +606,7 @@
             for (var back = m - 1; back >= Math.max(0, m - 6); back--) {
                 var candidate = lines[back];
                 var candLower = candidate.toLowerCase();
-                
+
                 // Pula números, moedas, palavras de header, linhas curtas
                 if (candidate.match(/^[\d.,]+$/) || candidate.match(/^\d/)) continue;
                 if (candidate === 'USD' || candidate === 'BRL' || candidate === '%') continue;
@@ -622,7 +622,7 @@
                 // Pula "Equipamento" — coluna extra em cotações LCL
                 if (candLower === 'lcl' || candLower === 'fcl') continue;
                 if (candLower === 'carga solta') continue;
-                
+
                 taxaName = candidate;
                 break;
             }
@@ -685,25 +685,30 @@
     // ===== COMPARA LINHA POR LINHA =====
     function compareLineByLine(custos, cotacao) {
         var results = [];
+        var usedCustos = {}; // Marca itens do sistema já pareados (1-para-1)
 
-        // Pra cada item da cotação, busca match nos custos
+        // Pra cada item da cotação, busca o MELHOR match NÃO-USADO nos custos
         for (var c = 0; c < cotacao.length; c++) {
             var cotItem = cotacao[c];
             var bestMatch = null;
             var bestScore = 0;
+            var bestIdx = -1;
 
             for (var k = 0; k < custos.length; k++) {
+                if (usedCustos[k]) continue; // Já pareado com outro item
                 var score = fuzzyMatch(cotItem.taxa, custos[k].taxa);
                 if (score > bestScore) {
                     bestScore = score;
                     bestMatch = custos[k];
+                    bestIdx = k;
                 }
             }
 
             if (bestMatch && bestScore >= 0.5) {
+                usedCustos[bestIdx] = true; // Marca como usado
                 var match = cotItem.valorNum === bestMatch.totalVendaNum;
-                var moedaMatch = !cotItem.moeda || !bestMatch.moeda || 
-                                 cotItem.moeda.toUpperCase() === bestMatch.moeda.toUpperCase();
+                var moedaMatch = !cotItem.moeda || !bestMatch.moeda ||
+                    cotItem.moeda.toUpperCase() === bestMatch.moeda.toUpperCase();
 
                 results.push({
                     status: match && moedaMatch ? 'ok' : 'divergencia',
@@ -728,26 +733,18 @@
             }
         }
 
-        // Verifica custos que não estão na cotação
+        // Verifica custos NÃO-USADOS que não estão na cotação
         for (var k2 = 0; k2 < custos.length; k2++) {
-            if (custos[k2].totalVendaNum <= 0) continue; // Pula custos zerados
-            
-            var found = false;
-            for (var c2 = 0; c2 < cotacao.length; c2++) {
-                if (fuzzyMatch(custos[k2].taxa, cotacao[c2].taxa) >= 0.5) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                results.push({
-                    status: 'extra_custos',
-                    taxaCustos: custos[k2].taxa,
-                    moedaCustos: custos[k2].moeda,
-                    valorCustos: custos[k2].totalVenda,
-                    message: 'Taxa nos Custos sem correspondente na cotação'
-                });
-            }
+            if (usedCustos[k2]) continue; // Já pareado
+            if (custos[k2].totalVendaNum <= 0) continue;
+
+            results.push({
+                status: 'extra_custos',
+                taxaCustos: custos[k2].taxa,
+                moedaCustos: custos[k2].moeda,
+                valorCustos: custos[k2].totalVenda,
+                message: 'Taxa nos Custos sem correspondente na cotação'
+            });
         }
 
         return results;
@@ -824,11 +821,11 @@
         removePanel();
         var panel = createPanel();
 
-        var okCount = results.filter(function(r) { return r.status === 'ok'; }).length;
-        var divCount = results.filter(function(r) { return r.status === 'divergencia'; }).length;
-        var missCount = results.filter(function(r) { return r.status === 'faltando_custos'; }).length;
-        var extraCount = results.filter(function(r) { return r.status === 'extra_custos'; }).length;
-        var errorCount = results.filter(function(r) { return r.status === 'error'; }).length;
+        var okCount = results.filter(function (r) { return r.status === 'ok'; }).length;
+        var divCount = results.filter(function (r) { return r.status === 'divergencia'; }).length;
+        var missCount = results.filter(function (r) { return r.status === 'faltando_custos'; }).length;
+        var extraCount = results.filter(function (r) { return r.status === 'extra_custos'; }).length;
+        var errorCount = results.filter(function (r) { return r.status === 'error'; }).length;
 
         // Calcula totais por moeda
         var totais = { oferta: {}, sistema: {} };
@@ -972,7 +969,7 @@
         // Minimize toggle
         var minBtn = document.getElementById('sk-check-minimize');
         if (minBtn) {
-            minBtn.addEventListener('click', function() {
+            minBtn.addEventListener('click', function () {
                 var body = document.getElementById('sk-check-body');
                 var p = document.getElementById('sk-check-panel');
                 if (body.style.display === 'none') {
@@ -1024,6 +1021,6 @@
         return null;
     }
 
-    function delay(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+    function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
 })();
