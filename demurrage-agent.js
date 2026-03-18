@@ -736,62 +736,64 @@
 
         showDmToast('Abrindo email...', '#6C63FF');
 
-        // 1. Clica no botão "Novo email" do Outlook
-        var newMailBtn = document.querySelector('button[aria-label*="mail"], button[aria-label*="email"], button[aria-label*="Novo"], button[aria-label*="New"]');
+        // 1. Clica no botão "Novo email" — seletor EXATO do Outlook Web
+        var newMailBtn = document.querySelector('button[aria-label="Novo email"]');
         if (!newMailBtn) {
-            // Tenta por texto
-            var btns = document.querySelectorAll('button');
-            for (var i = 0; i < btns.length; i++) {
-                var txt = btns[i].textContent.trim();
-                if (txt === 'Novo email' || txt === 'New mail' || txt === 'Novo' || txt === 'New email') {
-                    newMailBtn = btns[i];
-                    break;
-                }
-            }
+            showDmToast('Botão "Novo email" não encontrado.', '#f87171');
+            return;
         }
-        if (!newMailBtn) {
-            // Fallback: usa atalho Ctrl+N do Outlook Web
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }));
-        } else {
-            newMailBtn.click();
-        }
+        newMailBtn.click();
 
-        // 2. Espera o compose form aparecer e preenche
+        // 2. Espera o compose form aparecer (detect pelo campo Assunto)
         var attempts = 0;
         var fillInterval = setInterval(function() {
             attempts++;
-            if (attempts > 30) { // 6 segundos
+            if (attempts > 40) { // 8 segundos
                 clearInterval(fillInterval);
                 showDmToast('Compose não abriu. Tente manualmente.', '#f87171');
                 return;
             }
 
-            // Procura o campo de assunto (indica que compose abriu)
-            var subjectInput = document.querySelector('input[aria-label*="assunto"], input[aria-label*="ubject"], input[aria-label*="Assunto"], input[aria-label*="Subject"]');
+            // Seletor EXATO: input[aria-label="Assunto"]
+            var subjectInput = document.querySelector('input[aria-label="Assunto"]');
             if (!subjectInput) return;
 
             clearInterval(fillInterval);
 
-            // Preenche assunto
-            subjectInput.focus();
-            subjectInput.value = subject;
+            // Preenche ASSUNTO via nativeInputValueSetter (React-safe)
+            var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            nativeSetter.call(subjectInput, subject);
             subjectInput.dispatchEvent(new Event('input', { bubbles: true }));
-            subjectInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-            // Preenche destinatário
+            // Preenche PARA — div[contenteditable="true"][aria-label="Para"]
             setTimeout(function() {
-                var toField = document.querySelector('input[aria-label*="Para"], input[aria-label*="To"], div[aria-label*="Para"] input, div[aria-label*="To"] input');
-                if (toField) {
-                    toField.focus();
-                    toField.value = to;
-                    toField.dispatchEvent(new Event('input', { bubbles: true }));
-                    // Simula Enter pra confirmar cada destinatário
-                    toField.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+                var toDiv = document.querySelector('div[contenteditable="true"][aria-label="Para"]');
+                if (toDiv) {
+                    toDiv.focus();
+                    // Digita cada email e confirma com Enter
+                    var emails = to.split(';');
+                    function typeNextEmail(idx) {
+                        if (idx >= emails.length) {
+                            fillBody();
+                            return;
+                        }
+                        var email = emails[idx].trim();
+                        document.execCommand('insertText', false, email);
+                        setTimeout(function() {
+                            toDiv.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                            setTimeout(function() { typeNextEmail(idx + 1); }, 300);
+                        }, 200);
+                    }
+                    typeNextEmail(0);
+                } else {
+                    fillBody();
                 }
+            }, 500);
 
-                // Preenche body
+            // Preenche CORPO — div[contenteditable="true"][aria-label="Corpo da mensagem"]
+            function fillBody() {
                 setTimeout(function() {
-                    var bodyDiv = document.querySelector('div[aria-label*="corpo"], div[aria-label*="body"], div[aria-label*="Corpo"], div[aria-label*="Body"], div[role="textbox"][contenteditable="true"]');
+                    var bodyDiv = document.querySelector('div[contenteditable="true"][aria-label="Corpo da mensagem"]');
                     if (bodyDiv) {
                         bodyDiv.focus();
                         bodyDiv.innerHTML = bodyHtml;
@@ -800,7 +802,7 @@
                     showDmToast('Relatório preenchido! Revise e envie.', '#22c55e');
                     console.log(TAG, 'Email compose preenchido —', riskItems.length, 'processos');
                 }, 500);
-            }, 500);
+            }
         }, 200);
     }
 
