@@ -704,10 +704,14 @@
         var to = 'gabriela.cordeiro@mondshipping.com.br;raphaela.germano@mondshipping.com.br';
         var subject = 'Demurrage - Processos em Risco (' + today + ')';
 
+        // Saudação baseada no horário
+        var hour = new Date().getHours();
+        var greeting = hour < 12 ? 'Bom dia!' : hour < 18 ? 'Boa tarde!' : 'Boa noite!';
+
         // Monta HTML do body
-        var bodyHtml = '<p>Bom dia!</p>';
+        var bodyHtml = '<p>' + greeting + '</p>';
         bodyHtml += '<p>Segue relat&oacute;rio com <b>' + riskItems.length + '</b> processo(s) em risco:</p>';
-        bodyHtml += '<table style="border-collapse:collapse;font-family:Segoe UI,sans-serif;font-size:12px;width:100%;">';
+        bodyHtml += '<table style="border-collapse:collapse;font-family:Segoe UI,sans-serif;font-size:12px;width:100%;margin-top:12px;">';
         bodyHtml += '<tr style="background:#1e293b;color:#f1f5f9;">';
         bodyHtml += '<th style="padding:6px 8px;text-align:left;">Processo</th>';
         bodyHtml += '<th style="padding:6px 8px;text-align:left;">Cliente</th>';
@@ -778,11 +782,16 @@
                             return;
                         }
                         var email = emails[idx].trim();
+                        toDiv.focus();
                         document.execCommand('insertText', false, email);
                         setTimeout(function() {
-                            toDiv.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-                            setTimeout(function() { typeNextEmail(idx + 1); }, 300);
-                        }, 200);
+                            // Tab resolve o email no Outlook Web
+                            toDiv.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, which: 9, bubbles: true }));
+                            setTimeout(function() {
+                                toDiv.focus();
+                                typeNextEmail(idx + 1);
+                            }, 500);
+                        }, 300);
                     }
                     typeNextEmail(0);
                 } else {
