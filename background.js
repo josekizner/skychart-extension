@@ -966,6 +966,25 @@ Os valores estão corretos? Responda APENAS com JSON:
     return true;
   }
 
+  // ===== FIREBASE: Cache compartilhado de dados demurrage =====
+  if (request.action === 'getDemurrageCache') {
+    fetch(`${FIREBASE_URL}/demurrage/cache.json`)
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.items && data.items.length > 0) {
+          console.log('[Firebase] Cache demurrage:', data.items.length, 'processos, idade:', Math.round((Date.now() - data.timestamp) / 60000), 'min');
+          try { sendResponse({ success: true, data: data.items, timestamp: data.timestamp }); } catch(e) {}
+        } else {
+          try { sendResponse({ success: false, reason: 'empty' }); } catch(e) {}
+        }
+      })
+      .catch(err => {
+        console.error('[Firebase] Erro ao ler cache:', err);
+        try { sendResponse({ success: false, error: err.message }); } catch(e) {}
+      });
+    return true;
+  }
+
   if (request.action === 'setDemurrageResolved') {
     const proc = request.processo;
     const payload = {
@@ -1218,6 +1237,16 @@ Os valores estão corretos? Responda APENAS com JSON:
       chrome.storage.local.set({ demurrageData: activeResults, demurrageTimestamp: Date.now() }, () => {
         console.log('[Demurrage] Dados salvos no storage! Enviando ACK...');
         try { sendResponse({ success: true, fromStorage: true, count: activeResults.length }); } catch(e) { /* port closed, content script vai ler do storage */ }
+
+        // Salva no Firebase pra todos os PCs
+        try {
+          fetch(`${FIREBASE_URL}/demurrage/cache.json`, {
+            method: 'PUT',
+            body: JSON.stringify({ items: activeResults, timestamp: Date.now() })
+          }).then(() => {
+            console.log('[Firebase] Cache demurrage atualizado —', activeResults.length, 'processos');
+          }).catch(err => console.error('[Firebase] Erro ao salvar cache:', err));
+        } catch(e) {}
       });
     })
     .catch(err => {

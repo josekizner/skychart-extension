@@ -161,24 +161,40 @@
             if (resolvedLoaded) return;
             resolvedLoaded = true;
 
-            // PASSO 2: Mostra cache ou loading
+            // PASSO 2: Mostra cache local ou Firebase cache
             if (!forceRefresh) {
                 chrome.storage.local.get(['demurrageData', 'demurrageTimestamp'], function(d) {
                     if (d.demurrageData && d.demurrageData.length > 0) {
                         _data = d.demurrageData;
                         updateBadge(getActiveData());
                         renderTable(_data);
-                        console.log(TAG, 'Cache:', _data.length, 'registros, resolvidos:', Object.keys(_resolvedMap).length);
+                        console.log(TAG, 'Cache local:', _data.length, 'registros, resolvidos:', Object.keys(_resolvedMap).length);
+                        fetchFromAPI(); // Atualiza em background
                     } else {
-                        content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando dados pela primeira vez...</div>';
+                        // Sem cache local — tenta Firebase cache (instantâneo!)
+                        content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Buscando dados compartilhados...</div>';
+                        try {
+                            chrome.runtime.sendMessage({ action: 'getDemurrageCache' }, function(resp) {
+                                if (chrome.runtime.lastError) { fetchFromAPI(); return; }
+                                if (resp && resp.success && resp.data && resp.data.length > 0) {
+                                    _data = resp.data;
+                                    // Salva localmente pra próxima vez ser instantâneo
+                                    chrome.storage.local.set({ demurrageData: resp.data, demurrageTimestamp: resp.timestamp });
+                                    updateBadge(getActiveData());
+                                    renderTable(_data);
+                                    console.log(TAG, 'Firebase cache:', _data.length, 'registros');
+                                }
+                                fetchFromAPI(); // Atualiza em background de qualquer forma
+                            });
+                        } catch(e) { fetchFromAPI(); }
+                        // Timeout: se Firebase não responder em 5s, vai pra API
+                        setTimeout(fetchFromAPI, 5000);
                     }
                 });
             } else {
                 content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Atualizando...</div>';
+                fetchFromAPI();
             }
-
-            // PASSO 3: Busca dados novos da API em background
-            fetchFromAPI();
         }
 
         // Firebase: busca resolvidos (timeout 3s se não responder)
@@ -196,7 +212,10 @@
         // Fallback: se Firebase demorar mais de 3s, segue sem
         setTimeout(onResolvedLoaded, 3000);
 
+        var _apiFetching = false;
         function fetchFromAPI() {
+            if (_apiFetching) return;
+            _apiFetching = true;
             // REFRESH da API
             try {
                 chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
