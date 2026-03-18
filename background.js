@@ -24,9 +24,11 @@ function checkForUpdate() {
     .catch(() => {}); // silencioso
 }
 
-// Primeira checagem 15s após start, depois a cada 1 min
-setTimeout(checkForUpdate, 15000);
-setInterval(checkForUpdate, 60 * 1000);
+// chrome.alarms: sobrevive ao shutdown do service worker (setInterval NÃO sobrevive)
+chrome.alarms.create('atomAutoReload', { delayInMinutes: 0.25, periodInMinutes: 1 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'atomAutoReload') checkForUpdate();
+});
 
 // API config
 const _b = 'QUl6YVN5QTVwOU41a1hLQ1hYRm9aZ3FZcl9HMjNwTkFLZERHYUhV';

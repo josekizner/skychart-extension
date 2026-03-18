@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Atom - Multiagentes | Mond Shipping",
-  "version": "2.6",
+  "version": "2.7",
   "description": "Plataforma de multiagentes inteligentes para automação de processos Mond Shipping.",
   "permissions": [
     "storage",
     "activeTab",
     "tabs",
     "debugger",
-    "notifications"
+    "notifications",
+    "alarms"
   ],
   "host_permissions": [
     "https://app2.skychart.com.br/*",

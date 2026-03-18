@@ -102,25 +102,34 @@ if not defined PROFILE (
 echo {"profile":"%PROFILE%"} > "%INSTALL_DIR%\local-config.json"
 echo Perfil configurado: %PROFILE%
 
-:: ===== 4. INSTALA AUTO-UPDATE =====
+:: ===== 4. INSTALA AUTO-UPDATE (Scheduled Task - mais confiavel que VBS) =====
 echo.
 echo [4/5] Instalando auto-update...
 
-set VBS_FILE=%INSTALL_DIR%\skychart-autoupdate.vbs
+:: Remove VBS antigo se existir
+if exist "%STARTUP_DIR%\%SHORTCUT_NAME%.vbs" del "%STARTUP_DIR%\%SHORTCUT_NAME%.vbs" 2>nul
 
-:: Cria o VBS que roda git pull invisivel
-(
-echo Set WshShell = CreateObject^("WScript.Shell"^)
-echo WshShell.Run "cmd /c cd /d ""%INSTALL_DIR%"" ^&^& :LOOP ^&^& git pull origin main --quiet 2^>nul ^&^& timeout /t 300 /nobreak ^>nul ^&^& goto LOOP", 0, False
-) > "%VBS_FILE%"
+:: Remove task anterior se existir
+schtasks /delete /tn "AtomAutoUpdate" /f 2>nul
 
-:: Copia pro Startup
-copy /y "%VBS_FILE%" "%STARTUP_DIR%\%SHORTCUT_NAME%.vbs" >nul 2>nul
+:: Cria Scheduled Task que roda git pull a cada 2 minutos
+schtasks /create /tn "AtomAutoUpdate" /tr "cmd /c cd /d \"%INSTALL_DIR%\" && git pull origin main --quiet 2>nul" /sc MINUTE /mo 2 /f >nul 2>nul
 
-:: Inicia agora
-start "" wscript.exe "%STARTUP_DIR%\%SHORTCUT_NAME%.vbs"
-
-echo Auto-update instalado e rodando!
+if %ERRORLEVEL% equ 0 (
+    echo Auto-update instalado via Scheduled Task!
+    echo   Frequencia: a cada 2 minutos
+    echo   Gerenciado pelo Windows - nao para nunca
+) else (
+    echo AVISO: Scheduled Task falhou. Usando metodo VBS como fallback...
+    set VBS_FILE=%INSTALL_DIR%\skychart-autoupdate.vbs
+    (
+    echo Set WshShell = CreateObject^("WScript.Shell"^)
+    echo WshShell.Run "cmd /c cd /d ""%INSTALL_DIR%"" ^&^& :LOOP ^&^& git pull origin main --quiet 2^>nul ^&^& timeout /t 120 /nobreak ^>nul ^&^& goto LOOP", 0, False
+    ) > "%VBS_FILE%"
+    copy /y "%VBS_FILE%" "%STARTUP_DIR%\%SHORTCUT_NAME%.vbs" >nul 2>nul
+    start "" wscript.exe "%STARTUP_DIR%\%SHORTCUT_NAME%.vbs"
+    echo Auto-update instalado via VBS fallback!
+)
 
 :: ===== 5. INSTRUCOES FINAIS =====
 echo.
