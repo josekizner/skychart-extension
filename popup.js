@@ -150,3 +150,9 @@ document.getElementById('admin-save').addEventListener('click', function() {
     }, 1200);
   });
 });
+
+// Versão dinâmica do manifest
+try {
+  var vEl = document.getElementById('popup-version');
+  if (vEl) vEl.textContent = 'v' + chrome.runtime.getManifest().version;
+} catch(e) {}

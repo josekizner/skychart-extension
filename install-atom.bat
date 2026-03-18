@@ -112,8 +112,8 @@ if exist "%STARTUP_DIR%\%SHORTCUT_NAME%.vbs" del "%STARTUP_DIR%\%SHORTCUT_NAME%.
 :: Remove task anterior se existir
 schtasks /delete /tn "AtomAutoUpdate" /f 2>nul
 
-:: Cria Scheduled Task que roda git pull a cada 2 minutos
-schtasks /create /tn "AtomAutoUpdate" /tr "cmd /c cd /d \"%INSTALL_DIR%\" && git pull origin main --quiet 2>nul" /sc MINUTE /mo 2 /f >nul 2>nul
+:: Cria Scheduled Task que roda git pull a cada 2 minutos (INVISIVEL)
+schtasks /create /tn "AtomAutoUpdate" /tr "powershell.exe -WindowStyle Hidden -Command \"Set-Location '%INSTALL_DIR%'; git pull origin main --quiet 2>$null\"" /sc MINUTE /mo 2 /f >nul 2>nul
 
 if %ERRORLEVEL% equ 0 (
     echo Auto-update instalado via Scheduled Task!
