@@ -64,12 +64,15 @@ function applyPermissions(agents, profile) {
   document.getElementById('profile-name').textContent = LABELS[profile] || profile;
   var gearBtn = document.getElementById('gear-btn');
   var configSection = document.querySelector('.settings-card');
+  var dashBtn = document.getElementById('open-dash');
   if (profile !== 'master') {
     if (gearBtn) gearBtn.style.display = 'none';
     if (configSection) configSection.style.display = 'none';
+    if (dashBtn) dashBtn.style.display = 'none';
   } else {
     if (gearBtn) gearBtn.style.display = '';
     if (configSection) configSection.style.display = '';
+    if (dashBtn) dashBtn.style.display = '';
   }
 }
 
