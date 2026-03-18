@@ -1,3 +1,33 @@
+// ===== AUTO-RELOAD: Verifica versão e recarrega se desatualizado =====
+const CURRENT_VERSION = chrome.runtime.getManifest().version;
+const _FIREBASE_BASE = 'https://mond-atom-default-rtdb.firebaseio.com';
+
+// Quando instala ou atualiza, publica versão no Firebase
+chrome.runtime.onInstalled.addListener(() => {
+  fetch(`${_FIREBASE_BASE}/system/latestVersion.json`, {
+    method: 'PUT',
+    body: JSON.stringify(CURRENT_VERSION)
+  }).then(() => console.log('[AutoReload] Versão publicada:', CURRENT_VERSION))
+    .catch(() => {});
+});
+
+// Checa versão a cada 5 minutos
+function checkForUpdate() {
+  fetch(`${_FIREBASE_BASE}/system/latestVersion.json`)
+    .then(r => r.json())
+    .then(latestVersion => {
+      if (latestVersion && latestVersion !== CURRENT_VERSION) {
+        console.log('[AutoReload] Nova versão detectada:', latestVersion, '(atual:', CURRENT_VERSION + '). Recarregando...');
+        chrome.runtime.reload();
+      }
+    })
+    .catch(() => {}); // silencioso
+}
+
+// Primeira checagem 30s após start, depois a cada 5 min
+setTimeout(checkForUpdate, 30000);
+setInterval(checkForUpdate, 5 * 60 * 1000);
+
 // API config
 const _b = 'QUl6YVN5QTVwOU41a1hLQ1hYRm9aZ3FZcl9HMjNwTkFLZERHYUhV';
 const GEMINI_API_KEY = atob(_b);
@@ -39,33 +69,6 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         return;
     }
 });
-
-// ===== AUTO-UPDATE COM AUTO-RELOAD =====
-const CURRENT_VERSION = "2.4.0";
-const UPDATE_CHECK_URL = "https://raw.githubusercontent.com/josekizner/skychart-extension/main/version.json";
-const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutos
-
-// Checa updates periodicamente
-if (UPDATE_CHECK_URL) {
-  setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
-  // Check inicial após 60 segundos
-  setTimeout(checkForUpdates, 60000);
-}
-
-async function checkForUpdates() {
-  if (!UPDATE_CHECK_URL) return;
-  try {
-    const response = await fetch(UPDATE_CHECK_URL + '?t=' + Date.now());
-    const remote = await response.json();
-    if (remote.version && remote.version !== CURRENT_VERSION) {
-      console.log("[AutoUpdate] Nova versão detectada:", remote.version, "(atual:", CURRENT_VERSION + ") — RECARREGANDO...");
-      // Recarrega a extensão inteira (content scripts, popup, tudo)
-      chrome.runtime.reload();
-    }
-  } catch (e) {
-    console.log("[AutoUpdate] Check falhou:", e.message);
-  }
-}
 
 // ===== BOOKING TRACKING =====
 var pendingTrackingTabs = {}; // { maerskTabId: skychartTabId }
