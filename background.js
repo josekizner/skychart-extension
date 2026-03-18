@@ -11,40 +11,63 @@ chrome.runtime.onInstalled.addListener((details) => {
   }).then(() => console.log('[AutoReload] Versão publicada:', CURRENT_VERSION))
     .catch(() => {});
 
-  // Re-injeta content scripts em todas as abas abertas (sem precisar F5)
+  // Re-injeta content scripts RESPEITANDO o perfil do usuário
   if (details.reason === 'update' || details.reason === 'install') {
     reinjectContentScripts();
   }
 });
 
-function reinjectContentScripts() {
-  // Lê os content_scripts do manifest
-  var manifest = chrome.runtime.getManifest();
-  var contentScripts = manifest.content_scripts || [];
+// Mapeia qual agent precisa de quais content_scripts do manifest (por índice)
+// Índices: 0=skychart, 1=maersk, 2=serasa, 3=outlook, 4=hmm
+var AGENT_TO_CS = {
+  'cambio': [0], 'frete': [0], 'tracking': [0,1,4], 'cotacao': [0,3],
+  'chequeio-op': [0], 'chequeio-fin': [0], 'frequencia': [0],
+  'booking': [0,3], 'serasa': [0,2], 'demurrage': [3]
+};
 
-  contentScripts.forEach(function(cs) {
-    var patterns = cs.matches || [];
-    // Busca abas que correspondem aos patterns
-    patterns.forEach(function(pattern) {
-      chrome.tabs.query({ url: pattern }, function(tabs) {
-        if (chrome.runtime.lastError || !tabs) return;
-        tabs.forEach(function(tab) {
-          // Injeta JS
-          if (cs.js && cs.js.length > 0) {
-            chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              files: cs.js
-            }).then(() => {
-              console.log('[ReInject] JS injetado em', tab.url.substring(0, 50));
-            }).catch(() => {}); // silencioso se falhar
-          }
-          // Injeta CSS
-          if (cs.css && cs.css.length > 0) {
-            chrome.scripting.insertCSS({
-              target: { tabId: tab.id },
-              files: cs.css
-            }).catch(() => {});
-          }
+function reinjectContentScripts() {
+  // Busca o perfil do usuário antes de injetar
+  chrome.storage.local.get(['enabledAgents', 'userProfile'], function(d) {
+    if (chrome.runtime.lastError) return;
+    var enabledAgents = d.enabledAgents || [];
+    var profile = d.userProfile || 'master';
+    console.log('[ReInject] Perfil:', profile, '| Agentes:', enabledAgents.join(','));
+
+    // Descobre quais content_scripts (por índice) esse perfil precisa
+    var neededCS = {};
+    enabledAgents.forEach(function(agent) {
+      var indices = AGENT_TO_CS[agent] || [];
+      indices.forEach(function(i) { neededCS[i] = true; });
+    });
+
+    var manifest = chrome.runtime.getManifest();
+    var contentScripts = manifest.content_scripts || [];
+
+    Object.keys(neededCS).forEach(function(idxStr) {
+      var idx = parseInt(idxStr);
+      var cs = contentScripts[idx];
+      if (!cs) return;
+
+      var patterns = cs.matches || [];
+      patterns.forEach(function(pattern) {
+        chrome.tabs.query({ url: pattern }, function(tabs) {
+          if (chrome.runtime.lastError || !tabs) return;
+          tabs.forEach(function(tab) {
+            if (cs.js && cs.js.length > 0) {
+              chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: cs.js
+              }).then(() => {
+                console.log('[ReInject] OK:', profile, '→', tab.url.substring(0, 40));
+              }).catch(() => {});
+            }
+            if (cs.css && cs.css.length > 0) {
+              chrome.scripting.insertCSS({
+                target: { tabId: tab.id },
+                files: cs.css
+              }).catch(() => {});
+            }
+          });
         });
       });
     });
