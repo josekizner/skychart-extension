@@ -4,6 +4,21 @@
     'use strict';
 
     var TAG = '[Demurrage]';
+
+    // ===== BLOQUEIO DE ACESSO: só roda se o perfil tem 'demurrage' =====
+    chrome.storage.local.get(['enabledAgents'], function(d) {
+        if (chrome.runtime.lastError) return;
+        var agents = d.enabledAgents || [];
+        if (agents.indexOf('demurrage') === -1) {
+            console.log(TAG, 'Acesso negado — perfil não tem demurrage.');
+            return; // SAI COMPLETAMENTE — nada renderiza
+        }
+        // Perfil autorizado → inicializa o agente
+        initDemurrageAgent();
+    });
+
+    function initDemurrageAgent() {
+
     var _data = null;
     var _resolvedMap = {}; // Firebase: processos marcados como resolvidos
 
@@ -1082,5 +1097,7 @@
     }
 
     console.log(TAG, 'Script carregado');
+
+    } // fim initDemurrageAgent
 
 })();
