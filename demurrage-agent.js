@@ -710,8 +710,9 @@
 
         // Monta HTML do body
         var bodyHtml = '<p>' + greeting + '</p>';
-        bodyHtml += '<p>Segue relat&oacute;rio com <b>' + riskItems.length + '</b> processo(s) em risco:</p>';
-        bodyHtml += '<table style="border-collapse:collapse;font-family:Segoe UI,sans-serif;font-size:12px;width:100%;margin-top:12px;">';
+        bodyHtml += '<p style="margin-bottom:16px;">Segue relat&oacute;rio com <b>' + riskItems.length + '</b> processo(s) em risco:</p>';
+        bodyHtml += '<br>';
+        bodyHtml += '<table style="border-collapse:collapse;font-family:Segoe UI,sans-serif;font-size:12px;width:100%;margin-top:8px;">';
         bodyHtml += '<tr style="background:#1e293b;color:#f1f5f9;">';
         bodyHtml += '<th style="padding:6px 8px;text-align:left;">Processo</th>';
         bodyHtml += '<th style="padding:6px 8px;text-align:left;">Cliente</th>';
