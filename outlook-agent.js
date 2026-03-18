@@ -227,6 +227,7 @@
         setStatus('Lendo email...', true);
         console.log('[Atom Email] Email capturado:', email.subject);
         console.log('[Atom Email] Body length:', email.body.length);
+        try { AtomAnalytics.log('outlook', 'email_capturado', { subject: (email.subject || '').substring(0, 50), bodyLen: email.body.length }); } catch(e) {}
 
         // Expande o painel
         var panel = document.getElementById('atom-outlook-panel');
@@ -245,6 +246,7 @@
         }, function(response) {
             if (response && response.success && response.data) {
                 console.log('[Atom Email] Dados extraidos:', response.data);
+                try { AtomAnalytics.log('outlook', 'cotacao_extraida', { campos: Object.keys(response.data || {}).length }); } catch(e) {}
                 showQuotationPreview(response.data);
                 setStatus('Dados extraidos', true);
             } else {
@@ -507,6 +509,7 @@
         }, function(response) {
             if (response && response.success && response.data) {
                 console.log('[Atom Email] Booking extraido:', response.data);
+                try { AtomAnalytics.log('outlook', 'booking_extraido', { campos: Object.keys(response.data || {}).length }); } catch(e) {}
                 showBookingPreview(response.data);
                 setStatus('Booking extraido', true);
             } else {

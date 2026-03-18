@@ -190,6 +190,19 @@
         // 5. Exibe resultado
         showResultsPanel(results);
         console.log(TAG, '=== CHEQUEIO FINALIZADO ===');
+
+        // Analytics: registra checagem
+        try {
+            var erros = results.filter(function(r) { return r.status === 'error' || r.status === 'warning'; }).length;
+            var acertos = results.filter(function(r) { return r.status === 'success' || r.status === 'ok'; }).length;
+            AtomAnalytics.log('check', 'chequeio_concluido', {
+                modulo: modulo,
+                totalItens: custos.length,
+                errosEncontrados: erros,
+                itensOk: acertos,
+                taxaAcerto: custos.length > 0 ? Math.round((acertos / custos.length) * 100) : 0
+            });
+        } catch(e) {}
     }
 
     // ===== LÊ TABELA DE CUSTOS (operacional) OU ITENS (financeiro) =====

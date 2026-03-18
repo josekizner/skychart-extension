@@ -247,6 +247,17 @@
                     updateBadge(getActiveData());
                     renderTable(_data);
                     console.log(TAG, 'Dados atualizados:', _data.length);
+                    // Analytics: snapshot do portfolio
+                    try {
+                        var stats = { total: _data.length, expirado: 0, alerta: 0, ok: 0, armadores: {} };
+                        _data.forEach(function(p) {
+                            if (p.status === 'expirado') stats.expirado++;
+                            else if (p.status === 'alerta') stats.alerta++;
+                            else stats.ok++;
+                            if (p.armador) stats.armadores[p.armador] = (stats.armadores[p.armador] || 0) + 1;
+                        });
+                        AtomAnalytics.log('demurrage', 'portfolio_snapshot', stats);
+                    } catch(e) {}
                 }
                 resetRefreshBtn();
             });
@@ -290,6 +301,7 @@
                 updateBadge(getActiveData());
                 renderTable(_data);
                 console.log(TAG, processo, resolve ? 'resolvido' : 'reaberto');
+                try { AtomAnalytics.log('demurrage', resolve ? 'processo_resolvido' : 'processo_reaberto', { processo: processo }); } catch(e) {}
             }
         });
     }
@@ -830,6 +842,7 @@
                     }
                     showDmToast('Relatório preenchido! Revise e envie.', '#22c55e');
                     console.log(TAG, 'Email compose preenchido —', riskItems.length, 'processos');
+                    try { AtomAnalytics.log('demurrage', 'relatorio_enviado', { totalProcessos: riskItems.length }); } catch(e) {}
                 }, 500);
             }
         }, 200);

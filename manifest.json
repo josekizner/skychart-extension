@@ -32,6 +32,7 @@
         "https://app2.skychart.com.br/*"
       ],
       "js": [
+        "atom-analytics.js",
         "lib/pdf.min.js",
         "lib/jszip.min.js",
         "debug-panel.js",
@@ -56,6 +57,7 @@
         "https://www.maersk.com/tracking/*"
       ],
       "js": [
+        "atom-analytics.js",
         "maersk-scraper.js"
       ]
     },
@@ -64,6 +66,7 @@
         "https://www.serasaempreendedor.com.br/*"
       ],
       "js": [
+        "atom-analytics.js",
         "serasa-consulta.js"
       ]
     },
@@ -74,6 +77,7 @@
         "https://outlook.cloud.microsoft/*"
       ],
       "js": [
+        "atom-analytics.js",
         "outlook-agent.js",
         "demurrage-agent.js"
       ],
@@ -86,6 +90,7 @@
         "https://www.hmm21.com/*"
       ],
       "js": [
+        "atom-analytics.js",
         "hmm-scraper.js"
       ]
     }

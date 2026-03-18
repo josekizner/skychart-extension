@@ -950,8 +950,21 @@ Os valores estão corretos? Responda APENAS com JSON:
     return true;
   }
 
-  // ===== FIREBASE: Sync de processos resolvidos (demurrage) =====
+  // ===== ATOM ANALYTICS: Log de inteligência no Firebase =====
   const FIREBASE_URL = 'https://mond-atom-default-rtdb.firebaseio.com';
+
+  if (request.action === 'logAtomEvent') {
+    const evt = request.event;
+    if (!evt || !evt.agent) return;
+    const path = `analytics/${evt.agent}`;
+    fetch(`${FIREBASE_URL}/${path}.json`, {
+      method: 'POST',
+      body: JSON.stringify(evt)
+    }).catch(() => {}); // fire-and-forget
+    return; // não precisa de sendResponse
+  }
+
+  // ===== FIREBASE: Sync de processos resolvidos (demurrage) =====
 
   if (request.action === 'getDemurrageResolved') {
     fetch(`${FIREBASE_URL}/demurrage/resolved.json`)

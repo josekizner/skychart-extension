@@ -3640,6 +3640,7 @@ try {
                         limiteCredito: serasaData.limiteCredito
                     }, function() { if (chrome.runtime.lastError) {} });
                     SkDebug.log('Serasa', 'OK', ' Score enviado pro Firebase');
+                    try { AtomAnalytics.log('serasa', 'score_salvo', { cliente: storageKey, score: parseInt(serasaData.score) || 0, limite: serasaData.limiteCredito }); } catch(e) {}
                 } catch(e) {}
             }
         } catch(e) { /* ignora erro de storage */ }
