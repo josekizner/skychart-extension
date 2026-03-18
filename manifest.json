@@ -114,7 +114,10 @@
         "lib/pdf.worker.min.js",
         "page-inject.js",
         "modules/*.json",
-        "zechart-logo.png"
+        "zechart-logo.png",
+        "dashboard.html",
+        "dashboard.css",
+        "dashboard.js"
       ],
       "matches": [
         "https://app2.skychart.com.br/*"
