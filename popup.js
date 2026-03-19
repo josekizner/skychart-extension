@@ -1,8 +1,8 @@
 var PROFILES = {
   master: ['cambio','serasa','frete','tracking','cotacao','chequeio-op','chequeio-fin','frequencia','booking','demurrage'],
-  financeiro: ['cambio','serasa','chequeio-fin'],
-  operacional: ['tracking','frete','chequeio-op','booking'],
-  comercial: ['cotacao','frete','frequencia'],
+  financeiro: ['cambio','serasa','chequeio-fin','demurrage'],
+  operacional: ['tracking','frete','chequeio-op','booking','demurrage'],
+  comercial: ['cotacao','frete','frequencia','demurrage'],
   demurrage: ['demurrage','tracking','frete'],
   'financeiro-demurrage': ['cambio','serasa','chequeio-fin','demurrage']
 };
