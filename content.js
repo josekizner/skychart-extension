@@ -4076,26 +4076,27 @@ try {
 
                 // Auto-click no accordion #demurrage assim que aparecer no DOM
                 (function watchDemurrageAccordion() {
-                    // Checa se já existe
-                    var existing = document.querySelector('#demurrage .ui-accordion-header');
-                    if (existing) {
-                        existing.click();
-                        existing.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        console.log('[Atom Demurrage] Accordion clicado (já existia)');
-                        return;
+                    function clickDemurrage() {
+                        var link = document.querySelector('#demurrage .ui-accordion-header a');
+                        if (!link) link = document.querySelector('#demurrage .ui-accordion-header');
+                        if (link) {
+                            // requestAnimationFrame garante que o Angular já bindou os eventos
+                            requestAnimationFrame(function() {
+                                link.click();
+                                link.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                console.log('[Atom Demurrage] Accordion aberto:', link.tagName);
+                            });
+                            return true;
+                        }
+                        return false;
                     }
+                    // Checa se já existe
+                    if (clickDemurrage()) return;
                     // Observa o DOM até aparecer
                     var obs = new MutationObserver(function() {
-                        var header = document.querySelector('#demurrage .ui-accordion-header');
-                        if (header) {
-                            obs.disconnect();
-                            header.click();
-                            header.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            console.log('[Atom Demurrage] Accordion clicado via MutationObserver');
-                        }
+                        if (clickDemurrage()) obs.disconnect();
                     });
                     obs.observe(document.body, { childList: true, subtree: true });
-                    // Safety: desconecta após 15s pra não ficar rodando eternamente
                     setTimeout(function() { obs.disconnect(); }, 15000);
                 })();
             } else {
