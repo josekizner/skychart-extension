@@ -3207,6 +3207,46 @@ try {
         });
     }
 
+    // Abre um accordion PrimeNG pelo ID (lazy-loaded: conteudo so existe no DOM quando aberto)
+    // Uso: await openAccordion('demurrage')  retorna true/false
+    function openAccordion(accordionId) {
+        return new Promise(function(resolve) {
+            var tab = document.querySelector('#' + accordionId);
+            if (!tab) {
+                var obs = new MutationObserver(function() {
+                    tab = document.querySelector('#' + accordionId);
+                    if (tab) { obs.disconnect(); doOpen(tab); }
+                });
+                obs.observe(document.body, { childList: true, subtree: true });
+                setTimeout(function() { obs.disconnect(); resolve(false); }, 15000);
+                return;
+            }
+            doOpen(tab);
+
+            function doOpen(tabEl) {
+                var header = tabEl.querySelector('.ui-accordion-header');
+                if (!header) { resolve(false); return; }
+                if (header.classList.contains('ui-state-active')) {
+                    resolve(true);
+                    return;
+                }
+                var link = header.querySelector('a') || header;
+                link.click();
+                link.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                console.log('[Atom] Accordion #' + accordionId + ' aberto');
+                var tries = 0;
+                var check = setInterval(function() {
+                    var content = tabEl.querySelector('.ui-accordion-content-wrapper');
+                    if ((content && content.children.length > 0) || tries > 25) {
+                        clearInterval(check);
+                        resolve(tries <= 25);
+                    }
+                    tries++;
+                }, 200);
+            }
+        });
+    }
+
     function updateStatus(msg) { var el = document.getElementById('sk-ai-status'); if (el) el.innerText = msg; }
 
     function showToast(msg, type) {
