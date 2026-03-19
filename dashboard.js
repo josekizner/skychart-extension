@@ -319,7 +319,9 @@
         html += 'ATOM Intelligence v1.1 — Mond Shipping — Dados atualizados a cada 1 minuto';
         html += '</div>';
 
-        document.getElementById('app').innerHTML = html;
+        var appEl = document.getElementById('app');
+        appEl.className = '';
+        appEl.innerHTML = html;
         window.scrollTo(0, 0);
 
         // === BIND INTERACTIVE EVENTS ===
