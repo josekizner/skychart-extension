@@ -109,19 +109,190 @@
     // Store data globally
     var _dashData = {};
 
-    // ===== AGENT CONFIG =====
+    // ===== AGENT CONFIG (extended) =====
     var AGENTS = [
-        { l: 'C', n: 'Câmbio', d: 'Extração de PDF', c: '#C77D05', g: 'rgba(199,125,5,0.06)' },
-        { l: 'S', n: 'Serasa', d: 'Score & crédito', c: '#0891B2', g: 'rgba(8,145,178,0.07)' },
-        { l: 'F', n: 'Frete', d: 'Análise de mercado', c: '#059669', g: 'rgba(5,150,105,0.07)' },
-        { l: 'T', n: 'Tracking', d: 'Rastreio Maersk', c: '#7C3AED', g: 'rgba(124,58,237,0.07)' },
-        { l: 'Q', n: 'Cotação', d: 'Outlook & ofertas', c: '#EA580C', g: 'rgba(234,88,12,0.07)' },
-        { l: 'V', n: 'Chequeio Op', d: 'Oferta vs Custos', c: '#0891B2', g: 'rgba(8,145,178,0.07)' },
-        { l: 'V', n: 'Chequeio Fin', d: 'Oferta vs Itens', c: '#059669', g: 'rgba(5,150,105,0.07)' },
-        { l: 'I', n: 'Frequência', d: 'Inside Sales Intel', c: '#DB2777', g: 'rgba(219,39,119,0.07)' },
-        { l: 'B', n: 'Booking', d: 'Email → Skychart', c: '#7C3AED', g: 'rgba(124,58,237,0.07)' },
-        { l: 'D', n: 'Demurrage', d: 'Free Time Control', c: '#DC2626', g: 'rgba(220,38,38,0.07)' }
+        {
+            l: 'C', n: 'Câmbio', d: 'Extração de PDF', c: '#C77D05', g: 'rgba(199,125,5,0.06)',
+            key: null, // no dedicated analytics bucket yet
+            desc: 'Agente responsável por ler contratos de câmbio em PDF, extrair o número do contrato e preencher automaticamente o campo correspondente no Skychart. Utiliza Gemini para interpretar documentos.',
+            tree: ['Recebe PDF do contrato', 'Envia ao Gemini para leitura', 'Extrai número do contrato', 'Localiza campo no Skychart', 'Preenche e confirma'],
+            roadmap: ['Extrair mais campos (valor, vencimento)', 'Detectar tipo de contrato automaticamente', 'Validação cruzada com dados existentes']
+        },
+        {
+            l: 'S', n: 'Serasa', d: 'Score & crédito', c: '#0891B2', g: 'rgba(8,145,178,0.07)',
+            key: 'serasa',
+            desc: 'Agente que consulta o score Serasa do cliente diretamente da página, extrai score, limite de crédito e salva no Firebase. Dados aparecem no dashboard para análise de risco.',
+            tree: ['Detecta página de consulta Serasa', 'Lê score e limite de crédito do DOM', 'Formata e valida os dados', 'Salva no Firebase (serasa/)', 'Registra evento analytics'],
+            roadmap: ['Alerta automático para scores abaixo de 400', 'Histórico de evolução de score', 'Integração com política de crédito']
+        },
+        {
+            l: 'F', n: 'Frete', d: 'Análise de mercado', c: '#059669', g: 'rgba(5,150,105,0.07)',
+            key: null,
+            desc: 'Agente de inteligência de mercado para fretes marítimos. Analisa cotações, compara preços entre armadores e identifica tendências de custo.',
+            tree: ['Coleta cotações de fretes', 'Compara por rota e armador', 'Calcula média de mercado', 'Identifica oportunidades', 'Gera análise comparativa'],
+            roadmap: ['Previsão de preço com ML', 'Alertas de oportunidade em tempo real', 'Dashboard próprio de mercado']
+        },
+        {
+            l: 'T', n: 'Tracking', d: 'Rastreio Maersk', c: '#7C3AED', g: 'rgba(124,58,237,0.07)',
+            key: null,
+            desc: 'Agente de rastreamento de containers via API Maersk. Monitora posição, status e ETA dos containers em trânsito, alertando sobre atrasos.',
+            tree: ['Recebe BL/container do processo', 'Consulta API Maersk', 'Extrai status e ETA', 'Compara com deadline do free time', 'Alerta se risco de atraso'],
+            roadmap: ['Integrar MSC e CMA CGM', 'Mapa visual de rotas', 'Previsão de atraso com IA']
+        },
+        {
+            l: 'Q', n: 'Cotação', d: 'Outlook & ofertas', c: '#EA580C', g: 'rgba(234,88,12,0.07)',
+            key: 'outlook',
+            desc: 'Agente que monitora e-mails no Outlook, extrai dados de cotações e bookings automaticamente. Identifica campos como valores, rotas, armadores e prazos.',
+            tree: ['Detecta novo e-mail no Outlook', 'Analisa conteúdo com Gemini', 'Identifica tipo (cotação/booking)', 'Extrai campos relevantes', 'Salva dados estruturados'],
+            roadmap: ['Resposta automática de cotação', 'Classificação por urgência', 'Integração direta com Skychart']
+        },
+        {
+            l: 'V', n: 'Chequeio Op', d: 'Oferta vs Custos', c: '#0891B2', g: 'rgba(8,145,178,0.07)',
+            key: 'check', filterFn: function(e) { return !e.data || e.data.modulo !== 'financeiro'; },
+            desc: 'Agente que verifica os custos lançados no Skychart operacional contra a oferta/cotação original. Identifica divergências de valores para prevenir prejuízos.',
+            tree: ['Acessa aba de custos no Skychart', 'Lê todos os valores do DOM', 'Compara com oferta original', 'Calcula taxa de acerto', 'Destaca erros encontrados'],
+            roadmap: ['Correção automática de valores', 'Relatório de divergências por período', 'Alerta preditivo antes do faturamento']
+        },
+        {
+            l: 'V', n: 'Chequeio Fin', d: 'Oferta vs Itens', c: '#059669', g: 'rgba(5,150,105,0.07)',
+            key: 'check', filterFn: function(e) { return e.data && e.data.modulo === 'financeiro'; },
+            desc: 'Agente que verifica os itens financeiros no Skychart contra a oferta original. Foco em valores de faturamento, impostos e margens.',
+            tree: ['Acessa aba financeira no Skychart', 'Lê itens e valores do DOM', 'Compara com oferta original', 'Calcula taxa de acerto', 'Destaca divergências'],
+            roadmap: ['Verificação de impostos', 'Cálculo de margem real vs projetada', 'Integração com ERP']
+        },
+        {
+            l: 'I', n: 'Frequência', d: 'Inside Sales Intel', c: '#DB2777', g: 'rgba(219,39,119,0.07)',
+            key: null,
+            desc: 'Agente de inteligência comercial que analisa a frequência de embarques por cliente. Classifica clientes em novos, retomados e tradicionais para estratégia de vendas.',
+            tree: ['Coleta dados de embarques', 'Agrupa por cliente e período', 'Calcula frequência e recência', 'Classifica tipo de cliente', 'Gera Raio-X comercial'],
+            roadmap: ['Score de propensão de churn', 'Sugestão automática de abordagem', 'Relatório semanal para comercial']
+        },
+        {
+            l: 'B', n: 'Booking', d: 'Email → Skychart', c: '#7C3AED', g: 'rgba(124,58,237,0.07)',
+            key: 'outlook', filterFn: function(e) { return e.action === 'booking_extraido'; },
+            desc: 'Agente que extrai dados de bookings de e-mails no Outlook e prepara para lançamento no Skychart. Automatiza a digitação de dados operacionais.',
+            tree: ['Detecta e-mail com booking', 'Extrai campos com Gemini', 'Valida dados obrigatórios', 'Prepara para Skychart', 'Registra extração'],
+            roadmap: ['Lançamento direto no Skychart', 'Validação cruzada com cotação', 'Confirmação automática ao armador']
+        },
+        {
+            l: 'D', n: 'Demurrage', d: 'Free Time Control', c: '#DC2626', g: 'rgba(220,38,38,0.07)',
+            key: 'demurrage',
+            desc: 'Agente de controle de demurrage e free time. Monitora prazos de devolução de containers, calcula dias restantes, identifica riscos e gera relatórios de portfólio.',
+            tree: ['Escaneia lista de processos ativos', 'Calcula dias de free time restantes', 'Classifica: OK / Alerta / Expirado', 'Agrupa por armador/cliente', 'Gera relatório e snapshots'],
+            roadmap: ['Cálculo automático de custo de demurrage', 'Alerta por e-mail ao responsável', 'Negociação automática de extensão']
+        }
     ];
+
+    // ===== AGENT DETAIL MODAL =====
+    function showAgentDetail(agentIdx, data) {
+        var ag = AGENTS[agentIdx];
+        if (!ag) return;
+
+        var analytics = data.analytics || {};
+        // Get events for this agent
+        var agentEvents = [];
+        if (ag.key) {
+            var rawEvents = parseEvents(analytics[ag.key]);
+            if (ag.filterFn) {
+                agentEvents = rawEvents.filter(ag.filterFn);
+            } else {
+                agentEvents = rawEvents;
+            }
+        }
+
+        // Metrics
+        var totalEvents = agentEvents.length;
+        var lastActivity = agentEvents.length > 0 ? timeAgo(agentEvents[0].timestamp) : 'sem registros';
+        var uniqueUsers = {};
+        agentEvents.forEach(function(e) { uniqueUsers[e.user || 'unknown'] = true; });
+        var userCount = Object.keys(uniqueUsers).length;
+
+        // Action breakdown
+        var actionCounts = {};
+        agentEvents.forEach(function(e) {
+            var a = e.action || 'outro';
+            actionCounts[a] = (actionCounts[a] || 0) + 1;
+        });
+
+        // Build modal HTML
+        var h = '';
+
+        // Agent header
+        h += '<div class="agent-detail-header">';
+        h += '<div class="agent-detail-icon" style="background:' + ag.g + ';border:2px solid ' + ag.c + '30;color:' + ag.c + '">' + ag.l + '</div>';
+        h += '<div>';
+        h += '<div class="agent-detail-name">' + ag.n + '</div>';
+        h += '<div class="agent-detail-sub">' + ag.d + '</div>';
+        h += '</div>';
+        h += '</div>';
+
+        // Description
+        h += '<div class="agent-detail-desc">' + ag.desc + '</div>';
+
+        // Metrics row
+        h += '<div class="agent-metrics-row">';
+        h += agentMetric('Eventos', totalEvents, ag.c);
+        h += agentMetric('Usuários', userCount, ag.c);
+        h += agentMetric('Última Atividade', lastActivity, ag.c);
+        h += '</div>';
+
+        // Action breakdown
+        var actionKeys = Object.keys(actionCounts);
+        if (actionKeys.length > 0) {
+            h += '<div class="agent-section-label">AÇÕES REGISTRADAS</div>';
+            h += '<div class="agent-action-list">';
+            actionKeys.sort(function(a, b) { return actionCounts[b] - actionCounts[a]; });
+            actionKeys.forEach(function(a) {
+                h += '<div class="agent-action-row">';
+                h += '<span class="agent-action-name">' + a.replace(/_/g, ' ') + '</span>';
+                h += '<span class="agent-action-count" style="color:' + ag.c + '">' + actionCounts[a] + '</span>';
+                h += '</div>';
+            });
+            h += '</div>';
+        }
+
+        // Decision tree
+        h += '<div class="agent-section-label">ÁRVORE DE DECISÃO</div>';
+        h += '<div class="agent-tree">';
+        ag.tree.forEach(function(step, i) {
+            h += '<div class="agent-tree-step">';
+            h += '<div class="agent-tree-num" style="background:' + ag.g + ';color:' + ag.c + ';border:1px solid ' + ag.c + '25">' + (i + 1) + '</div>';
+            h += '<div class="agent-tree-line"' + (i < ag.tree.length - 1 ? ' style="border-left:1px dashed ' + ag.c + '30"' : '') + '></div>';
+            h += '<span class="agent-tree-text">' + step + '</span>';
+            h += '</div>';
+        });
+        h += '</div>';
+
+        // Roadmap
+        h += '<div class="agent-section-label">ROADMAP</div>';
+        h += '<div class="agent-roadmap">';
+        ag.roadmap.forEach(function(item) {
+            h += '<div class="agent-roadmap-item">';
+            h += '<span class="agent-roadmap-dot" style="background:' + ag.c + '"></span>';
+            h += '<span>' + item + '</span>';
+            h += '</div>';
+        });
+        h += '</div>';
+
+        // Last 10 logs
+        if (agentEvents.length > 0) {
+            h += '<div class="agent-section-label">ÚLTIMOS LOGS</div>';
+            h += '<div class="agent-logs">';
+            agentEvents.slice(0, 10).forEach(function(evt) {
+                h += timelineItem(evt);
+            });
+            h += '</div>';
+        }
+
+        showModal(ag.n.toUpperCase(), h);
+    }
+
+    function agentMetric(label, value, color) {
+        return '<div class="agent-metric">'
+            + '<div class="agent-metric-label">' + label + '</div>'
+            + '<div class="agent-metric-value" style="color:' + color + '">' + value + '</div>'
+            + '</div>';
+    }
 
     // ===== BUILD DASHBOARD =====
     function render(data) {
@@ -244,8 +415,8 @@
         html += '</div>';
         html += '<div class="sidebar-label">AGENTES</div>';
         html += '<div class="sidebar-agents">';
-        AGENTS.forEach(function(a) {
-            html += '<div class="sidebar-agent">';
+        AGENTS.forEach(function(a, idx) {
+            html += '<div class="sidebar-agent" data-agent-idx="' + idx + '">';
             html += '<div class="sidebar-agent-icon" style="background:' + a.g + ';border:1px solid ' + a.c + '25;color:' + a.c + '">' + a.l + '</div>';
             html += '<div class="sidebar-agent-info"><div class="sidebar-agent-name">' + a.n + '</div><div class="sidebar-agent-desc">' + a.d + '</div></div>';
             html += '</div>';
@@ -487,6 +658,17 @@
 
     // ===== BIND INTERACTIVE EVENTS =====
     function bindInteractiveEvents(userRanking, checkResults) {
+        // Agent sidebar click
+        var sidebarAgents = document.querySelector('.sidebar-agents');
+        if (sidebarAgents) {
+            sidebarAgents.addEventListener('click', function(e) {
+                var agent = e.target.closest('.sidebar-agent');
+                if (!agent) return;
+                var idx = parseInt(agent.getAttribute('data-agent-idx'));
+                if (!isNaN(idx)) showAgentDetail(idx, _dashData);
+            });
+        }
+
         var userChart = document.getElementById('user-chart');
         if (userChart) {
             userChart.addEventListener('click', function(e) {
