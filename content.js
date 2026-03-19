@@ -4074,27 +4074,20 @@ try {
                 showToast('Processo ' + processo + ' aberto!', 'success', 3000);
                 console.log('[Atom Demurrage] Processo', processo, 'selecionado via DOM observer');
 
-                // Auto-click no accordion #demurrage assim que aparecer no DOM
+                // Auto-click na aba Demurrage (mesmo padrão do Embarque/Custos)
                 (function watchDemurrageAccordion() {
-                    function clickDemurrage() {
-                        var link = document.querySelector('#demurrage .ui-accordion-header a');
-                        if (!link) link = document.querySelector('#demurrage .ui-accordion-header');
-                        if (link) {
-                            // requestAnimationFrame garante que o Angular já bindou os eventos
-                            requestAnimationFrame(function() {
-                                link.click();
-                                link.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                console.log('[Atom Demurrage] Accordion aberto:', link.tagName);
-                            });
-                            return true;
-                        }
-                        return false;
-                    }
-                    // Checa se já existe
-                    if (clickDemurrage()) return;
-                    // Observa o DOM até aparecer
                     var obs = new MutationObserver(function() {
-                        if (clickDemurrage()) obs.disconnect();
+                        var spans = document.querySelectorAll('span.ui-accordion-header-text');
+                        for (var i = 0; i < spans.length; i++) {
+                            if (spans[i].textContent.trim() === 'Demurrage') {
+                                obs.disconnect();
+                                var clickable = spans[i].closest('a, .ui-accordion-header') || spans[i];
+                                clickable.click();
+                                clickable.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                console.log('[Atom Demurrage] Aba Demurrage aberta (' + clickable.tagName + ')');
+                                return;
+                            }
+                        }
                     });
                     obs.observe(document.body, { childList: true, subtree: true });
                     setTimeout(function() { obs.disconnect(); }, 15000);
