@@ -51,6 +51,7 @@
         "agenda-agent.js",
         "content.js",
         "action-recorder.js",
+        "workflow-executor.js",
         "health-check.js"
       ],
       "css": [
