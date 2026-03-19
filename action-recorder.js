@@ -435,23 +435,54 @@
     }
 
     function findClickable(el) {
-        var maxDepth = 5;
+        var maxDepth = 8;
         var current = el;
-        while (current && maxDepth-- > 0) {
-            if (current.tagName === 'BUTTON' || current.tagName === 'A' ||
-                current.tagName === 'INPUT' || current.tagName === 'SELECT' ||
-                current.getAttribute('role') === 'button' ||
-                current.getAttribute('role') === 'tab' ||
-                current.getAttribute('role') === 'menuitem' ||
-                current.classList.contains('ui-accordion-header-text') ||
-                current.classList.contains('ui-accordion-header') ||
-                current.closest('.ui-accordion-header')) {
-                return current;
-            }
+        while (current && current !== document.body && maxDepth-- > 0) {
+            var tag = current.tagName;
+            // Standard interactive elements
+            if (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'SELECT') return current;
+
+            // Role-based (PrimeNG, Angular Material, etc)
+            var role = current.getAttribute('role') || '';
+            if (role === 'button' || role === 'tab' || role === 'menuitem' || 
+                role === 'option' || role === 'treeitem' || role === 'listitem' ||
+                role === 'row' || role === 'link' || role === 'checkbox' ||
+                role === 'radio' || role === 'switch') return current;
+
+            // PrimeNG / Angular specific classes
+            var cls = current.className || '';
+            if (cls.indexOf('ui-accordion-header') >= 0 ||
+                cls.indexOf('ui-treenode') >= 0 ||
+                cls.indexOf('ui-listbox-item') >= 0 ||
+                cls.indexOf('ui-dropdown-item') >= 0 ||
+                cls.indexOf('ui-menuitem') >= 0 ||
+                cls.indexOf('ui-selectbutton') >= 0 ||
+                cls.indexOf('ui-tabview-nav') >= 0 ||
+                cls.indexOf('ui-tree-toggler') >= 0 ||
+                cls.indexOf('p-treenode') >= 0 ||
+                cls.indexOf('p-listbox-item') >= 0 ||
+                cls.indexOf('p-menuitem') >= 0 ||
+                cls.indexOf('p-dropdown-item') >= 0) return current;
+
+            // List items com texto (menus, dropdowns, sidebars)
+            if (tag === 'LI' && (current.textContent || '').trim().length > 0 && 
+                (current.textContent || '').trim().length < 100) return current;
+
+            // Angular event binding
+            if (current.getAttribute('(click)') || current.getAttribute('ng-click') || 
+                current.onclick) return current;
+
+            // Cursor pointer = provavelmente clicável
+            try {
+                var style = window.getComputedStyle(current);
+                if (style.cursor === 'pointer') return current;
+            } catch(e) {}
+
             current = current.parentElement;
         }
-        // Se tem onclick ou é interativo
-        if (el.onclick || el.getAttribute('ng-click') || el.getAttribute('(click)')) return el;
+        // Fallback: retorna o elemento original se tem texto curto (provavelmente um label/item clicável)
+        var text = (el.textContent || '').trim();
+        if (text.length > 0 && text.length < 100) return el;
         return null;
     }
 
