@@ -539,6 +539,38 @@ Os valores estão corretos? Responda APENAS com JSON:
     return true;
   }
 
+  // Site Scanner: save site map to Firebase
+  if (request.action === "siteMapReady") {
+    const data = request.data;
+    if (data && data.domain) {
+      const domainKey = data.domain.replace(/\./g, '_');
+      const pathKey = (data.path || '/').replace(/[.#$/\[\]]/g, '_').substring(0, 100);
+      const fbUrl = _FIREBASE_BASE + '/atom_site_maps/' + domainKey + '/' + pathKey + '.json';
+      fetch(fbUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }).then(r => {
+        console.log("[Site Scanner] Mapa salvo:", data.domain, data.path, "| Status:", r.status);
+      }).catch(err => {
+        console.log("[Site Scanner] Erro salvando mapa:", err);
+      });
+    }
+    sendResponse({ success: true });
+    return true;
+  }
+
+  // Site Scanner: trigger on-demand scan
+  if (request.action === "scan_page") {
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, { action: 'scan_page' }).catch(() => {});
+      }
+    });
+    sendResponse({ success: true });
+    return true;
+  }
+
   // Extração completa de todos os campos do contrato de câmbio
   if (request.action === "extractAllFieldsBase64") {
     extractAllFieldsFromPDF(request.pdfBase64)
