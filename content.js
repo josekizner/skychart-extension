@@ -2051,7 +2051,14 @@ try {
             var url = getCarrierTrackingUrl(carrierName, bk);
             if (url) {
                 showToast('Abrindo tracking ' + carrierName.toUpperCase() + '...', 'info');
-                window.open(url, '_blank');
+                // CMA CGM precisa do booking no storage pro scraper preencher
+                if (carrierName === 'cma') {
+                    chrome.storage.local.set({ cmaPendingBooking: bk }, function() {
+                        window.open(url, '_blank');
+                    });
+                } else {
+                    window.open(url, '_blank');
+                }
             } else {
                 showToast('Armador não suportado para tracking direto: ' + carrierName, 'warning');
             }
