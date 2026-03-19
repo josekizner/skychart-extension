@@ -52,12 +52,16 @@
         document.body.appendChild(bar);
         injectStyles();
 
-        // Click na barra = toggle expanded/collapsed (mini handled by initDrag)
+        // Click na barra = toggle
         document.querySelector('#atom-demurrage-bar .dm-bar-inner').addEventListener('click', function(e) {
             if (e.target.id === 'dm-collapse' || e.target.id === 'dm-minimize' || e.target.id === 'dm-refresh') return;
             var bar = document.getElementById('atom-demurrage-bar');
-            if (bar.classList.contains('mini')) return; // Drag handler cuida do mini
-            togglePanel();
+            if (bar.classList.contains('mini')) {
+                if (_dmDidDrag) return; // Foi drag, ignora click
+                expandPanel();
+            } else {
+                togglePanel();
+            }
         });
 
         // ▼ = recolhe pra barra
@@ -125,39 +129,35 @@
         bar.style.height = '';
     }
 
+    var _dmDidDrag = false;
+
     // Drag (funciona só no mini mode)
     function initDrag(bar) {
-        var isDragging = false, didMove = false;
+        var isDragging = false;
         var startX = 0, startY = 0, startLeft = 0, startBottom = 0;
 
         bar.addEventListener('mousedown', function(e) {
             if (!bar.classList.contains('mini')) return;
             isDragging = true;
-            didMove = false;
+            _dmDidDrag = false;
             startX = e.clientX;
             startY = e.clientY;
             var rect = bar.getBoundingClientRect();
             startLeft = rect.left;
             startBottom = window.innerHeight - rect.bottom;
-            e.preventDefault();
         });
         document.addEventListener('mousemove', function(e) {
             if (!isDragging) return;
             var dx = e.clientX - startX;
             var dy = e.clientY - startY;
             if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-                didMove = true;
+                _dmDidDrag = true;
                 bar.style.left = (startLeft + dx) + 'px';
                 bar.style.bottom = (startBottom - dy) + 'px';
             }
         });
         document.addEventListener('mouseup', function() {
-            if (!isDragging) return;
             isDragging = false;
-            if (!didMove) {
-                // Foi um click, não um drag → abre o painel
-                expandPanel();
-            }
         });
     }
 
