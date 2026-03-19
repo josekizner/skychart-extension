@@ -4073,6 +4073,31 @@ try {
                 if (parentLi && parentLi !== matchItem) parentLi.click();
                 showToast('Processo ' + processo + ' aberto!', 'success', 3000);
                 console.log('[Atom Demurrage] Processo', processo, 'selecionado via DOM observer');
+
+                // Auto-click no accordion #demurrage assim que aparecer no DOM
+                (function watchDemurrageAccordion() {
+                    // Checa se já existe
+                    var existing = document.querySelector('#demurrage .ui-accordion-header');
+                    if (existing) {
+                        existing.click();
+                        existing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        console.log('[Atom Demurrage] Accordion clicado (já existia)');
+                        return;
+                    }
+                    // Observa o DOM até aparecer
+                    var obs = new MutationObserver(function() {
+                        var header = document.querySelector('#demurrage .ui-accordion-header');
+                        if (header) {
+                            obs.disconnect();
+                            header.click();
+                            header.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            console.log('[Atom Demurrage] Accordion clicado via MutationObserver');
+                        }
+                    });
+                    obs.observe(document.body, { childList: true, subtree: true });
+                    // Safety: desconecta após 15s pra não ficar rodando eternamente
+                    setTimeout(function() { obs.disconnect(); }, 15000);
+                })();
             } else {
                 showToast('Processo ' + processo + ' não encontrado no dropdown.', 'warning', 8000);
             }
