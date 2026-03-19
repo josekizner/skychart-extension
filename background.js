@@ -238,9 +238,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (carrier === 'maersk') {
       trackingUrl = 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
     } else if (carrier === 'cma') {
-      // CMA CGM: save booking to storage, scraper will read it
-      chrome.storage.local.set({ cmaPendingBooking: booking });
-      trackingUrl = 'https://www.cma-cgm.com/ebusiness/tracking';
+      // CMA CGM: save booking FIRST, then open tab
+      chrome.storage.local.set({ cmaPendingBooking: booking }, function() {
+        console.log("[Tracking] CMA booking salvo no storage:", booking);
+        const cmaUrl = 'https://www.cma-cgm.com/ebusiness/tracking';
+        chrome.tabs.create({ url: cmaUrl, active: true }, (tab) => {
+          chrome.storage.local.get('pendingTrackingTabs', function(d) {
+            var pending = d.pendingTrackingTabs || {};
+            pending[tab.id] = skychartTabId;
+            chrome.storage.local.set({ pendingTrackingTabs: pending });
+            console.log("[Tracking] CMA tab aberta:", tab.id, "-> Skychart tab:", skychartTabId);
+          });
+          // Backup: send message to tab after it loads
+          setTimeout(function() {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'cma_search_booking',
+              booking: booking
+            }).catch(function() { /* tab might not be ready yet, storage listener will handle */ });
+          }, 3000);
+        });
+      });
+      sendResponse({ success: true, message: 'Tracking CMA aberto' });
+      return true;
     }
     // Futuros armadores aqui...
 
