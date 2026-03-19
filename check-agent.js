@@ -239,44 +239,75 @@
 
         // 6. Auditoria Gemini — verifica assertividade da leitura
         try {
-            auditWithGemini(custos, modulo, processoRef);
+            auditWithGemini(custos, modulo, processoRef, cotacaoItems, results);
         } catch (e) { console.log(TAG, 'Erro na auditoria:', e); }
     }
 
-    // ===== AUDITORIA GEMINI =====
-    // Pega 3 itens aleatórios, re-lê o DOM, pede ao Gemini pra ler o valor
-    async function auditWithGemini(custos, modulo, processoRef) {
-        if (custos.length < 2) return;
-        console.log(TAG, '=== AUDITORIA GEMINI ===');
+    // ===== AUDITORIA GEMINI (3-way: DOM + PDF + Resultado) =====
+    // Re-lê o DOM independentemente, cruza com PDF e com o resultado do agente
+    async function auditWithGemini(custos, modulo, processoRef, cotacaoItems, results) {
+        if (!results || results.length < 2) return;
+        console.log(TAG, '=== AUDITORIA GEMINI (3-WAY) ===');
 
-        // Seleciona até 3 itens aleatórios
-        var sampleSize = Math.min(3, custos.length);
-        var shuffled = custos.slice().sort(function() { return 0.5 - Math.random(); });
+        // Seleciona até 3 itens dos RESULTADOS que têm match
+        var matchedResults = results.filter(function(r) { return r.status === 'ok' || r.status === 'divergencia'; });
+        if (matchedResults.length < 1) return;
+        var sampleSize = Math.min(3, matchedResults.length);
+        var shuffled = matchedResults.slice().sort(function() { return 0.5 - Math.random(); });
         var samples = shuffled.slice(0, sampleSize);
 
-        // Re-lê os valores do DOM para os itens selecionados
-        var auditItems = [];
-        samples.forEach(function(item) {
-            // Busca a célula que contém o texto da taxa na tabela
-            var rawDomText = item.totalVenda || '';
-            auditItems.push({
-                taxa: item.taxa,
-                rawText: rawDomText,
-                parsedValue: item.totalVendaNum,
-                moeda: item.moeda
+        // 1. RE-LÊ O DOM — busca os valores diretamente da tabela visível
+        var domSnapshot = [];
+        try {
+            var allRows = document.querySelectorAll('table tbody tr');
+            samples.forEach(function(sample) {
+                var found = false;
+                for (var r = 0; r < allRows.length && !found; r++) {
+                    var cells = allRows[r].querySelectorAll('td');
+                    if (cells.length < 3) continue;
+                    var rowText = allRows[r].textContent || '';
+                    if (rowText.toLowerCase().indexOf(sample.taxaCustos.toLowerCase().substring(0, 8)) >= 0) {
+                        var cellTexts = [];
+                        for (var c = 0; c < cells.length; c++) {
+                            cellTexts.push(cells[c].textContent.trim());
+                        }
+                        domSnapshot.push({
+                            taxa: sample.taxaCustos,
+                            rawCells: cellTexts.join(' | '),
+                            taxaCotacao: sample.taxaCotacao,
+                            valorCotacao: sample.valorCotacao,
+                            valorSistema: sample.valorCustos,
+                            agentMatch: sample.status
+                        });
+                        found = true;
+                    }
+                }
             });
+        } catch(e) { console.log(TAG, 'Erro lendo DOM para auditoria:', e); }
+
+        if (domSnapshot.length === 0) {
+            console.log(TAG, 'Nao conseguiu re-ler linhas do DOM, abortando auditoria');
+            return;
+        }
+
+        // 2. MONTA PROMPT — Gemini recebe as 3 fontes e audita
+        var prompt = 'Voce e um auditor financeiro. Preciso que voce verifique se uma ferramenta de chequeio automatico esta lendo corretamente os valores.\n\n';
+        prompt += 'Para cada item abaixo, voce recebe 3 fontes:\n';
+        prompt += '- CELULAS DO DOM: texto bruto lido diretamente da tabela HTML do sistema\n';
+        prompt += '- COTACAO (PDF): valor que veio da cotacao/oferta do cliente (PDF)\n';
+        prompt += '- RESULTADO DO AGENTE: o que nossa ferramenta interpretou como valor do sistema\n\n';
+        prompt += 'Verifique se o RESULTADO DO AGENTE leu corretamente o valor do DOM, e se o valor da COTACAO bate.\n';
+        prompt += 'Responda APENAS em JSON: [{"taxa": "...", "domCorreto": true/false, "cotacaoCorreta": true/false}]\n\n';
+
+        domSnapshot.forEach(function(d, i) {
+            prompt += '--- Item ' + (i+1) + ' ---\n';
+            prompt += 'Taxa: "' + d.taxa + '"\n';
+            prompt += 'CELULAS DO DOM: "' + d.rawCells + '"\n';
+            prompt += 'COTACAO (PDF): "' + d.valorCotacao + '" (taxa original: "' + d.taxaCotacao + '")\n';
+            prompt += 'RESULTADO DO AGENTE: sistema=' + d.valorSistema + ' | status=' + d.agentMatch + '\n\n';
         });
 
-        if (auditItems.length === 0) return;
-
-        // Monta prompt pro Gemini
-        var prompt = 'Voce e um auditor de dados financeiros. Abaixo estao valores extraidos de celulas de uma tabela de custos de um sistema de shipping.\n\n';
-        prompt += 'Para cada item, diga APENAS o valor numerico que o texto representa. Responda em JSON: [{\"taxa\": \"...\", \"valor\": numero}]\n\n';
-        auditItems.forEach(function(a, i) {
-            prompt += (i+1) + '. Taxa: "' + a.taxa + '" | Texto bruto da celula: "' + a.rawText + '" | Moeda: ' + a.moeda + '\n';
-        });
-
-        console.log(TAG, 'Enviando', auditItems.length, 'itens para auditoria Gemini');
+        console.log(TAG, 'Enviando', domSnapshot.length, 'itens para auditoria 3-way');
 
         try {
             var geminiResult = await new Promise(function(resolve) {
@@ -293,7 +324,6 @@
                 return;
             }
 
-            // Parseia resposta JSON do Gemini
             var responseText = geminiResult.text;
             var jsonMatch = responseText.match(/\[[\s\S]*?\]/);
             if (!jsonMatch) {
@@ -301,37 +331,36 @@
                 return;
             }
 
-            var geminiValues = JSON.parse(jsonMatch[0]);
+            var geminiAudit = JSON.parse(jsonMatch[0]);
             var totalAudited = 0;
             var totalCorrect = 0;
 
-            auditItems.forEach(function(item, idx) {
-                var geminiVal = geminiValues[idx] ? geminiValues[idx].valor : null;
-                if (geminiVal === null || geminiVal === undefined) return;
+            geminiAudit.forEach(function(item) {
                 totalAudited++;
-                var geminiNum = typeof geminiVal === 'number' ? geminiVal : parseFloat(String(geminiVal).replace(/\./g, '').replace(',', '.'));
-                var diff = Math.abs(geminiNum - item.parsedValue);
-                var isCorrect = diff < 0.01 || (item.parsedValue > 0 && diff / item.parsedValue < 0.001);
-                if (isCorrect) totalCorrect++;
-                console.log(TAG, '  Audit:', item.taxa, '| Check-agent:', item.parsedValue, '| Gemini:', geminiNum, '|', isCorrect ? 'OK' : 'DIVERGENTE');
+                var domOk = item.domCorreto === true;
+                var cotOk = item.cotacaoCorreta === true;
+                if (domOk && cotOk) totalCorrect++;
+                console.log(TAG, '  Audit:', item.taxa, '| DOM:', domOk ? 'OK' : 'ERRO', '| Cotacao:', cotOk ? 'OK' : 'ERRO');
             });
 
             if (totalAudited > 0) {
                 var assertividade = Math.round((totalCorrect / totalAudited) * 100);
-                console.log(TAG, 'Assertividade:', assertividade + '% (' + totalCorrect + '/' + totalAudited + ')');
+                console.log(TAG, 'Assertividade 3-way:', assertividade + '% (' + totalCorrect + '/' + totalAudited + ')');
 
                 AtomAnalytics.log('check', 'auditoria_assertividade', {
                     modulo: modulo,
                     processo: processoRef,
                     totalAuditado: totalAudited,
                     corretos: totalCorrect,
-                    assertividade: assertividade
+                    assertividade: assertividade,
+                    method: '3way'
                 });
             }
         } catch (e) {
             console.log(TAG, 'Erro auditoria Gemini:', e.message || e);
         }
     }
+
 
     // ===== LÊ TABELA DE CUSTOS (operacional) OU ITENS (financeiro) =====
     function readCustosTable(modulo) {
