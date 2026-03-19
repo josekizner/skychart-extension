@@ -6,7 +6,24 @@
   <style>
     /* ── ATOM POPUP DESIGN SYSTEM ── */
     :root {
-      /* Dark (default) */
+      /* Light (default) */
+      --bg: #F7F6F3; --sf: #FFFFFF; --sf-r: #FAFAF8; --hv: #F0EEEA;
+      --bd: #DDD9D0; --bd-a: #C8C4BA;
+      --tx: #1A1B1E; --tx2: #44433D; --tx-m: #7A786F; --tx-d: #B8B5AD;
+      --acc: #C07808; --acc-h: #A56807; --acc-g: rgba(192,120,8,0.07); --acc-b: rgba(192,120,8,0.16);
+      --cy: #0B8A9E; --cy-g: rgba(11,138,158,0.08);
+      --gn: #0A7D58; --gn-g: rgba(10,125,88,0.08);
+      --rd: #CC2E28; --rd-g: rgba(204,46,40,0.08);
+      --pr: #6B55C2; --pr-g: rgba(107,85,194,0.08);
+      --pk: #C03468; --pk-g: rgba(192,52,104,0.08);
+      --og: #D46A14; --og-g: rgba(212,106,20,0.08);
+      --bl: #3B7FD9; --bl-g: rgba(59,127,217,0.08);
+      --input-bg: #FFFFFF;
+      --face: #C0C8D4; --shell: #5A6578; --inner: #8892A2;
+      --vA: #C07808; --vB: #A56807; --vL: #F5D88A;
+      --shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+    [data-theme="dark"] {
       --bg: #090C14; --sf: #0F1219; --sf-r: #141820; --hv: #1A1F2A;
       --bd: #1C222F; --bd-a: #283040;
       --tx: #DEE2EA; --tx2: #8892A4; --tx-m: #4E586C; --tx-d: #2E3648;
@@ -22,23 +39,6 @@
       --face: #1A2030; --shell: #5A6578; --inner: #2E3648;
       --vA: #F59E0B; --vB: #D97706; --vL: #FDE68A;
       --shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
-    }
-    [data-theme="light"] {
-      --bg: #F0EEEA; --sf: #FAFAF8; --sf-r: #F2F1ED; --hv: #ECEAE5;
-      --bd: #D8D5CC; --bd-a: #C8C4BA;
-      --tx: #1A1B1E; --tx2: #5C5A54; --tx-m: #908D84; --tx-d: #C4C1BA;
-      --acc: #C07808; --acc-h: #A56807; --acc-g: rgba(192,120,8,0.06); --acc-b: rgba(192,120,8,0.14);
-      --cy: #0B8A9E; --cy-g: rgba(11,138,158,0.07);
-      --gn: #0A7D58; --gn-g: rgba(10,125,88,0.07);
-      --rd: #CC2E28; --rd-g: rgba(204,46,40,0.07);
-      --pr: #6B55C2; --pr-g: rgba(107,85,194,0.07);
-      --pk: #C03468; --pk-g: rgba(192,52,104,0.07);
-      --og: #D46A14; --og-g: rgba(212,106,20,0.07);
-      --bl: #3B7FD9; --bl-g: rgba(59,127,217,0.07);
-      --input-bg: #EDECEA;
-      --face: #C0C8D4; --shell: #5A6578; --inner: #8892A2;
-      --vA: #C07808; --vB: #A56807; --vL: #F5D88A;
-      --shadow: 0 20px 60px rgba(0,0,0,0.1);
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -289,7 +289,7 @@
     .prof-btn:hover { background: var(--hv); border-color: var(--acc); color: var(--acc); }
   </style>
 </head>
-<body data-theme="dark">
+<body>
 
   <div class="header">
     <div class="header-top">

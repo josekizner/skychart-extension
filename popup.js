@@ -1,18 +1,23 @@
 // ── ATOM Theme Toggle ──
 (function() {
   chrome.storage.local.get(['atomPopupTheme'], function(d) {
-    if (d.atomPopupTheme === 'light') {
-      document.body.setAttribute('data-theme', 'light');
+    if (d.atomPopupTheme === 'dark') {
+      document.body.setAttribute('data-theme', 'dark');
       var btn = document.getElementById('theme-btn');
-      if (btn) btn.textContent = '☾';
+      if (btn) btn.textContent = '☀';
     }
   });
   document.getElementById('theme-btn').addEventListener('click', function() {
-    var current = document.body.getAttribute('data-theme');
-    var next = current === 'light' ? 'dark' : 'light';
-    document.body.setAttribute('data-theme', next);
-    this.textContent = next === 'light' ? '☾' : '☀';
-    chrome.storage.local.set({ atomPopupTheme: next });
+    var isDark = document.body.getAttribute('data-theme') === 'dark';
+    if (isDark) {
+      document.body.removeAttribute('data-theme');
+      this.textContent = '☾';
+      chrome.storage.local.set({ atomPopupTheme: 'light' });
+    } else {
+      document.body.setAttribute('data-theme', 'dark');
+      this.textContent = '☀';
+      chrome.storage.local.set({ atomPopupTheme: 'dark' });
+    }
   });
 })();
 
