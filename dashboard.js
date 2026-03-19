@@ -108,6 +108,18 @@
             avgAccuracy = Math.round(sumAcc / checkResults.length);
         }
 
+        // Assertividade da ferramenta (Gemini audit)
+        var auditEvents = checkEvents.filter(function(e) { return e.action === 'auditoria_assertividade' && e.data; });
+        var globalAssertividade = -1;
+        if (auditEvents.length > 0) {
+            var totalAuditado = 0, totalCorretos = 0;
+            auditEvents.forEach(function(e) {
+                totalAuditado += (e.data.totalAuditado || 0);
+                totalCorretos += (e.data.corretos || 0);
+            });
+            globalAssertividade = totalAuditado > 0 ? Math.round((totalCorretos / totalAuditado) * 100) : -1;
+        }
+
         var resolvedCount = Object.keys(data.resolved).length;
         var serasaCount = Object.keys(data.serasa).length;
 
@@ -169,8 +181,13 @@
 
         // KPI ROW 1
         html += kpiCard('Total de Eventos', totalEvents, 'blue', 'Acoes registradas por todos os agentes');
-        html += kpiCard('Chequeios', totalChecks, 'cyan', avgAccuracy > 0 ? 'Precisao media: ' + avgAccuracy + '%' : 'Sem dados de precisao',
-            'Verifica se os valores de custos no Skychart batem com a oferta/cotacao original. Acerto = % de itens corretos.');
+        html += kpiCard('Chequeios', totalChecks, 'cyan', avgAccuracy > 0 ? 'Divergencia media: ' + avgAccuracy + '%' : 'Sem dados',
+            'Compara custos no Skychart com a oferta/cotacao original. Divergencia = % de itens que diferem da oferta.');
+        if (globalAssertividade >= 0) {
+            html += kpiCard('Assertividade ATOM', globalAssertividade + '%', 'green',
+                totalAuditado + ' leituras auditadas pelo Gemini',
+                'Mede a precisao da FERRAMENTA em ler os valores. A cada chequeio, 3 campos aleatorios sao relidos pelo Gemini como auditor independente. Verde = ferramenta leu corretamente.');
+        }
         html += kpiCard('Processos Resolvidos', resolvedCount, 'green', 'Containers devolvidos (demurrage)');
         html += kpiCard('Emails Processados', emailsCaptured, 'purple', cotacoesExtraidas + ' cotacoes, ' + bookingsExtraidos + ' bookings');
 

@@ -195,6 +195,28 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         sendResponse({ ok: true });
         return;
     }
+
+    // Generic Gemini call (used by audit, etc.)
+    if (msg.action === 'askGemini') {
+        fetch(GEMINI_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: msg.prompt }] }],
+                generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            var text = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text;
+            sendResponse({ text: text || '' });
+        })
+        .catch(err => {
+            console.log('[Atom] askGemini error:', err.message);
+            sendResponse({ text: '', error: err.message });
+        });
+        return true; // async sendResponse
+    }
 });
 
 // ===== BOOKING TRACKING =====
