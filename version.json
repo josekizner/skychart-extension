@@ -1,5 +1,5 @@
 {
-  "version": "2.4.0",
-  "date": "2026-03-14",
-  "changelog": "Novo agente: Frequência — monitora recência de cotação por cliente, detecta churn, gera emails via Gemini, envia pelo Outlook Web."
+  "version": "2.9",
+  "date": "2026-03-19",
+  "changelog": "Heartbeat de versao — dashboard mostra extensoes ativas de cada colaborador com versao e status."
 }

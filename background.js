@@ -92,8 +92,7 @@ function sendHeartbeat() {
   chrome.storage.local.get(['userProfile', 'atomUserName'], function(d) {
     var user = d.atomUserName || 'unknown';
     var profile = d.userProfile || 'unknown';
-    var safeKey = user.replace(/[.#$/\[\]@\s]/g, '_');
-    if (safeKey === 'unknown') return;
+    var safeKey = user !== 'unknown' ? user.replace(/[.#$/\[\]@\s]/g, '_') : ('ext_' + chrome.runtime.id.substring(0, 8));
     fetch(`${_FIREBASE_BASE}/system/heartbeats/${safeKey}.json`, {
       method: 'PUT',
       body: JSON.stringify({
