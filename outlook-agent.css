@@ -17,6 +17,31 @@
     transition: all 0.3s ease;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     overflow: hidden;
+    cursor: pointer;
+}
+
+/* Modo mini: só o icone A */
+#atom-outlook-panel.mini {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 50%;
+    padding: 0;
+    justify-content: center;
+}
+
+#atom-outlook-panel.mini #atom-outlook-bar {
+    justify-content: center;
+    padding: 0;
+    gap: 0;
+}
+
+#atom-outlook-panel.mini .atom-title,
+#atom-outlook-panel.mini .atom-shortcuts,
+#atom-outlook-panel.mini .atom-status,
+#atom-outlook-panel.mini .atom-resize-top,
+#atom-outlook-panel.mini .atom-resize-right,
+#atom-outlook-panel.mini .atom-resize-corner {
+    display: none !important;
 }
 
 #atom-outlook-panel.expanded {

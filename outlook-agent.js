@@ -45,10 +45,20 @@
             });
         });
 
+        // Click no painel mini = expande pra barra
+        panel.addEventListener('click', function(e) {
+            if (panel.classList.contains('mini')) {
+                panel.classList.remove('mini');
+            }
+        });
+
         // Resize handles
         setupResize(panel);
 
-        console.log('[Atom Email] Painel criado');
+        // Inicia no modo mini (só o A) pra não atrapalhar
+        panel.classList.add('mini');
+
+        console.log('[Atom Email] Painel criado (modo mini)');
     }
 
     // ==========================================
@@ -601,6 +611,7 @@
     function collapsePanel() {
         var panel = document.getElementById('atom-outlook-panel');
         panel.classList.remove('expanded');
+        panel.classList.add('mini'); // Volta pro modo mini (só o A)
         // Limpa estilos inline pra voltar ao tamanho compacto do CSS
         panel.style.width = '';
         panel.style.height = '';
