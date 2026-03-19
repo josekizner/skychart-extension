@@ -42,9 +42,9 @@
             '  <div class="dm-logo">D</div>',
             '  <span class="dm-title">DEMURRAGE</span>',
             '  <span class="dm-badge" id="dm-badge">—</span>',
-            '  <span class="dm-refresh" id="dm-refresh" title="Atualizar dados" style="display:none;">⟳</span>',
-            '  <span class="dm-minimize" id="dm-minimize" title="Minimizar" style="display:none;">−</span>',
-            '  <span class="dm-collapse" id="dm-collapse" title="Recolher" style="display:none;">▼</span>',
+            '  <span class="dm-refresh" id="dm-refresh" title="Atualizar dados">⟳</span>',
+            '  <span class="dm-minimize" id="dm-minimize" title="Minimizar">−</span>',
+            '  <span class="dm-collapse" id="dm-collapse" title="Recolher">▼</span>',
             '</div>',
             '<div id="dm-content"></div>'
         ].join('\n');
@@ -86,7 +86,9 @@
         // Drag no modo mini
         initDrag(bar);
 
-        console.log(TAG, 'Barra criada');
+        // Inicia como bolinha D (mini mode)
+        bar.classList.add('mini');
+        console.log(TAG, 'Barra criada (mini)');
         loadData();
     }
 
@@ -104,10 +106,7 @@
         var bar = document.getElementById('atom-demurrage-bar');
         bar.classList.remove('mini');
         bar.classList.add('expanded');
-        document.getElementById('dm-collapse').style.display = '';
-        document.getElementById('dm-minimize').style.display = '';
-        document.getElementById('dm-refresh').style.display = '';
-        restorePanelSize(); // Restaura tamanho salvo pelo usuario
+        restorePanelSize();
         if (_data) {
             renderTable(_data);
         } else {
@@ -118,11 +117,7 @@
     function collapsePanel() {
         var bar = document.getElementById('atom-demurrage-bar');
         bar.classList.remove('expanded');
-        bar.classList.remove('mini');
-        document.getElementById('dm-collapse').style.display = 'none';
-        document.getElementById('dm-minimize').style.display = 'none';
-        document.getElementById('dm-refresh').style.display = 'none';
-        // Reset inline styles from resize/drag
+        bar.classList.add('mini');
         bar.style.width = '';
         bar.style.height = '';
     }
@@ -131,8 +126,6 @@
         var bar = document.getElementById('atom-demurrage-bar');
         bar.classList.remove('expanded');
         bar.classList.add('mini');
-        document.getElementById('dm-collapse').style.display = 'none';
-        document.getElementById('dm-minimize').style.display = 'none';
         bar.style.width = '';
         bar.style.height = '';
     }
@@ -1065,12 +1058,12 @@
             '.dm-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }',
             '.dm-badge.danger { background: rgba(239,68,68,0.2); color: #fca5a5; }',
             '.dm-badge.ok { background: rgba(34,197,94,0.15); color: #86efac; }',
-            '.dm-collapse { color: #fca5a5; cursor: pointer; font-size: 10px; margin-left: 4px; }',
-            '.dm-refresh { color: #94a3b8; cursor: pointer; font-size: 13px; margin-left: auto; padding: 0 4px; transition: all 0.2s; }',
+            '.dm-collapse { color: #fca5a5; cursor: pointer; font-size: 10px; margin-left: 4px; display: none; }',
+            '.dm-refresh { color: #94a3b8; cursor: pointer; font-size: 13px; margin-left: auto; padding: 0 4px; transition: all 0.2s; display: none; }',
             '.dm-refresh:hover { color: #6C63FF; transform: rotate(90deg); }',
             '.dm-refresh.spinning { animation: dm-spin 1s linear infinite; pointer-events: none; color: #6C63FF; }',
             '@keyframes dm-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }',
-            '.dm-minimize { color: #94a3b8; cursor: pointer; font-size: 14px; font-weight: 700; margin-left: 2px; padding: 0 4px; transition: color 0.15s; }',
+            '.dm-minimize { color: #94a3b8; cursor: pointer; font-size: 14px; font-weight: 700; margin-left: 2px; padding: 0 4px; transition: color 0.15s; display: none; }',
             '.dm-minimize:hover { color: #fca5a5; }',
             '#atom-demurrage-bar.mini {',
             '  height: auto !important; width: auto !important;',

@@ -45,10 +45,15 @@
             });
         });
 
-        // Click no painel mini = expande pra barra
+        // Click no painel = toggle mini/bar
         panel.addEventListener('click', function(e) {
+            // Se clicou num shortcut, não faz toggle
+            if (e.target.closest('.atom-shortcut')) return;
             if (panel.classList.contains('mini')) {
                 panel.classList.remove('mini');
+            } else if (!panel.classList.contains('expanded')) {
+                // Barra visível, não expandida → volta pra mini
+                panel.classList.add('mini');
             }
         });
 
