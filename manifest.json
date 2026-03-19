@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Atom - Multiagentes | Mond Shipping",
-  "version": "2.9.1",
+  "version": "3.0",
   "description": "Plataforma de multiagentes inteligentes para automação de processos Mond Shipping.",
   "permissions": [
     "storage",
@@ -98,16 +98,16 @@
     }
   ],
   "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
+    "16": "atom-logo-light-128.png",
+    "48": "atom-logo-light-128.png",
+    "128": "atom-logo-light-128.png"
   },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icon16.png",
-      "48": "icon48.png",
-      "128": "icon128.png"
+      "16": "atom-logo-light-128.png",
+      "48": "atom-logo-light-128.png",
+      "128": "atom-logo-light-128.png"
     }
   },
   "web_accessible_resources": [

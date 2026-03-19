@@ -1,0 +1,55 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="64" fill="#F1F5F9"/>
+  <defs>
+    <linearGradient id="visorL" x1="160" y1="225" x2="352" y2="265" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D97706"/>
+      <stop offset="1" stop-color="#B45309"/>
+    </linearGradient>
+    <linearGradient id="shellL" x1="100" y1="60" x2="412" y2="452" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#94A3B8"/>
+      <stop offset="0.5" stop-color="#64748B"/>
+      <stop offset="1" stop-color="#475569"/>
+    </linearGradient>
+    <filter id="glowL">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glowStrongL">
+      <feGaussianBlur stdDeviation="12" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Outer shell -->
+  <path d="M256 60 L408 158 L408 340 L320 452 L192 452 L104 340 L104 158 Z" 
+        fill="url(#shellL)" stroke="#94A3B8" stroke-width="3"/>
+
+  <!-- Inner face plate -->
+  <path d="M256 100 L376 180 L376 310 L298 420 L214 420 L136 310 L136 180 Z" 
+        fill="#334155" stroke="#475569" stroke-width="2"/>
+
+  <!-- Visor -->
+  <path d="M168 228 L344 228 L328 272 L184 272 Z" 
+        fill="url(#visorL)" filter="url(#glowL)" opacity="0.95"/>
+
+  <!-- Visor inner line -->
+  <line x1="192" y1="250" x2="320" y2="250" stroke="#FDE68A" stroke-width="2" opacity="0.5"/>
+
+  <!-- Chin plate -->
+  <path d="M208 316 L304 316 L292 368 L220 368 Z" 
+        fill="#475569" stroke="#64748B" stroke-width="1.5"/>
+
+  <!-- Side panels -->
+  <path d="M104 198 L136 186 L136 292 L104 280 Z" fill="#475569" stroke="#64748B" stroke-width="1"/>
+  <path d="M408 198 L376 186 L376 292 L408 280 Z" fill="#475569" stroke="#64748B" stroke-width="1"/>
+
+  <!-- Top crest -->
+  <path d="M236 60 L256 28 L276 60" stroke="#D97706" stroke-width="4" fill="none" filter="url(#glowL)"/>
+
+  <!-- Side accents -->
+  <line x1="112" y1="220" x2="130" y2="220" stroke="#D97706" stroke-width="5" stroke-linecap="round" filter="url(#glowL)"/>
+  <line x1="382" y1="220" x2="400" y2="220" stroke="#D97706" stroke-width="5" stroke-linecap="round" filter="url(#glowL)"/>
+
+  <!-- Core chest indicator -->
+  <circle cx="256" cy="392" r="10" fill="#D97706" filter="url(#glowStrongL)" opacity="0.85"/>
+</svg>
