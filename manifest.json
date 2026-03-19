@@ -24,6 +24,7 @@
     "https://outlook.office365.com/*",
     "https://outlook.cloud.microsoft/*",
     "https://www.hmm21.com/*",
+    "https://timetocargo.com/*",
     "https://mond-atom-default-rtdb.firebaseio.com/*"
   ],
   "background": {
@@ -110,6 +111,15 @@
         "atom-analytics.js",
         "site-scanner.js",
         "hmm-scraper.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://timetocargo.com/*"
+      ],
+      "js": [
+        "atom-analytics.js",
+        "site-scanner.js"
       ]
     }
   ],
