@@ -1,4 +1,4 @@
-@echo off
+ @echo off
 title ATOM - Limpeza
 echo.
 echo ========================================

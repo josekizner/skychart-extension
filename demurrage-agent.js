@@ -6,14 +6,18 @@
     var TAG = '[Demurrage]';
 
     // ===== BLOQUEIO DE ACESSO: só roda se o perfil tem 'demurrage' =====
-    chrome.storage.local.get(['enabledAgents'], function(d) {
-        if (chrome.runtime.lastError) return;
-        var agents = d.enabledAgents || [];
-        if (agents.indexOf('demurrage') === -1) {
-            console.log(TAG, 'Acesso negado — perfil não tem demurrage.');
-            return; // SAI COMPLETAMENTE — nada renderiza
+    chrome.storage.local.get(['enabledAgents', 'userProfile'], function(d) {
+        if (chrome.runtime.lastError) { initDemurrageAgent(); return; }
+        var agents = d.enabledAgents;
+        // Se não tem perfil configurado, assume master (tem tudo)
+        if (!agents || agents.length === 0) {
+            initDemurrageAgent();
+            return;
         }
-        // Perfil autorizado → inicializa o agente
+        if (agents.indexOf('demurrage') === -1) {
+            console.log(TAG, 'Acesso negado — perfil', d.userProfile, 'não tem demurrage.');
+            return;
+        }
         initDemurrageAgent();
     });
 
