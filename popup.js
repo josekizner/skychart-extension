@@ -1,3 +1,21 @@
+// ── ATOM Theme Toggle ──
+(function() {
+  chrome.storage.local.get(['atomPopupTheme'], function(d) {
+    if (d.atomPopupTheme === 'light') {
+      document.body.setAttribute('data-theme', 'light');
+      var btn = document.getElementById('theme-btn');
+      if (btn) btn.textContent = '☾';
+    }
+  });
+  document.getElementById('theme-btn').addEventListener('click', function() {
+    var current = document.body.getAttribute('data-theme');
+    var next = current === 'light' ? 'dark' : 'light';
+    document.body.setAttribute('data-theme', next);
+    this.textContent = next === 'light' ? '☾' : '☀';
+    chrome.storage.local.set({ atomPopupTheme: next });
+  });
+})();
+
 var PROFILES = {
   master: ['cambio','serasa','frete','tracking','cotacao','chequeio-op','chequeio-fin','frequencia','booking','demurrage'],
   financeiro: ['cambio','serasa','chequeio-fin'],
@@ -28,16 +46,16 @@ chrome.storage.local.get(['enabledAgents','userProfile','pricingEmail'], functio
 function showProfileSelector() {
   var overlay = document.createElement('div');
   overlay.id = 'profile-selector-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Inter,sans-serif;color:#fff;';
-  overlay.innerHTML = '<div style="text-align:center;max-width:280px;">' +
-    '<h2 style="margin:0 0 8px;font-size:18px;">Bem-vindo ao Atom</h2>' +
-    '<p style="color:#999;font-size:12px;margin:0 0 20px;">Selecione seu departamento:</p>' +
-    '<button class="prof-btn" data-p="financeiro" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Financeiro</button>' +
-    '<button class="prof-btn" data-p="financeiro-demurrage" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Financeiro + Demurrage</button>' +
-    '<button class="prof-btn" data-p="operacional" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Operacional</button>' +
-    '<button class="prof-btn" data-p="comercial" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#1a3a5c;color:#fff;font-size:14px;cursor:pointer;">Comercial</button>' +
-    '<button class="prof-btn" data-p="demurrage" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#5c1a1a;color:#fff;font-size:14px;cursor:pointer;">Demurrage</button>' +
-    '<button class="prof-btn" data-p="master" style="width:100%;padding:12px;margin:6px 0;border:none;border-radius:8px;background:#2d5a1e;color:#fff;font-size:14px;cursor:pointer;">Master - Todos</button>' +
+  overlay.className = 'profile-overlay';
+  overlay.innerHTML = '<div style="text-align:center;max-width:280px">' +
+    '<h2>Bem-vindo ao ATOM</h2>' +
+    '<p>Selecione seu departamento:</p>' +
+    '<button class="prof-btn" data-p="financeiro">Financeiro</button>' +
+    '<button class="prof-btn" data-p="financeiro-demurrage">Financeiro + Demurrage</button>' +
+    '<button class="prof-btn" data-p="operacional">Operacional</button>' +
+    '<button class="prof-btn" data-p="comercial">Comercial</button>' +
+    '<button class="prof-btn" data-p="demurrage">Demurrage</button>' +
+    '<button class="prof-btn" data-p="master">Master — Todos</button>' +
     '</div>';
   document.body.appendChild(overlay);
   var btns = overlay.querySelectorAll('.prof-btn');
@@ -63,7 +81,7 @@ function applyPermissions(agents, profile) {
   document.getElementById('status-text').textContent = n === 10 ? 'Todos os agentes ativos' : n + ' agentes ativos';
   document.getElementById('profile-name').textContent = LABELS[profile] || profile;
   var gearBtn = document.getElementById('gear-btn');
-  var configSection = document.querySelector('.settings-card');
+  var configSection = document.querySelector('.settings');
   var dashBtn = document.getElementById('open-dash');
   if (profile !== 'master') {
     if (gearBtn) gearBtn.style.display = 'none';

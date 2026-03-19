@@ -2,234 +2,334 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    /* ── ATOM POPUP DESIGN SYSTEM ── */
+    :root {
+      /* Dark (default) */
+      --bg: #090C14; --sf: #0F1219; --sf-r: #141820; --hv: #1A1F2A;
+      --bd: #1C222F; --bd-a: #283040;
+      --tx: #DEE2EA; --tx2: #8892A4; --tx-m: #4E586C; --tx-d: #2E3648;
+      --acc: #F59E0B; --acc-h: #FBBF24; --acc-g: rgba(245,158,11,0.08); --acc-b: rgba(245,158,11,0.15);
+      --cy: #22D3EE; --cy-g: rgba(34,211,238,0.10);
+      --gn: #10B981; --gn-g: rgba(16,185,129,0.10);
+      --rd: #EF4444; --rd-g: rgba(239,68,68,0.10);
+      --pr: #A78BFA; --pr-g: rgba(167,139,250,0.10);
+      --pk: #F472B6; --pk-g: rgba(244,114,182,0.10);
+      --og: #FB923C; --og-g: rgba(251,146,60,0.10);
+      --bl: #60A5FA; --bl-g: rgba(96,165,250,0.10);
+      --input-bg: #0B0F18;
+      --face: #1A2030; --shell: #5A6578; --inner: #2E3648;
+      --vA: #F59E0B; --vB: #D97706; --vL: #FDE68A;
+      --shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+    }
+    [data-theme="light"] {
+      --bg: #F0EEEA; --sf: #FAFAF8; --sf-r: #F2F1ED; --hv: #ECEAE5;
+      --bd: #D8D5CC; --bd-a: #C8C4BA;
+      --tx: #1A1B1E; --tx2: #5C5A54; --tx-m: #908D84; --tx-d: #C4C1BA;
+      --acc: #C07808; --acc-h: #A56807; --acc-g: rgba(192,120,8,0.06); --acc-b: rgba(192,120,8,0.14);
+      --cy: #0B8A9E; --cy-g: rgba(11,138,158,0.07);
+      --gn: #0A7D58; --gn-g: rgba(10,125,88,0.07);
+      --rd: #CC2E28; --rd-g: rgba(204,46,40,0.07);
+      --pr: #6B55C2; --pr-g: rgba(107,85,194,0.07);
+      --pk: #C03468; --pk-g: rgba(192,52,104,0.07);
+      --og: #D46A14; --og-g: rgba(212,106,20,0.07);
+      --bl: #3B7FD9; --bl-g: rgba(59,127,217,0.07);
+      --input-bg: #EDECEA;
+      --face: #C0C8D4; --shell: #5A6578; --inner: #8892A2;
+      --vA: #C07808; --vB: #A56807; --vL: #F5D88A;
+      --shadow: 0 20px 60px rgba(0,0,0,0.1);
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    button { font-family: inherit; }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 2px; }
+
     body {
       width: 320px;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: linear-gradient(145deg, #0c0e14 0%, #111827 50%, #0c1220 100%);
-      color: #e2e8f0;
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--tx);
       overflow: hidden;
+      transition: background 0.35s cubic-bezier(0.22,1,0.36,1), color 0.35s cubic-bezier(0.22,1,0.36,1);
     }
+
+    /* ── HEADER ── */
     .header {
-      padding: 20px 20px 16px;
-      text-align: center;
-      position: relative;
+      padding: 18px 18px 14px;
+      background: linear-gradient(180deg, var(--sf-r) 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--bd);
     }
-    .header::after {
-      content: '';
-      position: absolute;
-      bottom: 0; left: 20px; right: 20px; height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(99,102,241,0.3), transparent);
+    .header-top {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
     }
-    .brand {
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-      margin-bottom: 4px;
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-text .name {
+      display: flex; align-items: baseline; gap: 1px;
+      font-family: 'Oswald', sans-serif; font-size: 18px; font-weight: 600;
+      letter-spacing: 0.06em;
     }
-    .atom-icon {
-      width: 32px; height: 32px; border-radius: 10px; overflow: hidden;
-      box-shadow: 0 4px 12px rgba(99,102,241,0.3); flex-shrink: 0;
-    }
-    .atom-icon img { width: 100%; height: 100%; object-fit: cover; }
-    .brand-text h1 {
-      font-size: 18px; font-weight: 700; letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #fff 0%, #c7d2fe 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }
+    .brand-text .name .o { color: var(--acc); }
     .brand-text .subtitle {
-      font-size: 10px; color: #64748b; letter-spacing: 1.5px;
-      text-transform: uppercase; font-weight: 500;
+      font-size: 8px; font-weight: 600; letter-spacing: 0.12em;
+      color: var(--tx-m); text-transform: uppercase; margin-top: -1px;
     }
-    .status-row {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      margin-top: 12px;
+    .theme-btn {
+      width: 28px; height: 28px; border-radius: 6px;
+      border: 1px solid var(--bd); background: var(--sf);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 11px; transition: all 0.2s; color: var(--tx2);
     }
+    .theme-btn:hover { border-color: var(--acc); color: var(--acc); }
+    .gear-btn {
+      width: 28px; height: 28px; border-radius: 6px;
+      border: 1px solid var(--bd); background: var(--sf);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; transition: all 0.2s; color: var(--tx-m);
+    }
+    .gear-btn:hover { border-color: var(--acc); color: var(--acc); }
+
+    /* Status bar */
+    .status-row { display: flex; align-items: center; gap: 8px; }
     .status-pill {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 5px 14px;
-      background: rgba(16,185,129,0.08);
-      border: 1px solid rgba(16,185,129,0.2);
-      border-radius: 20px; font-size: 11px; color: #6ee7b7; font-weight: 500;
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 20px;
+      background: var(--gn-g); border: 1px solid rgba(16,185,129,0.18);
     }
-    .pulse {
-      width: 6px; height: 6px; border-radius: 50%; background: #10b981;
+    .pulse-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--gn); box-shadow: 0 0 6px rgba(16,185,129,0.6);
       animation: pulse 2s ease-in-out infinite;
     }
     @keyframes pulse {
-      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
-      50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+      0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
     }
+    .status-pill span { font-size: 10px; font-weight: 600; color: var(--gn); }
     .profile-pill {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 5px 12px;
-      background: rgba(99,102,241,0.08);
-      border: 1px solid rgba(99,102,241,0.2);
-      border-radius: 20px; font-size: 10px; color: #a5b4fc; font-weight: 500;
+      padding: 4px 10px; border-radius: 20px;
+      background: var(--acc-g); border: 1px solid var(--acc-b);
+      font-size: 10px; font-weight: 600; color: var(--acc);
     }
-    .section { padding: 14px 20px; }
+
+    /* ── AGENTS GRID ── */
+    .section { padding: 14px 14px 10px; }
     .section-label {
-      font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
-      color: #475569; font-weight: 600; margin-bottom: 10px;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+      color: var(--tx-m); text-transform: uppercase;
+      margin-bottom: 8px; padding-left: 2px;
     }
-    .agents-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .agents-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
     .agent-card {
-      padding: 10px 12px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 10px;
-      display: flex; align-items: center; gap: 8px;
-      transition: all 0.2s;
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 10px; width: 100%;
+      background: transparent; border-radius: 6px;
+      border: 1px solid var(--bd);
+      cursor: default; transition: all 0.15s cubic-bezier(0.22,1,0.36,1);
+      text-align: left;
     }
-    .agent-card:hover {
-      background: rgba(255,255,255,0.06);
-      border-color: rgba(255,255,255,0.12);
-      transform: translateY(-1px);
-    }
+    .agent-card:hover { background: var(--hv); border-color: var(--bd-a); }
     .agent-card.hidden { display: none; }
     .agent-icon {
-      width: 28px; height: 28px; border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.8); flex-shrink: 0;
+      width: 30px; height: 30px; border-radius: 5px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      font-family: 'Oswald', sans-serif; font-size: 13px; font-weight: 600;
     }
-    .agent-icon.cambio { background: rgba(59,130,246,0.15); }
-    .agent-icon.serasa { background: rgba(16,185,129,0.15); }
-    .agent-icon.frete { background: rgba(245,158,11,0.15); }
-    .agent-icon.tracking { background: rgba(168,85,247,0.15); }
-    .agent-icon.cotacao { background: rgba(236,72,153,0.15); }
-    .agent-icon.chequeio-op { background: rgba(6,182,212,0.15); }
-    .agent-icon.chequeio-fin { background: rgba(34,197,94,0.15); }
-    .agent-icon.frequencia { background: rgba(251,146,60,0.15); }
-    .agent-icon.booking { background: rgba(14,165,233,0.15); }
-    .agent-icon.demurrage { background: rgba(239,68,68,0.15); }
-    .agent-name { font-size: 11px; font-weight: 600; color: #cbd5e1; }
-    .agent-desc { font-size: 9px; color: #64748b; margin-top: 1px; }
-    .settings { padding: 0 20px 14px; }
-    .settings-card {
-      background: rgba(255,255,255,0.02);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 12px; padding: 14px;
-    }
-    .settings-card .section-label { margin-bottom: 8px; }
-    .input-group label {
-      font-size: 11px; color: #94a3b8; font-weight: 500;
-      margin-bottom: 4px; display: block;
-    }
-    .input-group input, .input-group select {
-      width: 100%; padding: 9px 12px;
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 8px; color: #fff; font-size: 12px;
-      font-family: inherit; outline: none;
-    }
-    .input-group input:focus {
-      border-color: rgba(99,102,241,0.5);
-      box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
-    }
-    .input-group input::placeholder { color: #334155; }
-    .input-group select option { background: #1e293b; color: #fff; }
-    .btn-save {
-      width: 100%; padding: 9px; margin-top: 10px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      border: none; border-radius: 8px; color: #fff; font-size: 12px;
-      font-weight: 600; font-family: inherit; cursor: pointer;
-      transition: all 0.2s;
-    }
-    .btn-save:hover { filter: brightness(1.1); box-shadow: 0 4px 16px rgba(99,102,241,0.3); }
-    .btn-save:active { transform: scale(0.98); }
-    .saved-msg {
-      display: none; color: #6ee7b7; font-size: 10px;
-      text-align: center; margin-top: 6px; font-weight: 500;
-    }
+    .agent-icon.cambio { background: var(--acc-g); color: var(--acc); border: 1px solid rgba(245,158,11,0.1); }
+    .agent-icon.serasa { background: var(--cy-g); color: var(--cy); border: 1px solid rgba(34,211,238,0.1); }
+    .agent-icon.frete { background: var(--gn-g); color: var(--gn); border: 1px solid rgba(16,185,129,0.1); }
+    .agent-icon.tracking { background: var(--pr-g); color: var(--pr); border: 1px solid rgba(167,139,250,0.1); }
+    .agent-icon.cotacao { background: var(--og-g); color: var(--og); border: 1px solid rgba(251,146,60,0.1); }
+    .agent-icon.chequeio-op { background: var(--bl-g); color: var(--bl); border: 1px solid rgba(96,165,250,0.1); }
+    .agent-icon.chequeio-fin { background: var(--cy-g); color: var(--cy); border: 1px solid rgba(34,211,238,0.1); }
+    .agent-icon.frequencia { background: var(--pk-g); color: var(--pk); border: 1px solid rgba(244,114,182,0.1); }
+    .agent-icon.booking { background: var(--pr-g); color: var(--pr); border: 1px solid rgba(167,139,250,0.1); }
+    .agent-icon.demurrage { background: var(--rd-g); color: var(--rd); border: 1px solid rgba(239,68,68,0.1); }
+    .agent-name { font-size: 12px; font-weight: 600; color: var(--tx); line-height: 1.2; }
+    .agent-desc { font-size: 9px; color: var(--tx-m); font-weight: 400; line-height: 1.2; margin-top: 1px; }
+
+    /* ── INTELLIGENCE BUTTON ── */
     .dash-btn {
       display: flex; align-items: center; justify-content: center; gap: 8px;
-      width: calc(100% - 40px); margin: 2px 20px 8px; padding: 10px;
-      background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(139,92,246,0.12));
-      border: 1px solid rgba(99,102,241,0.25);
-      border-radius: 10px; color: #a5b4fc; font-size: 12px;
-      font-weight: 600; font-family: inherit; cursor: pointer;
-      transition: all 0.2s; text-decoration: none;
+      width: calc(100% - 28px); margin: 6px 14px 12px; padding: 10px;
+      background: var(--acc-g); border: 1px solid var(--acc-b);
+      border-radius: 6px; cursor: pointer; transition: all 0.2s;
+      text-decoration: none;
+      font-family: 'Oswald', sans-serif; font-size: 13px; font-weight: 600;
+      letter-spacing: 0.06em; color: var(--acc); text-transform: uppercase;
     }
-    .dash-btn:hover {
-      background: linear-gradient(135deg, rgba(59,130,246,0.2), rgba(139,92,246,0.2));
-      border-color: rgba(99,102,241,0.4); color: #c7d2fe;
-      box-shadow: 0 4px 16px rgba(99,102,241,0.15);
+    .dash-btn:hover { background: rgba(245,158,11,0.15); }
+
+    /* ── SEPARATOR ── */
+    .separator { height: 1px; background: var(--bd); margin: 0 14px; }
+
+    /* ── CONFIG SECTION ── */
+    .settings { padding: 12px 14px 16px; }
+    .email-display {
+      padding: 8px 10px; border-radius: 5px;
+      background: var(--input-bg); border: 1px solid var(--bd);
+      font-size: 11px; font-weight: 500; color: var(--tx);
+      display: flex; align-items: center; gap: 6px;
+      margin-bottom: 8px;
     }
-    .gear-btn {
-      position: absolute; top: 16px; right: 16px;
-      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
-      color: #64748b; font-size: 14px; cursor: pointer;
-      padding: 4px 6px; border-radius: 6px; transition: all 0.2s;
-      line-height: 1;
+    .email-display svg { flex-shrink: 0; opacity: 0.35; }
+    .input-group label {
+      font-size: 10px; color: var(--tx2); font-weight: 500;
+      margin-bottom: 4px; display: block; padding-left: 2px;
     }
-    .gear-btn:hover { color: #a5b4fc; background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.3); }
-    /* Admin Overlay */
+    .input-group input, .input-group select {
+      width: 100%; padding: 8px 10px;
+      background: var(--input-bg); border: 1px solid var(--bd);
+      border-radius: 5px; color: var(--tx); font-size: 11px;
+      font-family: 'DM Sans', sans-serif; outline: none;
+      transition: all 0.2s;
+    }
+    .input-group input:focus, .input-group select:focus {
+      border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-g);
+    }
+    .input-group input::placeholder { color: var(--tx-m); }
+    .input-group select option { background: var(--sf); color: var(--tx); }
+    .btn-save {
+      width: 100%; padding: 9px; margin-top: 10px;
+      background: var(--acc-g); border: 1px solid var(--acc-b);
+      border-radius: 6px; color: var(--acc); font-size: 11px;
+      font-weight: 600; cursor: pointer; transition: all 0.2s;
+      font-family: 'DM Sans', sans-serif; letter-spacing: 0.04em;
+    }
+    .btn-save:hover { background: rgba(245,158,11,0.15); }
+    .btn-save:active { transform: scale(0.98); }
+    .saved-msg {
+      display: none; color: var(--gn); font-size: 10px;
+      text-align: center; margin-top: 6px; font-weight: 600;
+    }
+
+    /* ── VERSION ROW ── */
+    .version-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 10px; border-radius: 5px;
+      background: var(--sf); border: 1px solid var(--bd);
+    }
+    .version-row .label { font-size: 10px; font-weight: 500; color: var(--tx-m); }
+    .version-row .value { font-size: 10px; font-family: 'Oswald', sans-serif; font-weight: 500; color: var(--acc); }
+
+    /* ── FOOTER ── */
+    .footer {
+      padding: 10px 14px 14px; text-align: center;
+      font-size: 9px; color: var(--tx-d); letter-spacing: 0.06em;
+    }
+
+    /* ── ADMIN OVERLAY ── */
     .admin-overlay {
       display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.85); z-index: 100; backdrop-filter: blur(4px);
     }
     .admin-overlay.visible { display: flex; align-items: center; justify-content: center; }
     .admin-modal {
-      width: 280px;
-      background: linear-gradient(145deg, #1e293b, #0f172a);
-      border: 1px solid rgba(99,102,241,0.3);
-      border-radius: 16px; padding: 20px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-      position: relative;
+      width: 280px; background: var(--sf); border: 1px solid var(--bd);
+      border-radius: 12px; padding: 20px; box-shadow: var(--shadow); position: relative;
     }
     .admin-modal h3 {
-      font-size: 14px; color: #e2e8f0; margin-bottom: 12px;
-      display: flex; align-items: center; gap: 6px;
+      font-family: 'Oswald', sans-serif; font-size: 14px; font-weight: 600;
+      color: var(--tx); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+      letter-spacing: 0.04em;
     }
     .admin-close {
       position: absolute; top: 12px; right: 14px;
-      background: none; border: none; color: #64748b;
+      background: none; border: none; color: var(--tx-m);
       font-size: 18px; cursor: pointer; line-height: 1;
     }
-    .admin-close:hover { color: #e2e8f0; }
+    .admin-close:hover { color: var(--tx); }
     .pwd-row { display: flex; gap: 6px; margin-bottom: 8px; }
     .pwd-row input {
-      flex: 1; padding: 8px 10px; background: rgba(0,0,0,0.4);
-      border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-      color: #fff; font-size: 12px; font-family: inherit; outline: none;
+      flex: 1; padding: 8px 10px; background: var(--input-bg);
+      border: 1px solid var(--bd); border-radius: 6px;
+      color: var(--tx); font-size: 12px; font-family: 'DM Sans', sans-serif; outline: none;
     }
     .pwd-row button {
-      padding: 8px 14px; background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      border: none; border-radius: 8px; color: #fff; font-size: 11px;
+      padding: 8px 14px; background: var(--acc-g); border: 1px solid var(--acc-b);
+      border-radius: 6px; color: var(--acc); font-size: 11px;
       font-weight: 600; cursor: pointer; white-space: nowrap;
     }
-    .pwd-error { display: none; color: #f87171; font-size: 10px; margin-bottom: 8px; }
+    .pwd-row button:hover { background: rgba(245,158,11,0.15); }
+    .pwd-error { display: none; color: var(--rd); font-size: 10px; margin-bottom: 8px; font-weight: 500; }
     .admin-body { display: none; }
     .admin-body.visible { display: block; }
     .agent-check {
       display: flex; align-items: center; gap: 8px;
-      padding: 5px 0; font-size: 12px; color: #cbd5e1;
+      padding: 5px 0; font-size: 12px; color: var(--tx);
     }
-    .agent-check input[type="checkbox"] { accent-color: #6366f1; width: 14px; height: 14px; }
+    .agent-check input[type="checkbox"] { accent-color: var(--acc); width: 14px; height: 14px; }
     .agent-check .tag {
       font-size: 8px; padding: 1px 5px; border-radius: 4px;
-      background: rgba(99,102,241,0.15); color: #a5b4fc; margin-left: auto;
+      background: var(--acc-g); color: var(--acc); margin-left: auto;
+      font-weight: 600; letter-spacing: 0.04em;
     }
-    .footer {
-      padding: 10px 20px 14px; text-align: center;
-      font-size: 9px; color: #334155;
+
+    /* ── PROFILE SELECTOR ── */
+    .profile-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg); z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
-    .footer span { color: #475569; }
+    .profile-overlay h2 {
+      font-family: 'Oswald', sans-serif; font-size: 18px; font-weight: 600;
+      letter-spacing: 0.06em; margin-bottom: 8px; color: var(--tx);
+    }
+    .profile-overlay p {
+      color: var(--tx-m); font-size: 12px; margin-bottom: 20px;
+    }
+    .prof-btn {
+      width: 220px; padding: 10px; margin: 4px 0;
+      border: 1px solid var(--bd); border-radius: 6px;
+      background: var(--sf); color: var(--tx);
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .prof-btn:hover { background: var(--hv); border-color: var(--acc); color: var(--acc); }
   </style>
 </head>
-<body>
+<body data-theme="dark">
 
   <div class="header">
-    <button class="gear-btn" id="gear-btn" title="Configurar permissões">⚙</button>
-    <div class="brand">
-      <div class="atom-icon"><img src="icon48.png" alt="Atom"></div>
-      <div class="brand-text">
-        <h1>Atom</h1>
-        <div class="subtitle">Multiagentes &bull; Mond Shipping</div>
+    <div class="header-top">
+      <div class="brand">
+        <!-- ATOM Logo SVG (dark/light compatible via CSS vars) -->
+        <svg width="36" height="36" viewBox="0 0 120 120" fill="none" id="atom-logo">
+          <defs>
+            <linearGradient id="vPopup" x1="30" y1="50" x2="90" y2="60" gradientUnits="userSpaceOnUse">
+              <stop stop-color="var(--vA)"/><stop offset="1" stop-color="var(--vB)"/>
+            </linearGradient>
+            <filter id="gPopup"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="gcPopup"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <path d="M60 10L95 34V76L74 106H46L25 76V34Z" fill="var(--inner)" stroke="var(--shell)" stroke-width="1.2"/>
+          <path d="M60 20L86 40V70L69 96H51L34 70V40Z" fill="var(--face)" stroke="var(--inner)" stroke-width="0.8"/>
+          <path d="M40 52L80 52L76 63H44Z" fill="url(#vPopup)" filter="url(#gPopup)">
+            <animate attributeName="opacity" values="1;0.55;1" dur="3s" repeatCount="indefinite"/>
+          </path>
+          <line x1="46" y1="57.5" x2="74" y2="57.5" stroke="var(--vL)" stroke-width="0.7" opacity="0.35"/>
+          <path d="M50 72H70L67 84H53Z" fill="var(--inner)"/>
+          <path d="M25 44L34 41V66L25 63Z" fill="var(--inner)"/><path d="M95 44L86 41V66L95 63Z" fill="var(--inner)"/>
+          <path d="M56 10L60 3L64 10" stroke="var(--vA)" stroke-width="1.5" fill="none" filter="url(#gPopup)"/>
+          <line x1="27" y1="50" x2="32" y2="50" stroke="var(--vA)" stroke-width="1.5" filter="url(#gPopup)"/>
+          <line x1="88" y1="50" x2="93" y2="50" stroke="var(--vA)" stroke-width="1.5" filter="url(#gPopup)"/>
+          <circle cx="60" cy="90" r="2.5" fill="var(--vA)" filter="url(#gcPopup)">
+            <animate attributeName="opacity" values="0.85;0.25;0.85" dur="2s" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+        <div class="brand-text">
+          <div class="name"><span>AT</span><span class="o">O</span><span>M</span></div>
+          <div class="subtitle">MULTIAGENTES · MOND SHIPPING</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="theme-btn" id="theme-btn" title="Alternar tema">☀</button>
+        <button class="gear-btn" id="gear-btn" title="Configurar permissões">⚙</button>
       </div>
     </div>
     <div class="status-row">
-      <div class="status-pill"><div class="pulse"></div><span id="status-text">Todos os agentes ativos</span></div>
+      <div class="status-pill"><span class="pulse-dot"></span><span id="status-text">Todos os agentes ativos</span></div>
       <div class="profile-pill" id="profile-pill"><span id="profile-name">Master</span></div>
     </div>
   </div>
@@ -281,22 +381,31 @@
   </div>
 
   <a href="dashboard.html" target="_blank" class="dash-btn" id="open-dash">
-    📊 ATOM Intelligence
+    <svg width="14" height="14" viewBox="0 0 120 120" fill="none" style="flex-shrink:0">
+      <path d="M60 10L95 34V76L74 106H46L25 76V34Z" fill="var(--inner)" stroke="var(--shell)" stroke-width="2"/>
+      <path d="M40 52L80 52L76 63H44Z" fill="var(--acc)"/>
+    </svg>
+    ATOM Intelligence
   </a>
 
+  <div class="separator"></div>
+
   <div class="settings">
-    <div class="settings-card">
-      <div class="section-label">Configurações</div>
-      <div class="input-group">
-        <label>E-mail de alerta (Pricing)</label>
-        <input type="email" id="pricing-email" placeholder="email@mondshipping.com.br">
-      </div>
-      <button class="btn-save" id="save-btn">Salvar</button>
-      <div class="saved-msg" id="saved-msg">Configuração salva</div>
+    <div class="section-label">Configurações</div>
+    <div class="input-group" style="margin-bottom:8px">
+      <label>E-mail de alerta (Pricing)</label>
+      <input type="email" id="pricing-email" placeholder="email@mondshipping.com.br">
+    </div>
+    <button class="btn-save" id="save-btn">Salvar</button>
+    <div class="saved-msg" id="saved-msg">Configuração salva</div>
+
+    <div class="version-row" style="margin-top:10px">
+      <span class="label">Versão</span>
+      <span class="value" id="popup-version"></span>
     </div>
   </div>
 
-  <div class="footer">Mond Shipping &bull; <span id="popup-version"></span></div>
+  <div class="footer">ATOM · MOND SHIPPING · 2026</div>
 
   <!-- Admin Overlay Modal -->
   <div class="admin-overlay" id="admin-overlay">
