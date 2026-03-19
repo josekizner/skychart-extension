@@ -233,21 +233,28 @@
         html += '  </div>';
         html += '</div>';
 
-        // MAIN CONTENT
-        html += '<div class="dash-content">';
+        // LAYOUT: SIDEBAR + MAIN
+        html += '<div class="dash-layout">';
 
-        // ── AGENTS GRID ──
-        html += '<div class="agents-grid fade-up">';
+        // ── AGENTS SIDEBAR ──
+        html += '<div class="agents-sidebar fade-up">';
+        html += '<div class="sidebar-header">';
+        html += atomLogoSvg(28);
+        html += '<div><span>' + atomWord(16) + '</span><div style="font-size:7px;font-weight:600;letter-spacing:0.12em;color:var(--text-muted);text-transform:uppercase;margin-top:1px">MOND SHIPPING</div></div>';
+        html += '</div>';
+        html += '<div class="sidebar-label">AGENTES</div>';
+        html += '<div class="sidebar-agents">';
         AGENTS.forEach(function(a) {
-            html += '<div class="agent-card">';
-            html += '  <div class="agent-icon" style="background:' + a.g + ';border:1px solid ' + a.c + '25;color:' + a.c + '">' + a.l + '</div>';
-            html += '  <div>';
-            html += '    <div class="agent-info-name">' + a.n + '</div>';
-            html += '    <div class="agent-info-desc">' + a.d + '</div>';
-            html += '  </div>';
+            html += '<div class="sidebar-agent">';
+            html += '<div class="sidebar-agent-icon" style="background:' + a.g + ';border:1px solid ' + a.c + '25;color:' + a.c + '">' + a.l + '</div>';
+            html += '<div class="sidebar-agent-info"><div class="sidebar-agent-name">' + a.n + '</div><div class="sidebar-agent-desc">' + a.d + '</div></div>';
             html += '</div>';
         });
         html += '</div>';
+        html += '</div>';
+
+        // MAIN CONTENT
+        html += '<div class="dash-content">';
 
         // ── STAT CARDS ROW 1 ──
         html += '<div class="stat-grid">';
@@ -277,7 +284,7 @@
             html += '<div class="fade-up fade-up-3" style="margin-bottom:24px">';
             html += '<div class="panel">';
             html += '<div class="panel-header">';
-            html += '  <div class="panel-title"><span class="panel-title-icon">⚡</span><span class="panel-title-text">Extensões Ativas</span></div>';
+            html += '  <div class="panel-title">' + panelIcon('E','var(--accent)','var(--accent-ghost)') + '<span class="panel-title-text">Extensões Ativas</span></div>';
             html += '  <span class="panel-action">VERSÃO ATUAL: ' + latestVer + '</span>';
             html += '</div>';
             html += '<div class="panel-body no-pad">';
@@ -308,7 +315,7 @@
 
         // Armador Ranking
         html += '<div class="fade-up fade-up-4"><div class="panel">';
-        html += '<div class="panel-header"><div class="panel-title"><span class="panel-title-icon">⚓</span><span class="panel-title-text">Ranking de Armadores</span></div></div>';
+        html += '<div class="panel-header"><div class="panel-title">' + panelIcon('R','#0891B2','rgba(8,145,178,0.07)') + '<span class="panel-title-text">Ranking de Armadores</span></div></div>';
         html += '<div class="panel-body">';
         if (armadorRanking.length > 0) {
             var maxArm = armadorRanking[0].count;
@@ -327,7 +334,7 @@
 
         // Serasa Scores
         html += '<div class="fade-up fade-up-5"><div class="panel">';
-        html += '<div class="panel-header"><div class="panel-title"><span class="panel-title-icon">📋</span><span class="panel-title-text">Scores Serasa</span></div></div>';
+        html += '<div class="panel-header"><div class="panel-title">' + panelIcon('S','#059669','rgba(5,150,105,0.07)') + '<span class="panel-title-text">Scores Serasa</span></div></div>';
         if (serasaList.length > 0) {
             html += '<div class="panel-body no-pad">';
             html += '<table class="atom-table"><thead><tr>';
@@ -373,7 +380,7 @@
 
         // Chequeios
         html += '<div class="fade-up fade-up-6"><div class="panel">';
-        html += '<div class="panel-header"><div class="panel-title"><span class="panel-title-icon">✓</span><span class="panel-title-text">Últimos Chequeios</span></div></div>';
+        html += '<div class="panel-header"><div class="panel-title">' + panelIcon('V','#0891B2','rgba(8,145,178,0.07)') + '<span class="panel-title-text">Últimos Chequeios</span></div></div>';
         html += '<div class="panel-body no-pad">';
         if (checkResults.length > 0) {
             html += '<table class="atom-table" id="check-table"><thead><tr>';
@@ -400,7 +407,7 @@
 
         // User Activity
         html += '<div class="fade-up fade-up-7"><div class="panel">';
-        html += '<div class="panel-header"><div class="panel-title"><span class="panel-title-icon">👤</span><span class="panel-title-text">Atividade por Usuário</span></div></div>';
+        html += '<div class="panel-header"><div class="panel-title">' + panelIcon('U','var(--accent)','var(--accent-ghost)') + '<span class="panel-title-text">Atividade por Usuário</span></div></div>';
         html += '<div class="panel-body">';
         if (userRanking.length > 0) {
             var maxUser = userRanking[0].total;
@@ -435,6 +442,7 @@
         html += '</div>';
 
         html += '</div>'; // close dash-content
+        html += '</div>'; // close dash-layout
 
         // ============================================================
         // INJECT
@@ -529,6 +537,10 @@
     }
 
     // ===== COMPONENT BUILDERS =====
+    function panelIcon(letter, color, bg) {
+        return '<span style="width:22px;height:22px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-family:Bebas Neue,sans-serif;font-size:11px;font-weight:600;color:' + color + ';background:' + bg + ';border:1px solid ' + color + '18;flex-shrink:0;margin-right:8px">' + letter + '</span>';
+    }
+
     function statCard(label, value, accent, sub, delay) {
         var accentAttr = accent ? ' data-accent="' + accent + '"' : '';
         return '<div class="stat-card fade-up fade-up-' + delay + '"' + accentAttr + '>'

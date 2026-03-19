@@ -169,26 +169,108 @@ body {
 .badge-purple { color: var(--purple); background: var(--purple-ghost); }
 .badge-purple .badge-dot { background: var(--purple); }
 
-/* ── MAIN CONTENT ── */
-.dash-content {
+/* ── LAYOUT: SIDEBAR + MAIN ── */
+.dash-layout {
+  display: flex;
+  min-height: calc(100vh - 50px);
   position: relative;
   z-index: 1;
+}
+
+/* ── AGENTS SIDEBAR ── */
+.agents-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  height: calc(100vh - 50px);
+  position: sticky;
+  top: 50px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: 10px 16px 6px;
+}
+.sidebar-agents {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sidebar-agent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  transition: all 0.15s var(--ease);
+  cursor: default;
+}
+.sidebar-agent:hover {
+  background: var(--hover);
+  border-color: var(--border-active);
+}
+.sidebar-agent-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+.sidebar-agent-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+}
+.sidebar-agent-desc {
+  font-size: 9px;
+  color: var(--text-muted);
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+/* ── MAIN CONTENT ── */
+.dash-content {
+  flex: 1;
+  min-width: 0;
   padding: 24px 28px;
-  max-width: 1400px;
-  margin: 0 auto;
 }
 
 /* ── STAT CARD ── */
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
 }
 .stat-card {
-  padding: 16px 18px;
+  padding: 14px 16px;
   background: var(--surface);
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   border-top: 2px solid transparent;
   box-shadow: var(--shadow);
@@ -391,55 +473,7 @@ body {
   margin-top: 2px;
 }
 
-/* ── AGENT CARD (inline grid) ── */
-.agents-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  margin-bottom: 24px;
-}
-.agent-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: var(--surface);
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  cursor: default;
-  transition: all 0.2s var(--ease);
-}
-.agent-card:hover {
-  background: var(--hover);
-  border-color: var(--border-active);
-}
-.agent-icon {
-  width: 34px; height: 34px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 15px;
-  letter-spacing: 0.04em;
-}
-.agent-info-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.agent-info-desc {
-  font-size: 9px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+/* (old agents-grid removed — now uses sidebar) */
 
 /* ── SPARKLINE AREA ── */
 .sparkline-area {
@@ -565,12 +599,20 @@ body {
 /* ── RESPONSIVE ── */
 @media (max-width: 1100px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
-  .agents-grid { grid-template-columns: repeat(3, 1fr); }
+  .agents-sidebar { width: 180px; }
 }
 @media (max-width: 768px) {
+  .dash-layout { flex-direction: column; }
+  .agents-sidebar {
+    width: 100%; height: auto;
+    position: static;
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-agents { flex-direction: row; flex-wrap: wrap; }
   .two-col { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: 1fr; }
-  .agents-grid { grid-template-columns: repeat(2, 1fr); }
   .dash-content { padding: 16px; }
   .top-bar { padding: 10px 16px; }
 }
