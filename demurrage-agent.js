@@ -52,28 +52,19 @@
         document.body.appendChild(bar);
         injectStyles();
 
-        // Click na barra = toggle
-        document.querySelector('#atom-demurrage-bar .dm-bar-inner').addEventListener('click', function(e) {
-            if (e.target.id === 'dm-collapse' || e.target.id === 'dm-minimize' || e.target.id === 'dm-refresh') return;
-            var bar = document.getElementById('atom-demurrage-bar');
+        // Click no painel = toggle (mesma logica do ATOM agent que funciona)
+        bar.addEventListener('click', function(e) {
+            // Se clicou em botão de ação, não faz toggle
+            if (e.target.closest('.dm-collapse, .dm-minimize, .dm-refresh')) return;
             if (bar.classList.contains('mini')) {
-                if (_dmDidDrag) return; // Foi drag, ignora click
+                // Mini → abre expandido
                 expandPanel();
-            } else {
-                togglePanel();
+            } else if (bar.classList.contains('expanded')) {
+                // Clicou no header expandido → volta pra mini
+                if (e.target.closest('.dm-bar-inner')) {
+                    collapsePanel();
+                }
             }
-        });
-
-        // ▼ = recolhe pra barra
-        document.getElementById('dm-collapse').addEventListener('click', function(e) {
-            e.stopPropagation();
-            collapsePanel();
-        });
-
-        // − = minimiza pra só o "D" arrastável
-        document.getElementById('dm-minimize').addEventListener('click', function(e) {
-            e.stopPropagation();
-            miniMode();
         });
 
         // ⟳ = força refresh da API
@@ -82,8 +73,17 @@
             loadData(true);
         });
 
-        // Drag no modo mini
-        initDrag(bar);
+        // − = minimiza pra só o "D"
+        document.getElementById('dm-minimize').addEventListener('click', function(e) {
+            e.stopPropagation();
+            miniMode();
+        });
+
+        // ▼ = recolhe pra mini
+        document.getElementById('dm-collapse').addEventListener('click', function(e) {
+            e.stopPropagation();
+            collapsePanel();
+        });
 
         // Inicia como bolinha D (mini mode)
         bar.classList.add('mini');
