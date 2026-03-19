@@ -80,17 +80,39 @@ function checkForUpdate() {
     .then(r => r.json())
     .then(latestVersion => {
       if (latestVersion && latestVersion !== CURRENT_VERSION) {
-        console.log('[AutoReload] Nova versão detectada:', latestVersion, '(atual:', CURRENT_VERSION + '). Recarregando...');
+        console.log('[AutoReload] Nova versao detectada:', latestVersion, '(atual:', CURRENT_VERSION + '). Recarregando...');
         chrome.runtime.reload();
       }
     })
-    .catch(() => {}); // silencioso
+    .catch(() => {});
 }
 
-// chrome.alarms: sobrevive ao shutdown do service worker (setInterval NÃO sobrevive)
+// Heartbeat: reporta versao/perfil/user ao Firebase a cada minuto
+function sendHeartbeat() {
+  chrome.storage.local.get(['userProfile', 'atomUserName'], function(d) {
+    var user = d.atomUserName || 'unknown';
+    var profile = d.userProfile || 'unknown';
+    var safeKey = user.replace(/[.#$/\[\]@\s]/g, '_');
+    if (safeKey === 'unknown') return;
+    fetch(`${_FIREBASE_BASE}/system/heartbeats/${safeKey}.json`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        version: CURRENT_VERSION,
+        profile: profile,
+        user: user,
+        lastSeen: Date.now()
+      })
+    }).catch(() => {});
+  });
+}
+
+// chrome.alarms: sobrevive ao shutdown do service worker
 chrome.alarms.create('atomAutoReload', { delayInMinutes: 0.25, periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'atomAutoReload') checkForUpdate();
+  if (alarm.name === 'atomAutoReload') {
+    checkForUpdate();
+    sendHeartbeat();
+  }
 });
 
 // API config
@@ -101,10 +123,10 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemi
 // ===== PERFIL / PERMISSOES =====
 const PROFILES = {
   master: ['cambio','serasa','frete','tracking','cotacao','chequeio-op','chequeio-fin','frequencia','booking','demurrage'],
-  financeiro: ['cambio','serasa','chequeio-fin','demurrage'],
+  financeiro: ['cambio','serasa','chequeio-fin'],
   'financeiro-demurrage': ['cambio','serasa','chequeio-fin','demurrage'],
-  operacional: ['tracking','frete','chequeio-op','booking','demurrage'],
-  comercial: ['cotacao','frete','frequencia','demurrage'],
+  operacional: ['tracking','frete','chequeio-op','booking'],
+  comercial: ['cotacao','frete','frequencia'],
   demurrage: ['demurrage','tracking','frete']
 };
 

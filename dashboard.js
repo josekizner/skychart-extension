@@ -15,13 +15,17 @@
             fetch(FIREBASE_URL + '/analytics.json').then(function(r) { return r.json(); }),
             fetch(FIREBASE_URL + '/demurrage/resolved.json').then(function(r) { return r.json(); }),
             fetch(FIREBASE_URL + '/demurrage/cache.json').then(function(r) { return r.json(); }),
-            fetch(FIREBASE_URL + '/serasa.json').then(function(r) { return r.json(); })
+            fetch(FIREBASE_URL + '/serasa.json').then(function(r) { return r.json(); }),
+            fetch(FIREBASE_URL + '/system/heartbeats.json').then(function(r) { return r.json(); }),
+            fetch(FIREBASE_URL + '/system/latestVersion.json').then(function(r) { return r.json(); })
         ]).then(function(results) {
             return {
                 analytics: results[0] || {},
                 resolved: results[1] || {},
                 demurrageCache: results[2] || {},
-                serasa: results[3] || {}
+                serasa: results[3] || {},
+                heartbeats: results[4] || {},
+                latestVersion: results[5] || '?'
             };
         });
     }
@@ -180,6 +184,36 @@
             html += kpiCard('Total Demurrage', latestPortfolio.total || 0, 'blue', 'Processos ativos no controle');
         }
 
+        // HEARTBEATS — Status das extensoes
+        var heartbeats = data.heartbeats || {};
+        var latestVer = data.latestVersion || '?';
+        var hbKeys = Object.keys(heartbeats);
+        if (hbKeys.length > 0) {
+            html += '<div class="section-card full">';
+            html += '  <div class="section-title"><span class="icon">E</span> <span class="tooltip-trigger" data-tooltip="Mostra a versao da extensao de cada colaborador e se esta atualizada. Verde = atualizado. Vermelho = desatualizado. Cinza = offline ha mais de 10 min.">Extensoes Ativas</span> <span style="font-size:10px;color:var(--text-muted);font-weight:400;margin-left:auto;">Versao atual: ' + latestVer + '</span></div>';
+            html += '<table class="stat-table">';
+            html += '<tr><th></th><th>Usuario</th><th>Versao</th><th>Perfil</th><th>Ultima atividade</th></tr>';
+            hbKeys.forEach(function(key) {
+                var hb = heartbeats[key];
+                if (!hb) return;
+                var isUpToDate = hb.version === latestVer;
+                var minAgo = Math.round((Date.now() - (hb.lastSeen || 0)) / 60000);
+                var isOnline = minAgo < 10;
+                var dotColor = !isOnline ? 'var(--text-muted)' : isUpToDate ? 'var(--accent-green)' : 'var(--accent-red)';
+                var dotTitle = !isOnline ? 'Offline' : isUpToDate ? 'Atualizado' : 'Desatualizado!';
+                var verClass = isUpToDate ? 'good' : 'bad';
+                var timeStr = minAgo < 1 ? 'agora' : minAgo < 60 ? minAgo + ' min atras' : Math.floor(minAgo/60) + 'h atras';
+                html += '<tr>';
+                html += '<td style="width:20px;text-align:center;" title="' + dotTitle + '"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + dotColor + ';"></span></td>';
+                html += '<td class="val">' + (hb.user || key) + '</td>';
+                html += '<td class="' + verClass + '">' + (hb.version || '?') + '</td>';
+                html += '<td>' + (hb.profile || '-') + '</td>';
+                html += '<td>' + timeStr + '</td>';
+                html += '</tr>';
+            });
+            html += '</table>';
+            html += '</div>';
+        }
         // ARMADOR RANKING
         html += '<div class="section-card">';
         html += '  <div class="section-title"><span class="icon">⚓</span> <span class="tooltip-trigger" data-tooltip="Quantidade de processos de demurrage por companhia maritima (armador). Mostra quais armadores concentram mais processos com risco de demurrage.">Ranking de Armadores</span></div>';
