@@ -4073,6 +4073,24 @@ try {
                 if (parentLi && parentLi !== matchItem) parentLi.click();
                 showToast('Processo ' + processo + ' aberto!', 'success', 3000);
                 console.log('[Atom Demurrage] Processo', processo, 'selecionado via DOM observer');
+
+                // Auto-click na aba "Demurrage" do accordion
+                await delay(3000); // Espera a ficha do processo carregar
+                var dmAccordion = findMatch('.ui-accordion-header, .accordion-header, [data-toggle], a[href*="demurrage"], span', 'Demurrage');
+                if (!dmAccordion) {
+                    // Tenta com waitForElement
+                    dmAccordion = await waitForElement('.ui-accordion-header, .accordion-header, span', 'Demurrage', 5000);
+                }
+                if (dmAccordion) {
+                    var header = dmAccordion.closest('.ui-accordion-header, .accordion-header') || dmAccordion;
+                    header.click();
+                    console.log('[Atom Demurrage] Aba Demurrage aberta automaticamente');
+                    showToast('Aba Demurrage aberta!', 'success', 2000);
+                    // Scroll até o accordion de Demurrage
+                    header.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    console.log('[Atom Demurrage] Accordion Demurrage não encontrado');
+                }
             } else {
                 showToast('Processo ' + processo + ' não encontrado no dropdown.', 'warning', 8000);
             }
