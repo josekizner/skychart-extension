@@ -193,8 +193,9 @@
 
         // Analytics: registra checagem
         try {
-            var erros = results.filter(function (r) { return r.status === 'error' || r.status === 'warning'; }).length;
-            var acertos = results.filter(function (r) { return r.status === 'success' || r.status === 'ok'; }).length;
+            var erros = results.filter(function (r) { return r.status === 'divergencia' || r.status === 'error' || r.status === 'warning'; }).length;
+            var acertos = results.filter(function (r) { return r.status === 'ok'; }).length;
+            var totalComparados = results.filter(function (r) { return r.status === 'ok' || r.status === 'divergencia'; }).length;
             // Captura processo/fatura do header ou URL
             var processoRef = '';
             var identHeader = document.querySelector('#identificacao .ui-accordion-header');
@@ -209,10 +210,10 @@
             AtomAnalytics.log('check', 'chequeio_concluido', {
                 modulo: modulo,
                 processo: processoRef,
-                totalItens: custos.length,
+                totalItens: totalComparados,
                 errosEncontrados: erros,
                 itensOk: acertos,
-                taxaAcerto: custos.length > 0 ? Math.round((acertos / custos.length) * 100) : 0
+                taxaAcerto: totalComparados > 0 ? Math.round((acertos / totalComparados) * 100) : 100
             });
         } catch (e) { }
 

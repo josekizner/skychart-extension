@@ -41,11 +41,23 @@
                 return _cachedUser;
             }
 
-            // 3. Skychart: nome do usuário
-            var skyUser = document.querySelector('.user-name, .nome-usuario, .user-info span, [class*="userName"]');
-            if (skyUser && skyUser.textContent.trim()) {
-                _cachedUser = skyUser.textContent.trim().substring(0, 30);
-                return _cachedUser;
+            // 3. Skychart: nome do usuário (various selectors for Skychart UI)
+            var skySelectors = [
+                '.user-name', '.nome-usuario', '.user-info span',
+                '[class*="userName"]', '[class*="userInfo"]',
+                '.header-user', '.usuario-logado',
+                // Skychart top-right user area
+                '#ctl00_ContentPlaceHolder1_lblUsuario',
+                '.masthead .user', '.top-nav .user',
+                // Angular Skychart
+                'app-header .user-name', 'app-toolbar .username'
+            ];
+            for (var s = 0; s < skySelectors.length; s++) {
+                var skyUser = document.querySelector(skySelectors[s]);
+                if (skyUser && skyUser.textContent.trim()) {
+                    _cachedUser = skyUser.textContent.trim().substring(0, 30);
+                    return _cachedUser;
+                }
             }
 
             // 4. Fallback: tenta o title da página do Outlook "Email – José Kizner"
@@ -62,9 +74,17 @@
 
     // Tenta carregar user do storage ao iniciar
     try {
-        chrome.storage.local.get(['atomUserName'], function(d) {
+        chrome.storage.local.get(['atomUserName', 'pricingEmail', 'userProfile'], function(d) {
             if (chrome.runtime.lastError) return;
-            if (d.atomUserName) _cachedUser = d.atomUserName;
+            if (d.atomUserName) {
+                _cachedUser = d.atomUserName;
+            } else if (d.pricingEmail) {
+                // Extract name from email: jose.kizner@mond... -> José Kizner
+                var emailName = d.pricingEmail.split('@')[0].replace(/[._]/g, ' ');
+                emailName = emailName.replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+                _cachedUser = emailName.substring(0, 30);
+                try { chrome.storage.local.set({ atomUserName: _cachedUser }); } catch(e) {}
+            }
         });
     } catch(e) {}
 

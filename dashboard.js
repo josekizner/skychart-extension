@@ -587,12 +587,30 @@
         html += '<div class="panel-body no-pad">';
         if (checkResults.length > 0) {
             html += '<table class="atom-table" id="check-table"><thead><tr>';
-            html += '<th>Quando</th><th>Módulo</th><th>Processo</th><th style="width:50px">Itens</th><th style="width:50px">Erros</th><th style="width:60px">Acerto</th>';
+            html += '<th>Quando</th><th>Módulo</th><th>Processo</th><th style="width:50px">Itens</th><th style="width:50px">Erros</th><th style="width:60px">Acerto</th><th style="width:80px">ATOM</th>';
             html += '</tr></thead><tbody>';
             checkResults.slice(0, 10).forEach(function(e, idx) {
                 var d = e.data || {};
                 var acertoClass = (d.taxaAcerto || 0) >= 90 ? 'good' : (d.taxaAcerto || 0) >= 70 ? 'accent' : 'danger';
                 var moduloBadgeClass = (d.modulo === 'operacional') ? 'badge-cyan' : 'badge-amber';
+                // Find matching audit for this chequeio
+                var auditStatus = '—';
+                var auditClass = '';
+                for (var ai = 0; ai < auditEvents.length; ai++) {
+                    var aud = auditEvents[ai];
+                    var timeDiff = Math.abs(aud.timestamp - e.timestamp);
+                    if (timeDiff < 120000) { // within 2 min
+                        var ad = aud.data || {};
+                        var corretos = ad.corretos || 0;
+                        var total = ad.totalAuditado || 0;
+                        if (total > 0) {
+                            var pct = Math.round((corretos / total) * 100);
+                            auditStatus = pct + '%';
+                            auditClass = pct >= 90 ? 'good' : pct >= 70 ? 'accent' : 'danger';
+                        }
+                        break;
+                    }
+                }
                 html += '<tr data-check-idx="' + idx + '" style="cursor:pointer">';
                 html += '<td>' + formatDate(e.timestamp) + '</td>';
                 html += '<td><span class="badge ' + moduloBadgeClass + '"><span class="badge-dot"></span>' + (d.modulo || '-') + '</span></td>';
@@ -600,6 +618,7 @@
                 html += '<td>' + (d.totalItens || 0) + '</td>';
                 html += '<td class="' + ((d.errosEncontrados || 0) > 0 ? 'danger' : 'good') + '">' + (d.errosEncontrados || 0) + '</td>';
                 html += '<td class="' + acertoClass + '">' + (d.taxaAcerto || 0) + '%</td>';
+                html += '<td class="' + auditClass + '" style="font-weight:600">' + auditStatus + '</td>';
                 html += '</tr>';
             });
             html += '</tbody></table>';
@@ -740,9 +759,32 @@
                 mhtml += '<div><span style="font-size:9px;font-weight:700;letter-spacing:0.14em;color:var(--text-muted);text-transform:uppercase">Itens OK</span><div style="font-family:Bebas Neue,sans-serif;font-size:24px;margin-top:4px;color:var(--green)">' + (d.itensOk || 0) + '</div></div>';
                 mhtml += '<div><span style="font-size:9px;font-weight:700;letter-spacing:0.14em;color:var(--text-muted);text-transform:uppercase">Erros</span><div style="font-family:Bebas Neue,sans-serif;font-size:24px;margin-top:4px;color:var(--red)">' + (d.errosEncontrados || 0) + '</div></div>';
                 mhtml += '</div>';
-                mhtml += '<div style="text-align:center;padding:12px;background:var(--bg-alt);border-radius:8px;margin-bottom:12px">';
-                mhtml += '<span style="font-size:9px;font-weight:700;letter-spacing:0.14em;color:var(--text-muted);text-transform:uppercase">TAXA DE ACERTO</span>';
-                mhtml += '<div style="font-family:Bebas Neue,sans-serif;font-size:48px;color:' + ((d.taxaAcerto || 0) >= 80 ? 'var(--green)' : 'var(--red)') + ';line-height:1;margin-top:4px">' + (d.taxaAcerto || 0) + '%</div>';
+                // Acerto
+                mhtml += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">';
+                mhtml += '<div style="text-align:center;padding:12px;background:var(--bg-alt);border-radius:8px">';
+                mhtml += '<span style="font-size:9px;font-weight:700;letter-spacing:0.14em;color:var(--text-muted);text-transform:uppercase">ACERTO (Oferta vs Sistema)</span>';
+                mhtml += '<div style="font-family:Bebas Neue,sans-serif;font-size:38px;color:' + ((d.taxaAcerto || 0) >= 80 ? 'var(--green)' : 'var(--red)') + ';line-height:1;margin-top:4px">' + (d.taxaAcerto || 0) + '%</div>';
+                mhtml += '</div>';
+                // Assertividade ATOM
+                var auditPct = -1;
+                var analytics = _dashData.analytics || {};
+                var auditEvts = parseEvents(analytics.check).filter(function(ae) { return ae.action === 'auditoria_assertividade' && ae.data; });
+                for (var ai = 0; ai < auditEvts.length; ai++) {
+                    if (Math.abs(auditEvts[ai].timestamp - check.timestamp) < 120000) {
+                        var ad = auditEvts[ai].data;
+                        if (ad.totalAuditado > 0) auditPct = Math.round((ad.corretos / ad.totalAuditado) * 100);
+                        break;
+                    }
+                }
+                mhtml += '<div style="text-align:center;padding:12px;background:var(--bg-alt);border-radius:8px">';
+                mhtml += '<span style="font-size:9px;font-weight:700;letter-spacing:0.14em;color:var(--text-muted);text-transform:uppercase">ASSERTIVIDADE ATOM</span>';
+                if (auditPct >= 0) {
+                    mhtml += '<div style="font-family:Bebas Neue,sans-serif;font-size:38px;color:' + (auditPct >= 90 ? 'var(--green)' : 'var(--red)') + ';line-height:1;margin-top:4px">' + auditPct + '%</div>';
+                } else {
+                    mhtml += '<div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:var(--text-muted);line-height:1;margin-top:6px">—</div>';
+                    mhtml += '<div style="font-size:9px;color:var(--text-muted);margin-top:2px">Pendente</div>';
+                }
+                mhtml += '</div>';
                 mhtml += '</div>';
                 mhtml += '<div style="font-size:10px;color:var(--text-muted);text-align:center">' + formatDate(check.timestamp) + ' · ' + (check.user || 'unknown') + '</div>';
                 showModal('CHEQUEIO: ' + (d.processo || d.modulo), mhtml);
