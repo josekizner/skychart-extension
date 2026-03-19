@@ -36,6 +36,8 @@ body {
     background-attachment: fixed;
     color: var(--text-primary);
     min-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 /* Header */
@@ -154,15 +156,9 @@ body {
     font-weight: 800;
     line-height: 1;
     margin-bottom: 6px;
+    color: #fff;
 }
 
-.kpi-value.blue { color: var(--accent-blue); }
-.kpi-value.purple { color: var(--accent-purple); }
-.kpi-value.green { color: var(--accent-green); }
-.kpi-value.amber { color: var(--accent-amber); }
-.kpi-value.red { color: var(--accent-red); }
-.kpi-value.cyan { color: var(--accent-cyan); }
-.kpi-value.indigo { color: var(--accent-indigo); }
 
 .kpi-detail {
     font-size: 11px;

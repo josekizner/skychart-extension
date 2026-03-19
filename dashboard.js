@@ -286,6 +286,7 @@
         html += '</div>';
 
         document.getElementById('app').innerHTML = html;
+        window.scrollTo(0, 0);
 
         // === BIND INTERACTIVE EVENTS ===
         bindInteractiveEvents(userRanking, checkResults);
