@@ -8,14 +8,15 @@
     // ===== BLOQUEIO DE ACESSO: só roda se o perfil tem 'demurrage' =====
     chrome.storage.local.get(['enabledAgents', 'userProfile'], function(d) {
         if (chrome.runtime.lastError) { initDemurrageAgent(); return; }
-        var agents = d.enabledAgents;
-        // Se não tem perfil configurado, assume master (tem tudo)
-        if (!agents || agents.length === 0) {
+        var profile = d.userProfile || 'master';
+        // Master sempre tem acesso total
+        if (profile === 'master' || !d.enabledAgents || d.enabledAgents.length === 0) {
             initDemurrageAgent();
             return;
         }
-        if (agents.indexOf('demurrage') === -1) {
-            console.log(TAG, 'Acesso negado — perfil', d.userProfile, 'não tem demurrage.');
+        // Outros perfis: checa se demurrage tá na lista
+        if (d.enabledAgents.indexOf('demurrage') === -1) {
+            console.log(TAG, 'Acesso negado — perfil', profile, 'não tem demurrage.');
             return;
         }
         initDemurrageAgent();
