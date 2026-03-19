@@ -86,8 +86,7 @@
         // Drag no modo mini
         initDrag(bar);
 
-        console.log(TAG, 'Barra criada (modo mini por padrão)');
-        collapsePanel(); // Inicia comprimida — não atrapalha a caixa
+        console.log(TAG, 'Barra criada');
         loadData();
     }
 
@@ -377,6 +376,8 @@
     var _sortCol = ''; 
     var _sortDir = 'asc';
 
+    var _searchTerm = '';
+
     function renderTable(data) {
         var content = document.getElementById('dm-content');
 
@@ -408,17 +409,27 @@
         html.push('<button class="dm-email-btn" id="dm-send-email" title="Enviar relatório por e-mail">✉ Enviar Relatório</button>');
         html.push('</div>');
 
+        // Search bar
+        html.push('<div class="dm-search-wrap">');
+        html.push('<input type="text" class="dm-search" id="dm-search" placeholder="Buscar processo, cliente, armador..." value="' + (_searchTerm || '') + '">');
+        html.push('<span class="dm-search-clear" id="dm-search-clear" style="' + (_searchTerm ? '' : 'display:none;') + '">✕</span>');
+        html.push('</div>');
+
         // Default: em risco (só ativos)
         var riskItems = expirados.concat(alerta);
-        _currentItems = riskItems.slice();
+        _currentItems = filterBySearch(riskItems);
         _sortCol = '';
         html.push(buildTable(_currentItems));
 
         content.innerHTML = html.join('');
 
+        // Current base items (before search)
+        var _baseItems = riskItems.slice();
+
         // Helper to apply filter
         function applyFilter(items) {
-            _currentItems = items;
+            _baseItems = items;
+            _currentItems = filterBySearch(items);
             _sortCol = '';
             _sortDir = 'asc';
             var tableDiv = content.querySelector('.dm-table-wrap');
@@ -426,6 +437,44 @@
             bindRowClicks(content);
             bindSortHeaders(content);
             bindResolveButtons(content);
+        }
+
+        // Search filter
+        function filterBySearch(items) {
+            if (!_searchTerm) return items.slice();
+            var term = _searchTerm.toLowerCase();
+            return items.filter(function(p) {
+                var searchable = [
+                    p.processo || '',
+                    p.cliente || '',
+                    p.armador || '',
+                    p.cntrCount || '',
+                    p.atracacao || '',
+                    p.freeTime || '',
+                    p.vencimento || '',
+                    p.devolucao || ''
+                ].join(' ').toLowerCase();
+                return searchable.indexOf(term) >= 0;
+            });
+        }
+
+        // Bind search input
+        var searchInput = document.getElementById('dm-search');
+        var searchClear = document.getElementById('dm-search-clear');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                _searchTerm = searchInput.value.trim();
+                searchClear.style.display = _searchTerm ? '' : 'none';
+                applyFilter(_baseItems);
+            });
+        }
+        if (searchClear) {
+            searchClear.addEventListener('click', function() {
+                _searchTerm = '';
+                searchInput.value = '';
+                searchClear.style.display = 'none';
+                applyFilter(_baseItems);
+            });
         }
 
         // Bind filter buttons
@@ -1132,7 +1181,14 @@
             '  position: absolute; top: -3px; left: 10%; right: 10%; height: 6px;',
             '  cursor: n-resize; z-index: 10;',
             '}',
-            '.dm-resize-top:hover { background: rgba(239,68,68,0.2); border-radius: 3px; }'
+            '.dm-resize-top:hover { background: rgba(239,68,68,0.2); border-radius: 3px; }',
+            '',
+            '.dm-search-wrap { position: relative; padding: 4px 8px; }',
+            '.dm-search { width: 100%; padding: 5px 28px 5px 10px; background: rgba(255,255,255,0.06); border: 1px solid rgba(239,68,68,0.15); border-radius: 6px; color: #e2e8f0; font-size: 10px; font-family: "Segoe UI",sans-serif; outline: none; transition: border 0.2s; }',
+            '.dm-search:focus { border-color: rgba(239,68,68,0.4); background: rgba(255,255,255,0.1); }',
+            '.dm-search::placeholder { color: #64748b; }',
+            '.dm-search-clear { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; cursor: pointer; font-size: 11px; padding: 2px 4px; line-height: 1; }',
+            '.dm-search-clear:hover { color: #fca5a5; }'
         ].join('\n');
         document.head.appendChild(style);
     }
