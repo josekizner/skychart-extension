@@ -260,6 +260,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
       sendResponse({ success: true, message: 'Tracking CMA aberto' });
       return true;
+    } else if (carrier === 'hmm') {
+      // HMM: save booking FIRST, then open Track & Trace
+      chrome.storage.local.set({ hmmPendingBooking: booking }, function() {
+        console.log("[Tracking] HMM booking salvo no storage:", booking);
+        const hmmUrl = 'https://www.hmm21.com/e-service/general/trackNTrace/TrackNTrace.do';
+        chrome.tabs.create({ url: hmmUrl, active: true }, (tab) => {
+          chrome.storage.local.get('pendingTrackingTabs', function(d) {
+            var pending = d.pendingTrackingTabs || {};
+            pending[tab.id] = skychartTabId;
+            chrome.storage.local.set({ pendingTrackingTabs: pending });
+            console.log("[Tracking] HMM tab aberta:", tab.id, "-> Skychart tab:", skychartTabId);
+          });
+          setTimeout(function() {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'hmm_search_booking',
+              booking: booking
+            }).catch(function() {});
+          }, 3000);
+        });
+      });
+      sendResponse({ success: true, message: 'Tracking HMM aberto' });
+      return true;
     }
     // Futuros armadores aqui...
 
@@ -532,6 +554,35 @@ Os valores estão corretos? Responda APENAS com JSON:
 
         delete allPending[cmaTabId];
         chrome.storage.local.set({ pendingTrackingTabs: allPending });
+      }
+    });
+
+    sendResponse({ success: true });
+    return true;
+  }
+
+  // HMM Tracking: recebe dados do hmm-scraper.js
+  if (request.action === "hmmTrackingData") {
+    const hmmTabId = sender.tab ? sender.tab.id : null;
+    console.log("[HMM Tracking] Dados recebidos. Tab:", hmmTabId);
+
+    chrome.storage.local.get('pendingTrackingTabs', function(d) {
+      var pending = d.pendingTrackingTabs || {};
+      var skychartTabId = hmmTabId ? pending[hmmTabId] : null;
+
+      if (skychartTabId) {
+        chrome.tabs.update(skychartTabId, { active: true }).catch(() => { });
+        chrome.tabs.sendMessage(skychartTabId, {
+          action: 'trackingDataReady',
+          data: request.data,
+          error: request.error || null
+        }).catch(err => console.error("[HMM Tracking] Erro enviando dados:", err));
+
+        setTimeout(() => {
+          chrome.tabs.remove(hmmTabId).catch(() => { });
+          delete pending[hmmTabId];
+          chrome.storage.local.set({ pendingTrackingTabs: pending });
+        }, 2000);
       }
     });
 

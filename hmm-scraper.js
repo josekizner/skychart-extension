@@ -1,13 +1,232 @@
-// HMM Schedule Scraper - Content Script
+// HMM Schedule + Tracking Scraper - Content Script
 // Roda em https://www.hmm21.com/*
-// Usa modelo híbrido: DOM + Gemini Vision pra verificar preenchimento
+// Schedule: modelo híbrido DOM + Gemini Vision
+// Tracking: preenche booking, clica Retrieve, scrapa resultado
 
 (function() {
     'use strict';
     var TAG = '[HMM Scraper]';
     var MAX_RETRIES = 3;
-    console.log(TAG, 'Script carregado');
+    console.log(TAG, 'Script carregado em:', window.location.pathname);
 
+    // ========================================================================
+    // TRACKING MODE — Detecta se está na página Track & Trace
+    // ========================================================================
+    var isTrackingPage = window.location.pathname.indexOf('trackNTrace') >= 0 || 
+                         window.location.pathname.indexOf('TrackNTrace') >= 0;
+
+    if (isTrackingPage) {
+        console.log(TAG, 'Modo TRACKING ativo');
+        
+        // Verifica se tem booking pendente no storage
+        chrome.storage.local.get('hmmPendingBooking', function(data) {
+            var booking = data.hmmPendingBooking;
+            if (booking) {
+                console.log(TAG, 'Booking pendente encontrado:', booking);
+                chrome.storage.local.remove('hmmPendingBooking');
+                setTimeout(function() { startTrackingSearch(booking); }, 2000);
+            } else {
+                console.log(TAG, 'Sem booking pendente, aguardando mensagem...');
+            }
+        });
+
+        // Backup: recebe booking via mensagem direta
+        chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+            if (msg.action === 'hmm_search_booking') {
+                console.log(TAG, 'Booking recebido via mensagem:', msg.booking);
+                startTrackingSearch(msg.booking);
+                sendResponse({ status: 'started' });
+            }
+        });
+    }
+
+    function startTrackingSearch(booking) {
+        console.log(TAG, 'Iniciando busca de tracking para:', booking);
+
+        // Scanner confirmou: input[name="srchBkgNo1"] é o campo de booking
+        var bookingInput = document.querySelector('input[name="srchBkgNo1"]');
+        if (!bookingInput) {
+            console.log(TAG, 'Campo srchBkgNo1 não encontrado, aguardando...');
+            setTimeout(function() { startTrackingSearch(booking); }, 1000);
+            return;
+        }
+
+        // Preenche o booking character by character
+        bookingInput.focus();
+        bookingInput.value = '';
+        var i = 0;
+        var interval = setInterval(function() {
+            if (i >= booking.length) {
+                clearInterval(interval);
+                bookingInput.dispatchEvent(new Event('input', { bubbles: true }));
+                bookingInput.dispatchEvent(new Event('change', { bubbles: true }));
+                console.log(TAG, 'Booking preenchido:', bookingInput.value);
+
+                // Clica Retrieve (scanner confirmou: button.btn.line.medium com texto "Retrieve")
+                setTimeout(function() { clickTrackingRetrieve(booking); }, 1000);
+                return;
+            }
+            bookingInput.value += booking[i];
+            bookingInput.dispatchEvent(new Event('input', { bubbles: true }));
+            i++;
+        }, 50);
+    }
+
+    function clickTrackingRetrieve(booking) {
+        var retrieveBtn = null;
+        var btns = document.querySelectorAll('button');
+        for (var b = 0; b < btns.length; b++) {
+            if ((btns[b].textContent || '').trim() === 'Retrieve') {
+                retrieveBtn = btns[b];
+                break;
+            }
+        }
+
+        if (!retrieveBtn) {
+            console.log(TAG, 'Botão Retrieve não encontrado!');
+            sendTrackingResult(null, 'Botão Retrieve não encontrado');
+            return;
+        }
+
+        console.log(TAG, 'Clicando Retrieve...');
+        retrieveBtn.click();
+
+        // HMM é lento — espera até 15s pelos resultados
+        waitForTrackingResults(booking, 0);
+    }
+
+    function waitForTrackingResults(booking, attempts) {
+        if (attempts > 15) {
+            console.log(TAG, 'Timeout esperando resultados');
+            sendTrackingResult(null, 'Timeout esperando resultados de tracking');
+            return;
+        }
+
+        setTimeout(function() {
+            var result = scrapeTrackingResults(booking);
+            if (result) {
+                console.log(TAG, 'Tracking data extraída!', result);
+                sendTrackingResult(result, null);
+            } else {
+                // Verifica se tem mensagem de erro
+                var errorMsg = document.querySelector('.no-data, .noData, .alert-danger, .error');
+                if (errorMsg) {
+                    sendTrackingResult(null, 'HMM: ' + (errorMsg.textContent || '').trim().substring(0, 200));
+                    return;
+                }
+                waitForTrackingResults(booking, attempts + 1);
+            }
+        }, 1000);
+    }
+
+    function scrapeTrackingResults(booking) {
+        // Busca tabela de resultados
+        var tables = document.querySelectorAll('table');
+        var resultTable = null;
+
+        for (var t = 0; t < tables.length; t++) {
+            var ths = tables[t].querySelectorAll('th');
+            for (var h = 0; h < ths.length; h++) {
+                var thText = (ths[h].textContent || '').trim();
+                if (thText.indexOf('POL') >= 0 || thText.indexOf('Vessel') >= 0 ||
+                    thText.indexOf('Status') >= 0 || thText.indexOf('Container') >= 0 ||
+                    thText.indexOf('ETA') >= 0 || thText.indexOf('ETD') >= 0) {
+                    resultTable = tables[t];
+                    break;
+                }
+            }
+            if (resultTable) break;
+        }
+
+        if (!resultTable) {
+            // Tenta outros padrões de dados
+            var allText = document.body.innerText || '';
+            if (allText.indexOf(booking) < 0 && allText.indexOf('No data') >= 0) {
+                sendTrackingResult(null, 'Booking não encontrado no HMM');
+                return null;
+            }
+            return null; // Ainda carregando
+        }
+
+        var rows = resultTable.querySelectorAll('tbody tr, tr');
+        console.log(TAG, 'Tabela encontrada:', rows.length, 'linhas');
+
+        var headers = [];
+        var headerEls = resultTable.querySelectorAll('th');
+        for (var hi = 0; hi < headerEls.length; hi++) {
+            headers.push((headerEls[hi].textContent || '').trim());
+        }
+
+        var data = {
+            booking: booking,
+            container: '',
+            vessel: '',
+            voyage: '',
+            pol: '',
+            pod: '',
+            etd: '',
+            eta: '',
+            status: '',
+            moves: [],
+            source: 'hmm'
+        };
+
+        // Extrai dados das linhas
+        for (var r = 0; r < rows.length && r < 20; r++) {
+            var cells = rows[r].querySelectorAll('td');
+            if (cells.length < 2) continue;
+
+            var rowData = {};
+            for (var c = 0; c < cells.length && c < headers.length; c++) {
+                rowData[headers[c]] = (cells[c].textContent || '').trim();
+            }
+
+            // Extrai campos principais da primeira linha de dados
+            if (!data.container) {
+                data.container = rowData['Container No.'] || rowData['CNTR No.'] || rowData['Container'] || '';
+                data.vessel = rowData['Vessel'] || rowData['VSL'] || '';
+                data.voyage = rowData['Voyage'] || rowData['VOY'] || '';
+                data.pol = rowData['POL'] || rowData['From'] || rowData['Loading'] || '';
+                data.pod = rowData['POD'] || rowData['To'] || rowData['Discharge'] || '';
+                data.etd = rowData['ETD'] || rowData['Departure'] || '';
+                data.eta = rowData['ETA'] || rowData['Arrival'] || '';
+                data.status = rowData['Status'] || rowData['Last Status'] || '';
+            }
+
+            // Adiciona como move
+            var moveDate = rowData['Date'] || rowData['ETD'] || rowData['ETA'] || '';
+            var moveStatus = rowData['Status'] || rowData['Event'] || rowData['Move'] || '';
+            var moveLocation = rowData['Location'] || rowData['Place'] || rowData['Port'] || rowData['POL'] || rowData['POD'] || '';
+            if (moveDate || moveStatus) {
+                data.moves.push({
+                    date: moveDate,
+                    status: moveStatus,
+                    location: moveLocation,
+                    vessel: rowData['Vessel'] || rowData['VSL'] || ''
+                });
+            }
+        }
+
+        // Extrai de texto da página se tabela não tinha certos campos
+        if (!data.container) {
+            var cntrMatch = (document.body.innerText || '').match(/(?:CNTR|Container)[:\s]*([A-Z]{4}\d{7})/i);
+            if (cntrMatch) data.container = cntrMatch[1];
+        }
+
+        return (data.container || data.vessel || data.moves.length > 0) ? data : null;
+    }
+
+    function sendTrackingResult(data, error) {
+        chrome.runtime.sendMessage({
+            action: 'hmmTrackingData',
+            data: data,
+            error: error
+        });
+        console.log(TAG, error ? 'ERRO: ' + error : 'Dados enviados ao background');
+    }
+
+    // Se é tracking page, não prossegue pro schedule code
+    if (isTrackingPage) return;
     // Memória de portos aprendidos
     var portMemory = {};
 
