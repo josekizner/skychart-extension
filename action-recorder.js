@@ -386,6 +386,41 @@
 
         actions.push(context);
         console.log(TAG, '📸 Contexto:', context.section, '|', context.visibleFields.length, 'campos |', context.visibleButtons.length, 'botões');
+
+        // Dispara Radar (site-scanner) pra capturar estrutura completa da página
+        triggerRadarScan();
+    }
+
+    function triggerRadarScan() {
+        // Envia mensagem pro site-scanner.js que roda na mesma página
+        // O scanner já salva no Firebase via background, mas aqui pegamos inline também
+        try {
+            if (typeof window.__atomSiteScan === 'function') {
+                // Se o scanner expôs a função global
+                var scanResult = window.__atomSiteScan();
+                if (scanResult) {
+                    actions.push({
+                        type: 'radar_scan',
+                        timestamp: Date.now(),
+                        url: window.location.href,
+                        inputCount: (scanResult.inputs || []).length,
+                        buttonCount: (scanResult.buttons || []).length,
+                        tableCount: (scanResult.tables || []).length,
+                        formCount: (scanResult.forms || []).length,
+                        techStack: scanResult.techStack || '',
+                        scan: scanResult
+                    });
+                    console.log(TAG, '🔭 Radar integrado:', (scanResult.inputs || []).length, 'inputs,', (scanResult.buttons || []).length, 'botões');
+                }
+            } else {
+                // Fallback: dispara scan via chrome.runtime
+                chrome.runtime.sendMessage({ action: 'scan_page' }, function() {
+                    console.log(TAG, '🔭 Radar disparado via background');
+                });
+            }
+        } catch(e) {
+            console.log(TAG, 'Radar scan skip:', e.message);
+        }
     }
 
     // ========================================================================

@@ -125,6 +125,9 @@
         return siteMap;
     }
 
+    // Expõe pro Replay (action-recorder) poder chamar diretamente
+    window.__atomSiteScan = runFullScan;
+
     // ========================================================================
     // SCAN INPUTS — Todos os inputs, selects, textareas
     // ========================================================================
