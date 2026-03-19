@@ -18,7 +18,67 @@
     var lastPageScan = null;
     var BLACKLIST_TYPES = ['password', 'token', 'secret']; // Nunca grava esses
 
-    console.log(TAG, 'Carregado. Aguardando comando de gravação...');
+    console.log(TAG, 'Carregado. Use o botão REC ou Ctrl+Shift+R para gravar.');
+
+    // ========================================================================
+    // BOTÃO FLUTUANTE + ATALHO DE TECLADO — Controle sem console
+    // ========================================================================
+    function createRecButton() {
+        var btn = document.createElement('div');
+        btn.id = 'atom-rec-button';
+        btn.innerHTML = '⬤ REC';
+        btn.title = 'Ctrl+Shift+R — Inicia gravação de workflow';
+        btn.style.cssText = 'position:fixed;bottom:80px;right:16px;z-index:999999;background:rgba(50,50,50,0.9);color:#ff4444;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:bold;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4);user-select:none;transition:all 0.3s ease;border:2px solid #555;';
+        btn.addEventListener('mouseenter', function() { btn.style.transform = 'scale(1.1)'; });
+        btn.addEventListener('mouseleave', function() { btn.style.transform = 'scale(1)'; });
+        btn.addEventListener('click', function() {
+            toggleRecording();
+        });
+        document.body.appendChild(btn);
+    }
+
+    function updateRecButton() {
+        var btn = document.getElementById('atom-rec-button');
+        if (!btn) return;
+        if (recording) {
+            btn.innerHTML = '⏹ PARAR (' + actions.length + ')';
+            btn.style.background = 'rgba(220,20,20,0.95)';
+            btn.style.color = '#fff';
+            btn.style.border = '2px solid #ff6666';
+            btn.title = 'Clique pra parar a gravação';
+        } else {
+            btn.innerHTML = '⬤ REC';
+            btn.style.background = 'rgba(50,50,50,0.9)';
+            btn.style.color = '#ff4444';
+            btn.style.border = '2px solid #555';
+            btn.title = 'Ctrl+Shift+R — Inicia gravação de workflow';
+        }
+    }
+
+    function toggleRecording() {
+        if (recording) {
+            stopRecording();
+        } else {
+            var label = prompt('Nome da gravação (ex: Relatório Financeiro):');
+            if (label === null) return; // Cancelou
+            startRecording(label || 'Gravação sem nome');
+        }
+    }
+
+    // Atalho Ctrl+Shift+R
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+            e.preventDefault();
+            toggleRecording();
+        }
+    });
+
+    // Cria o botão assim que o DOM carrega
+    if (document.body) {
+        createRecButton();
+    } else {
+        document.addEventListener('DOMContentLoaded', createRecButton);
+    }
 
     // ========================================================================
     // CONTROLE — Start/Stop via mensagem do background/popup
@@ -75,6 +135,7 @@
 
         // Indicador visual
         showRecordingIndicator(true);
+        updateRecButton();
     }
 
     // ========================================================================
@@ -100,6 +161,7 @@
         });
 
         showRecordingIndicator(false);
+        updateRecButton();
 
         console.log(TAG, '⏹️ GRAVAÇÃO FINALIZADA:', actions.length, 'ações');
         console.log(TAG, 'Resumo:');
@@ -159,6 +221,7 @@
         }
 
         actions.push(info);
+        updateRecButton();
         console.log(TAG, '🖱️', info.type, '|', info.text || info.selector);
 
         // Re-escaneia após navegação (com delay pra SPA renderizar)
@@ -220,6 +283,7 @@
         }
 
         actions.push(info);
+        updateRecButton();
         console.log(TAG, '⌨️', info.type, '|', info.label || info.fieldName, '=', value.substring(0, 30));
     }
 
