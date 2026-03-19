@@ -196,12 +196,32 @@
             var erros = results.filter(function (r) { return r.status === 'divergencia' || r.status === 'error' || r.status === 'warning'; }).length;
             var acertos = results.filter(function (r) { return r.status === 'ok'; }).length;
             var totalComparados = results.filter(function (r) { return r.status === 'ok' || r.status === 'divergencia'; }).length;
-            // Captura processo/fatura do header ou URL
+            // Captura processo/fatura do header, breadcrumb, ou URL
             var processoRef = '';
-            var identHeader = document.querySelector('#identificacao .ui-accordion-header');
-            if (identHeader) {
-                var m = identHeader.textContent.match(/(IM\d+\/\d+|EX\d+\/\d+|FA\d+)/i);
-                if (m) processoRef = m[1];
+            // Try multiple selectors for process number
+            var processSelectors = [
+                '#identificacao .ui-accordion-header',          // Operacional accordion
+                '.processo-header', '.header-processo',          // Generic headers
+                'h1', 'h2',                                      // Page titles
+                '.breadcrumb', '.breadcrumbs',                   // Breadcrumbs
+                '.ui-accordion-header:first-child',              // First accordion
+                '[class*="identificacao"]',                       // Anything identification
+                'app-breadcrumb', 'app-header .title',           // Angular components
+                '.page-title', '.processo-info'                  // More generic
+            ];
+            var processRegex = /(IM\d+\/\d+|EX\d+\/\d+|FA\d+\/?\d*|IM\d{5,})/i;
+            for (var pi = 0; pi < processSelectors.length && !processoRef; pi++) {
+                var els = document.querySelectorAll(processSelectors[pi]);
+                for (var pe = 0; pe < els.length && !processoRef; pe++) {
+                    var txt = els[pe].textContent || '';
+                    var pm = txt.match(processRegex);
+                    if (pm) processoRef = pm[1];
+                }
+            }
+            if (!processoRef) {
+                // Fallback: try document title
+                var titleMatch = (document.title || '').match(processRegex);
+                if (titleMatch) processoRef = titleMatch[1];
             }
             if (!processoRef) {
                 var urlMatch = location.href.match(/\/(\d+)$/);
