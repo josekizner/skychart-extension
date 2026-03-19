@@ -237,6 +237,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     let trackingUrl = '';
     if (carrier === 'maersk') {
       trackingUrl = 'https://www.maersk.com/tracking/' + encodeURIComponent(booking);
+    } else if (carrier === 'cma') {
+      // CMA CGM: save booking to storage, scraper will read it
+      chrome.storage.local.set({ cmaPendingBooking: booking });
+      trackingUrl = 'https://www.cma-cgm.com/ebusiness/tracking';
     }
     // Futuros armadores aqui...
 
@@ -477,6 +481,37 @@ Os valores estão corretos? Responda APENAS com JSON:
 
         // Limpa do storage
         delete allPending[maerskTabId];
+        chrome.storage.local.set({ pendingTrackingTabs: allPending });
+      }
+    });
+
+    sendResponse({ success: true });
+    return true;
+  }
+
+  // CMA CGM scraper data relay
+  if (request.action === "cmaTrackingData") {
+    const cmaTabId = sender.tab.id;
+
+    chrome.storage.local.get('pendingTrackingTabs', function(d) {
+      var allPending = d.pendingTrackingTabs || {};
+      var skychartTabId = allPending[cmaTabId];
+
+      console.log("[Tracking] Dados recebidos da CMA CGM -> Skychart tab:", skychartTabId);
+
+      if (skychartTabId) {
+        chrome.tabs.update(skychartTabId, { active: true }).catch(() => { });
+        chrome.tabs.sendMessage(skychartTabId, {
+          action: 'trackingDataReady',
+          data: request.data,
+          error: request.error || null
+        }).catch(err => console.error("[CMA Tracking] Erro enviando dados:", err));
+
+        setTimeout(() => {
+          chrome.tabs.remove(cmaTabId).catch(() => { });
+        }, 3000);
+
+        delete allPending[cmaTabId];
         chrome.storage.local.set({ pendingTrackingTabs: allPending });
       }
     });

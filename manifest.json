@@ -65,6 +65,15 @@
     },
     {
       "matches": [
+        "https://www.cma-cgm.com/ebusiness/tracking*"
+      ],
+      "js": [
+        "atom-analytics.js",
+        "cma-scraper.js"
+      ]
+    },
+    {
+      "matches": [
         "https://www.serasaempreendedor.com.br/*"
       ],
       "js": [
