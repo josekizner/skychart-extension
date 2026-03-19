@@ -658,6 +658,22 @@ Os valores estão corretos? Responda APENAS com JSON:
     return true;
   }
 
+  // Workflow Executor: proxy replay command to active tab
+  if (request.action === "replay_workflow_proxy") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: 'replay_workflow',
+          sessionId: request.sessionId,
+          params: request.params || {}
+        }, (response) => {
+          sendResponse(response || { success: false });
+        });
+      }
+    });
+    return true;
+  }
+
   // Site Scanner: trigger on-demand scan
   if (request.action === "scan_page") {
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {

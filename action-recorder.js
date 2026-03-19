@@ -35,6 +35,87 @@
             toggleRecording();
         });
         document.body.appendChild(btn);
+
+        // PLAY button
+        var playBtn = document.createElement('div');
+        playBtn.id = 'atom-play-button';
+        playBtn.innerHTML = '▶ PLAY';
+        playBtn.title = 'Ctrl+Shift+P — Reproduz um workflow gravado';
+        playBtn.style.cssText = 'position:fixed;bottom:40px;right:16px;z-index:999999;background:rgba(50,50,50,0.9);color:#F59E0B;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:bold;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4);user-select:none;transition:all 0.3s ease;border:2px solid #555;';
+        playBtn.addEventListener('mouseenter', function() { playBtn.style.transform = 'scale(1.1)'; });
+        playBtn.addEventListener('mouseleave', function() { playBtn.style.transform = 'scale(1)'; });
+        playBtn.addEventListener('click', function() {
+            showRecordingPicker();
+        });
+        document.body.appendChild(playBtn);
+    }
+
+    // Atalho Ctrl+Shift+P pro play
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+            e.preventDefault();
+            showRecordingPicker();
+        }
+    });
+
+    // Picker: mostra lista de gravações disponíveis
+    async function showRecordingPicker() {
+        try {
+            var resp = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings.json?shallow=true');
+            var keys = await resp.json();
+            if (!keys || Object.keys(keys).length === 0) {
+                alert('Nenhuma gravação encontrada. Use o botão REC primeiro.');
+                return;
+            }
+
+            // Busca detalhes de cada gravação
+            var ids = Object.keys(keys);
+            var options = [];
+            for (var i = 0; i < ids.length; i++) {
+                try {
+                    var detResp = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/actions/1.json');
+                    var firstAction = await detResp.json();
+                    var label = (firstAction && firstAction.label) ? firstAction.label : ids[i];
+                    options.push({ id: ids[i], label: label });
+                } catch(e) {
+                    options.push({ id: ids[i], label: ids[i] });
+                }
+            }
+
+            // Monta lista
+            var msg = 'Escolha uma gravação pra reproduzir:\n\n';
+            for (var j = 0; j < options.length; j++) {
+                msg += (j + 1) + '. ' + options[j].label + '\n';
+            }
+            msg += '\nDigite o número (ou 0 pra cancelar):';
+
+            var choice = prompt(msg);
+            if (!choice || choice === '0') return;
+
+            var idx = parseInt(choice) - 1;
+            if (idx < 0 || idx >= options.length) {
+                alert('Opção inválida.');
+                return;
+            }
+
+            // Pergunta se quer mudar datas
+            var customDates = prompt('Datas personalizadas? (formato: dd/mm/yyyy,dd/mm/yyyy)\nOu deixe vazio pra usar as datas originais:');
+            var params = {};
+            if (customDates && customDates.trim()) {
+                params.dates = customDates.split(',').map(function(d) { return d.trim(); });
+            }
+
+            // Dispara replay via chrome.runtime (mesmo contexto da extensão)
+            chrome.runtime.sendMessage({
+                action: 'replay_workflow_proxy',
+                sessionId: options[idx].id,
+                params: params
+            });
+
+        } catch(e) {
+            console.error(TAG, 'Erro buscando gravações:', e);
+            alert('Erro ao buscar gravações: ' + e.message);
+        }
     }
 
     function updateRecButton() {
