@@ -195,8 +195,20 @@
         try {
             var erros = results.filter(function (r) { return r.status === 'error' || r.status === 'warning'; }).length;
             var acertos = results.filter(function (r) { return r.status === 'success' || r.status === 'ok'; }).length;
+            // Captura processo/fatura do header ou URL
+            var processoRef = '';
+            var identHeader = document.querySelector('#identificacao .ui-accordion-header');
+            if (identHeader) {
+                var m = identHeader.textContent.match(/(IM\d+\/\d+|EX\d+\/\d+|FA\d+)/i);
+                if (m) processoRef = m[1];
+            }
+            if (!processoRef) {
+                var urlMatch = location.href.match(/\/(\d+)$/);
+                if (urlMatch) processoRef = urlMatch[1];
+            }
             AtomAnalytics.log('check', 'chequeio_concluido', {
                 modulo: modulo,
+                processo: processoRef,
                 totalItens: custos.length,
                 errosEncontrados: erros,
                 itensOk: acertos,

@@ -1,13 +1,13 @@
 // ============================================================
 // ATOM Intelligence Dashboard — Engine
-// Busca dados do Firebase Analytics e renderiza em tempo real
+// White/Beige Theme + Tooltips + Interatividade
 // ============================================================
 
 (function() {
     'use strict';
 
     var FIREBASE_URL = 'https://mond-atom-default-rtdb.firebaseio.com';
-    var refreshInterval = 60000; // 1 minuto
+    var refreshInterval = 60000;
 
     // ===== FETCH ALL DATA =====
     function fetchAll() {
@@ -46,19 +46,45 @@
         var diff = Date.now() - ts;
         var min = Math.floor(diff / 60000);
         if (min < 1) return 'agora';
-        if (min < 60) return min + 'min atrás';
+        if (min < 60) return min + 'min atras';
         var h = Math.floor(min / 60);
-        if (h < 24) return h + 'h atrás';
+        if (h < 24) return h + 'h atras';
         var d = Math.floor(h / 24);
-        return d + 'd atrás';
+        return d + 'd atras';
     }
 
     function formatDate(ts) {
         return new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     }
 
+    // ===== MODAL =====
+    function showModal(title, contentHtml) {
+        var existing = document.querySelector('.dash-modal-overlay');
+        if (existing) existing.remove();
+
+        var overlay = document.createElement('div');
+        overlay.className = 'dash-modal-overlay';
+        overlay.innerHTML = '<div class="dash-modal" style="position:relative;">'
+            + '<button class="dash-modal-close" title="Fechar">&times;</button>'
+            + '<h3>' + title + '</h3>'
+            + '<div class="modal-body">' + contentHtml + '</div>'
+            + '</div>';
+
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay || e.target.classList.contains('dash-modal-close')) {
+                overlay.remove();
+            }
+        });
+
+        document.body.appendChild(overlay);
+    }
+
+    // Store data globally for click handlers
+    var _dashData = {};
+
     // ===== BUILD DASHBOARD =====
     function render(data) {
+        _dashData = data;
         var analytics = data.analytics;
         var checkEvents = parseEvents(analytics.check);
         var demurrageEvents = parseEvents(analytics.demurrage);
@@ -85,7 +111,7 @@
         var portfolioSnaps = demurrageEvents.filter(function(e) { return e.action === 'portfolio_snapshot' && e.data; });
         var latestPortfolio = portfolioSnaps.length > 0 ? portfolioSnaps[0].data : null;
 
-        // Armador ranking from latest portfolio
+        // Armador ranking
         var armadorRanking = [];
         if (latestPortfolio && latestPortfolio.armadores) {
             Object.keys(latestPortfolio.armadores).forEach(function(arm) {
@@ -103,12 +129,13 @@
         var userStats = {};
         allEvents.forEach(function(e) {
             var u = e.user || 'unknown';
-            if (!userStats[u]) userStats[u] = { total: 0, agents: {} };
+            if (!userStats[u]) userStats[u] = { total: 0, agents: {}, events: [] };
             userStats[u].total++;
             userStats[u].agents[e.agent] = (userStats[u].agents[e.agent] || 0) + 1;
+            userStats[u].events.push(e);
         });
         var userRanking = Object.keys(userStats).map(function(u) {
-            return { name: u, total: userStats[u].total, agents: userStats[u].agents };
+            return { name: u, total: userStats[u].total, agents: userStats[u].agents, events: userStats[u].events };
         }).sort(function(a, b) { return b.total - a.total; });
 
         // Serasa scores
@@ -119,7 +146,7 @@
                 serasaList.push({ cliente: key.replace(/_/g, ' '), score: s.score, limite: s.limiteCredito });
             }
         });
-        serasaList.sort(function(a, b) { return a.score - b.score; }); // piores primeiro
+        serasaList.sort(function(a, b) { return a.score - b.score; });
 
         // === RENDER HTML ===
         var html = '';
@@ -128,24 +155,25 @@
         html += '<header class="dash-header">';
         html += '  <div>';
         html += '    <h1>ATOM Intelligence</h1>';
-        html += '    <div class="subtitle">Mond Shipping — Centro de Inteligência</div>';
+        html += '    <div class="subtitle">Mond Shipping — Centro de Inteligencia</div>';
         html += '  </div>';
-        html += '  <div class="live-badge"><div class="live-dot"></div> Atualização automática</div>';
+        html += '  <div class="live-badge"><div class="live-dot"></div> Atualizacao automatica</div>';
         html += '</header>';
 
         // Grid
         html += '<div class="dash-grid">';
 
         // KPI ROW 1
-        html += kpiCard('Total de Eventos', totalEvents, 'blue', 'Ações registradas por todos os agentes');
-        html += kpiCard('Chequeios', totalChecks, 'cyan', avgAccuracy > 0 ? 'Precisão média: ' + avgAccuracy + '%' : 'Sem dados de precisão');
+        html += kpiCard('Total de Eventos', totalEvents, 'blue', 'Acoes registradas por todos os agentes');
+        html += kpiCard('Chequeios', totalChecks, 'cyan', avgAccuracy > 0 ? 'Precisao media: ' + avgAccuracy + '%' : 'Sem dados de precisao',
+            'Verifica se os valores de custos no Skychart batem com a oferta/cotacao original. Acerto = % de itens corretos.');
         html += kpiCard('Processos Resolvidos', resolvedCount, 'green', 'Containers devolvidos (demurrage)');
-        html += kpiCard('Emails Processados', emailsCaptured, 'purple', cotacoesExtraidas + ' cotações, ' + bookingsExtraidos + ' bookings');
+        html += kpiCard('Emails Processados', emailsCaptured, 'purple', cotacoesExtraidas + ' cotacoes, ' + bookingsExtraidos + ' bookings');
 
         // KPI ROW 2
         if (latestPortfolio) {
             html += kpiCard('Expirados', latestPortfolio.expirado || 0, 'red', 'Processos com free time vencido');
-            html += kpiCard('Em Alerta', latestPortfolio.alerta || 0, 'amber', 'Processos próximos do vencimento');
+            html += kpiCard('Em Alerta', latestPortfolio.alerta || 0, 'amber', 'Processos proximos do vencimento');
         }
         html += kpiCard('Clientes Serasa', serasaCount, 'purple', 'Scores consultados e salvos');
         if (latestPortfolio) {
@@ -154,7 +182,7 @@
 
         // ARMADOR RANKING
         html += '<div class="section-card">';
-        html += '  <div class="section-title"><span class="icon">🚢</span> Ranking de Armadores</div>';
+        html += '  <div class="section-title"><span class="icon">⚓</span> <span class="tooltip-trigger" data-tooltip="Quantidade de processos de demurrage por companhia maritima (armador). Mostra quais armadores concentram mais processos com risco de demurrage.">Ranking de Armadores</span></div>';
         if (armadorRanking.length > 0) {
             var maxArm = armadorRanking[0].count;
             html += '<div class="bar-chart">';
@@ -165,13 +193,13 @@
             });
             html += '</div>';
         } else {
-            html += emptyState('📊', 'Dados de armadores aparecerão após o primeiro carregamento');
+            html += emptyState('Dados de armadores aparecerao apos o carregamento do portfolio');
         }
         html += '</div>';
 
         // SERASA SCORES
         html += '<div class="section-card">';
-        html += '  <div class="section-title"><span class="icon">📋</span> Scores Serasa</div>';
+        html += '  <div class="section-title"><span class="icon">S</span> Scores Serasa</div>';
         if (serasaList.length > 0) {
             html += '<table class="stat-table">';
             html += '<tr><th>Cliente</th><th>Score</th><th>Limite</th></tr>';
@@ -180,27 +208,28 @@
                 html += '<tr>';
                 html += '<td class="val">' + s.cliente + '</td>';
                 html += '<td class="' + cls + '">' + s.score + '</td>';
-                html += '<td>' + (s.limite || '-') + '</td>';
+                html += '<td>' + (s.limite ? s.limite.toLocaleString('pt-BR') : '-') + '</td>';
                 html += '</tr>';
             });
             html += '</table>';
         } else {
-            html += emptyState('🔍', 'Consultas Serasa aparecerão quando scores forem registrados');
+            html += emptyState('Consultas Serasa aparecerao quando scores forem registrados');
         }
         html += '</div>';
 
         // CHECK AGENT RESULTS
         html += '<div class="section-card">';
-        html += '  <div class="section-title"><span class="icon">✓</span> Últimos Chequeios</div>';
+        html += '  <div class="section-title"><span class="icon">✓</span> <span class="tooltip-trigger" data-tooltip="Compara os valores da oferta/cotacao com o que foi lancado no Skychart. Acerto = % de itens com valores corretos. Erros indicam divergencias.">Ultimos Chequeios</span></div>';
         if (checkResults.length > 0) {
-            html += '<table class="stat-table">';
-            html += '<tr><th>Quando</th><th>Módulo</th><th>Itens</th><th>Erros</th><th>Acerto</th></tr>';
-            checkResults.slice(0, 8).forEach(function(e) {
+            html += '<table class="stat-table" id="check-table">';
+            html += '<tr><th>Quando</th><th>Modulo</th><th>Processo</th><th>Itens</th><th>Erros</th><th>Acerto</th></tr>';
+            checkResults.slice(0, 10).forEach(function(e, idx) {
                 var d = e.data || {};
                 var cls = (d.taxaAcerto || 0) >= 90 ? 'good' : (d.taxaAcerto || 0) >= 70 ? 'warn' : 'bad';
-                html += '<tr>';
+                html += '<tr data-check-idx="' + idx + '">';
                 html += '<td>' + formatDate(e.timestamp) + '</td>';
                 html += '<td class="val">' + (d.modulo || '-') + '</td>';
+                html += '<td class="val">' + (d.processo || '-') + '</td>';
                 html += '<td>' + (d.totalItens || 0) + '</td>';
                 html += '<td class="' + ((d.errosEncontrados || 0) > 0 ? 'bad' : 'good') + '">' + (d.errosEncontrados || 0) + '</td>';
                 html += '<td class="' + cls + '">' + (d.taxaAcerto || 0) + '%</td>';
@@ -208,31 +237,35 @@
             });
             html += '</table>';
         } else {
-            html += emptyState('✓', 'Resultados do Check Agent aparecerão após o primeiro chequeio');
+            html += emptyState('Resultados do Check Agent aparecerao apos o primeiro chequeio');
         }
         html += '</div>';
 
         // USER ACTIVITY
         html += '<div class="section-card">';
-        html += '  <div class="section-title"><span class="icon">👥</span> Atividade por Usuário</div>';
+        html += '  <div class="section-title"><span class="icon">U</span> Atividade por Usuario</div>';
         if (userRanking.length > 0) {
             var maxUser = userRanking[0].total;
-            html += '<div class="bar-chart">';
+            html += '<div class="bar-chart" id="user-chart">';
             userRanking.slice(0, 6).forEach(function(u, i) {
                 var pct = Math.round((u.total / maxUser) * 100);
-                var name = u.name.length > 15 ? u.name.substring(0, 15) + '...' : u.name;
+                var name = u.name.length > 18 ? u.name.substring(0, 18) + '...' : u.name;
                 var colors = ['blue', 'purple', 'cyan', 'amber', 'green'];
-                html += barRow(name, u.total, pct, colors[i % colors.length]);
+                html += '<div class="bar-row" data-user="' + u.name + '">';
+                html += '<span class="bar-label">' + name + '</span>';
+                html += '<div class="bar-track">';
+                html += '<div class="bar-fill ' + colors[i % colors.length] + '" style="width:' + Math.max(pct, 8) + '%">' + u.total + '</div>';
+                html += '</div></div>';
             });
             html += '</div>';
         } else {
-            html += emptyState('👥', 'Atividade será registrada conforme os agentes são usados');
+            html += emptyState('Atividade sera registrada conforme os agentes sao usados');
         }
         html += '</div>';
 
         // ACTIVITY TIMELINE
         html += '<div class="section-card full">';
-        html += '  <div class="section-title"><span class="icon">📡</span> Timeline de Atividade — Últimos Eventos</div>';
+        html += '  <div class="section-title"><span class="icon">T</span> Timeline de Atividade</div>';
         if (allEvents.length > 0) {
             html += '<div class="timeline">';
             allEvents.slice(0, 25).forEach(function(evt) {
@@ -240,7 +273,7 @@
             });
             html += '</div>';
         } else {
-            html += emptyState('📡', 'A timeline será populada automaticamente conforme os agentes trabalham');
+            html += emptyState('A timeline sera populada automaticamente conforme os agentes trabalham');
         }
         html += '</div>';
 
@@ -248,17 +281,80 @@
         html += '</div>';
 
         // Footer
-        html += '<div style="text-align:center;padding:16px;color:#475569;font-size:11px;">';
-        html += 'ATOM Intelligence v1.0 — Mond Shipping — Dados atualizados a cada 1 minuto';
+        html += '<div class="dash-footer">';
+        html += 'ATOM Intelligence v1.1 — Mond Shipping — Dados atualizados a cada 1 minuto';
         html += '</div>';
 
         document.getElementById('app').innerHTML = html;
+
+        // === BIND INTERACTIVE EVENTS ===
+        bindInteractiveEvents(userRanking, checkResults);
+    }
+
+    // ===== BIND CLICK HANDLERS =====
+    function bindInteractiveEvents(userRanking, checkResults) {
+        // User bars → click to see detail
+        var userChart = document.getElementById('user-chart');
+        if (userChart) {
+            userChart.addEventListener('click', function(e) {
+                var row = e.target.closest('.bar-row');
+                if (!row) return;
+                var userName = row.getAttribute('data-user');
+                var user = userRanking.find(function(u) { return u.name === userName; });
+                if (!user) return;
+
+                var html = '<table class="stat-table">';
+                html += '<tr><th>Agente</th><th>Acoes</th></tr>';
+                Object.keys(user.agents).forEach(function(agent) {
+                    html += '<tr><td class="val">' + agent + '</td><td>' + user.agents[agent] + '</td></tr>';
+                });
+                html += '</table>';
+
+                // Last 10 events
+                html += '<h4 style="margin-top:16px;margin-bottom:8px;font-size:13px;font-weight:600;">Ultimas atividades</h4>';
+                html += '<div class="timeline" style="max-height:200px;">';
+                user.events.slice(0, 10).forEach(function(evt) {
+                    html += timelineItem(evt);
+                });
+                html += '</div>';
+
+                showModal('Atividade: ' + userName, html);
+            });
+        }
+
+        // Check rows → click to see detail
+        var checkTable = document.getElementById('check-table');
+        if (checkTable) {
+            checkTable.addEventListener('click', function(e) {
+                var row = e.target.closest('tr[data-check-idx]');
+                if (!row) return;
+                var idx = parseInt(row.getAttribute('data-check-idx'));
+                var check = checkResults[idx];
+                if (!check || !check.data) return;
+
+                var d = check.data;
+                var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">';
+                html += '<div><strong>Modulo:</strong> ' + (d.modulo || '-') + '</div>';
+                html += '<div><strong>Processo:</strong> ' + (d.processo || 'nao registrado') + '</div>';
+                html += '<div><strong>Total itens:</strong> ' + (d.totalItens || 0) + '</div>';
+                html += '<div><strong>Itens OK:</strong> <span style="color:var(--accent-green)">' + (d.itensOk || 0) + '</span></div>';
+                html += '<div><strong>Erros:</strong> <span style="color:var(--accent-red)">' + (d.errosEncontrados || 0) + '</span></div>';
+                html += '<div><strong>Taxa acerto:</strong> <span style="color:' + ((d.taxaAcerto || 0) >= 80 ? 'var(--accent-green)' : 'var(--accent-red)') + '">' + (d.taxaAcerto || 0) + '%</span></div>';
+                html += '</div>';
+                html += '<div style="font-size:11px;color:var(--text-muted);">Quando: ' + formatDate(check.timestamp) + ' — Usuario: ' + (check.user || 'unknown') + '</div>';
+
+                showModal('Chequeio: ' + (d.processo || d.modulo), html);
+            });
+        }
     }
 
     // ===== COMPONENT BUILDERS =====
-    function kpiCard(label, value, color, detail) {
+    function kpiCard(label, value, color, detail, tooltip) {
+        var labelHtml = tooltip
+            ? '<span class="tooltip-trigger" data-tooltip="' + tooltip + '">' + label + '</span>'
+            : label;
         return '<div class="kpi-card ' + color + '">'
-            + '<div class="kpi-label">' + label + '</div>'
+            + '<div class="kpi-label">' + labelHtml + '</div>'
             + '<div class="kpi-value ' + color + '">' + value + '</div>'
             + '<div class="kpi-detail">' + detail + '</div>'
             + '</div>';
@@ -268,26 +364,29 @@
         return '<div class="bar-row">'
             + '<span class="bar-label">' + label + '</span>'
             + '<div class="bar-track">'
-            + '<div class="bar-fill ' + color + '" style="width:' + Math.max(pct, 5) + '%">' + value + '</div>'
+            + '<div class="bar-fill ' + color + '" style="width:' + Math.max(pct, 8) + '%">' + value + '</div>'
             + '</div></div>';
     }
 
-    function emptyState(icon, text) {
-        return '<div class="empty-state"><span class="icon">' + icon + '</span>' + text + '</div>';
+    function emptyState(text) {
+        return '<div class="empty-state">' + text + '</div>';
     }
 
     function timelineItem(evt) {
         var agent = evt.agent || 'unknown';
         var descriptions = {
-            'chequeio_concluido': function(d) { return 'Chequeio ' + (d.modulo || '') + ': ' + (d.totalItens || 0) + ' itens, ' + (d.errosEncontrados || 0) + ' erros (' + (d.taxaAcerto || 0) + '% acerto)'; },
+            'chequeio_concluido': function(d) {
+                var ref = d.processo ? ' (' + d.processo + ')' : '';
+                return 'Chequeio ' + (d.modulo || '') + ref + ': ' + (d.totalItens || 0) + ' itens, ' + (d.taxaAcerto || 0) + '% acerto';
+            },
             'processo_resolvido': function(d) { return 'Processo ' + (d.processo || '?') + ' marcado como devolvido'; },
             'processo_reaberto': function(d) { return 'Processo ' + (d.processo || '?') + ' reaberto'; },
             'portfolio_snapshot': function(d) { return 'Portfolio: ' + (d.total || 0) + ' processos (' + (d.expirado || 0) + ' expirados, ' + (d.alerta || 0) + ' alertas)'; },
-            'relatorio_enviado': function(d) { return 'Relatório demurrage composto com ' + (d.totalProcessos || 0) + ' processos em risco'; },
+            'relatorio_enviado': function(d) { return 'Relatorio demurrage: ' + (d.totalProcessos || 0) + ' processos em risco'; },
             'score_salvo': function(d) { return 'Score Serasa: ' + (d.cliente || '?') + ' = ' + (d.score || '?'); },
             'email_capturado': function(d) { return 'Email lido: ' + (d.subject || 'sem assunto'); },
-            'cotacao_extraida': function(d) { return 'Cotação extraída (' + (d.campos || 0) + ' campos)'; },
-            'booking_extraido': function(d) { return 'Booking extraído (' + (d.campos || 0) + ' campos)'; }
+            'cotacao_extraida': function(d) { return 'Cotacao extraida (' + (d.campos || 0) + ' campos)'; },
+            'booking_extraido': function(d) { return 'Booking extraido (' + (d.campos || 0) + ' campos)'; }
         };
 
         var descFn = descriptions[evt.action];
@@ -307,7 +406,7 @@
             .then(render)
             .catch(function(err) {
                 console.error('[Dashboard] Erro:', err);
-                document.getElementById('app').innerHTML = '<div class="dash-loading"><div style="color:#ef4444">Erro ao carregar: ' + err.message + '</div></div>';
+                document.getElementById('app').innerHTML = '<div class="dash-loading"><div style="color:#dc2626">Erro ao carregar: ' + err.message + '</div></div>';
             });
     }
 
