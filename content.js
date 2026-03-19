@@ -4074,18 +4074,17 @@ try {
                 showToast('Processo ' + processo + ' aberto!', 'success', 3000);
                 console.log('[Atom Demurrage] Processo', processo, 'selecionado via DOM observer');
 
-                // Auto-click na aba Demurrage (mesmo padrão do Embarque/Custos)
+                // Auto-click na aba Demurrage (testado no console: #demurrage .ui-accordion-header a)
                 (function watchDemurrageAccordion() {
                     var obs = new MutationObserver(function() {
-                        var spans = document.querySelectorAll('span.ui-accordion-header-text');
-                        for (var i = 0; i < spans.length; i++) {
-                            if (spans[i].textContent.trim() === 'Demurrage') {
+                        var tab = document.querySelector('#demurrage');
+                        if (tab) {
+                            var link = tab.querySelector('.ui-accordion-header a');
+                            if (link) {
                                 obs.disconnect();
-                                var clickable = spans[i].closest('a, .ui-accordion-header') || spans[i];
-                                clickable.click();
-                                clickable.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                console.log('[Atom Demurrage] Aba Demurrage aberta (' + clickable.tagName + ')');
-                                return;
+                                link.click();
+                                link.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                console.log('[Atom Demurrage] Aba Demurrage aberta');
                             }
                         }
                     });
