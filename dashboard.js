@@ -242,7 +242,7 @@
                 html += '<tr>';
                 html += '<td class="val">' + s.cliente + '</td>';
                 html += '<td class="' + cls + '">' + s.score + '</td>';
-                html += '<td>' + (s.limite ? s.limite.toLocaleString('pt-BR') : '-') + '</td>';
+                html += '<td>' + (s.limite ? 'R$ ' + Number(s.limite).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-') + '</td>';
                 html += '</tr>';
             });
             html += '</table>';

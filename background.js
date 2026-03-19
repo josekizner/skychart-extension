@@ -90,19 +90,60 @@ function checkForUpdate() {
 // Heartbeat: reporta versao/perfil/user ao Firebase a cada minuto
 function sendHeartbeat() {
   chrome.storage.local.get(['userProfile', 'atomUserName'], function(d) {
-    var user = d.atomUserName || 'unknown';
     var profile = d.userProfile || 'unknown';
-    var safeKey = user !== 'unknown' ? user.replace(/[.#$/\[\]@\s]/g, '_') : ('ext_' + chrome.runtime.id.substring(0, 8));
-    fetch(`${_FIREBASE_BASE}/system/heartbeats/${safeKey}.json`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        version: CURRENT_VERSION,
-        profile: profile,
-        user: user,
-        lastSeen: Date.now()
-      })
-    }).catch(() => {});
+    if (d.atomUserName && d.atomUserName !== 'unknown') {
+      _doHeartbeat(d.atomUserName, profile);
+    } else {
+      // Tenta Skychart primeiro, depois Outlook
+      _tryDetectUser(['*://skyline*/*', '*://outlook*/*'], profile);
+    }
   });
+}
+
+function _tryDetectUser(urlPatterns, profile) {
+  if (urlPatterns.length === 0) { _doHeartbeat('unknown', profile); return; }
+  var pattern = urlPatterns.shift();
+  chrome.tabs.query({ url: pattern }, function(tabs) {
+    if (tabs && tabs.length > 0) {
+      chrome.scripting.executeScript({
+        target: { tabId: tabs[0].id },
+        func: function() {
+          // Skychart user name
+          var el = document.querySelector('.user-name, .nome-usuario, .user-info span, [class*="userName"]');
+          if (el && el.textContent.trim()) return el.textContent.trim().substring(0, 30);
+          // Outlook: account manager or title
+          var acc = document.querySelector('[id*="mectrl_currentAccount_primary"], [class*="accountManager"] [class*="name"]');
+          if (acc && acc.textContent.trim()) return acc.textContent.trim().substring(0, 30);
+          var m = (document.title || '').match(/[–—-]\s*(.{3,})/);
+          if (m) return m[1].trim().substring(0, 30);
+          return null;
+        }
+      }).then(function(results) {
+        var name = results && results[0] && results[0].result;
+        if (name) {
+          chrome.storage.local.set({ atomUserName: name });
+          _doHeartbeat(name, profile);
+        } else {
+          _tryDetectUser(urlPatterns, profile);
+        }
+      }).catch(function() { _tryDetectUser(urlPatterns, profile); });
+    } else {
+      _tryDetectUser(urlPatterns, profile);
+    }
+  });
+}
+
+function _doHeartbeat(user, profile) {
+  var safeKey = user !== 'unknown' ? user.replace(/[.#$/\[\]@\s]/g, '_') : ('ext_' + chrome.runtime.id.substring(0, 8));
+  fetch(`${_FIREBASE_BASE}/system/heartbeats/${safeKey}.json`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      version: CURRENT_VERSION,
+      profile: profile,
+      user: user,
+      lastSeen: Date.now()
+    })
+  }).catch(() => {});
 }
 
 // chrome.alarms: sobrevive ao shutdown do service worker
