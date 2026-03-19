@@ -108,6 +108,7 @@
         document.getElementById('dm-collapse').style.display = '';
         document.getElementById('dm-minimize').style.display = '';
         document.getElementById('dm-refresh').style.display = '';
+        restorePanelSize(); // Restaura tamanho salvo pelo usuario
         if (_data) {
             renderTable(_data);
         } else {
@@ -912,20 +913,65 @@
     }
 
     // ===== STYLES =====
-    // ===== RESIZE HANDLE =====
+    // ===== RESIZE HANDLE + PERSISTENCE =====
+    function savePanelSize(w, h) {
+        chrome.storage.local.set({ dmPanelSize: { w: w, h: h } });
+    }
+    function restorePanelSize() {
+        var bar = document.getElementById('atom-demurrage-bar');
+        if (!bar || !bar.classList.contains('expanded')) return;
+        chrome.storage.local.get('dmPanelSize', function(d) {
+            if (d.dmPanelSize) {
+                if (d.dmPanelSize.w) bar.style.width = d.dmPanelSize.w + 'px';
+                if (d.dmPanelSize.h) bar.style.height = d.dmPanelSize.h + 'px';
+            }
+        });
+    }
     function initResize() {
         var bar = document.getElementById('atom-demurrage-bar');
         if (!bar || bar.querySelector('.dm-resize-handle')) return;
-        var handle = document.createElement('div');
-        handle.className = 'dm-resize-handle';
-        bar.appendChild(handle);
-        var startX = 0, startW = 0;
-        handle.addEventListener('mousedown', function(e) {
+
+        // Handle direito (largura)
+        var hRight = document.createElement('div');
+        hRight.className = 'dm-resize-handle';
+        bar.appendChild(hRight);
+
+        // Handle topo (altura)
+        var hTop = document.createElement('div');
+        hTop.className = 'dm-resize-top';
+        bar.appendChild(hTop);
+
+        // Resize direita (largura)
+        hRight.addEventListener('mousedown', function(e) {
             e.preventDefault(); e.stopPropagation();
-            startX = e.clientX; startW = bar.offsetWidth;
+            var startX = e.clientX, startW = bar.offsetWidth;
             bar.style.transition = 'none';
             function onMove(ev) { bar.style.width = Math.max(400, startW + (ev.clientX - startX)) + 'px'; }
-            function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); bar.style.transition = ''; }
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                bar.style.transition = '';
+                savePanelSize(bar.offsetWidth, bar.offsetHeight);
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        // Resize topo (altura — cresce pra cima)
+        hTop.addEventListener('mousedown', function(e) {
+            e.preventDefault(); e.stopPropagation();
+            var startY = e.clientY, startH = bar.offsetHeight;
+            bar.style.transition = 'none';
+            function onMove(ev) {
+                var newH = Math.max(200, Math.min(window.innerHeight - 80, startH + (startY - ev.clientY)));
+                bar.style.height = newH + 'px';
+            }
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                bar.style.transition = '';
+                savePanelSize(bar.offsetWidth, bar.offsetHeight);
+            }
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);
         });
@@ -1081,7 +1127,12 @@
             '  position: absolute; top: 0; right: 0; width: 6px; height: 100%;',
             '  cursor: ew-resize; z-index: 10;',
             '}',
-            '.dm-resize-handle:hover { background: rgba(239,68,68,0.2); }'
+            '.dm-resize-handle:hover { background: rgba(239,68,68,0.2); }',
+            '.dm-resize-top {',
+            '  position: absolute; top: -3px; left: 10%; right: 10%; height: 6px;',
+            '  cursor: n-resize; z-index: 10;',
+            '}',
+            '.dm-resize-top:hover { background: rgba(239,68,68,0.2); border-radius: 3px; }'
         ].join('\n');
         document.head.appendChild(style);
     }
