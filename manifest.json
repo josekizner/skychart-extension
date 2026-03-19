@@ -50,6 +50,7 @@
         "frequency-agent.js",
         "agenda-agent.js",
         "content.js",
+        "action-recorder.js",
         "health-check.js"
       ],
       "css": [

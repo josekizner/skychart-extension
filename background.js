@@ -611,6 +611,53 @@ Os valores estão corretos? Responda APENAS com JSON:
     return true;
   }
 
+  // Action Recorder: salva gravação de workflow no Firebase
+  if (request.action === "saveRecording") {
+    const rec = request.data;
+    if (rec && rec.sessionId) {
+      const fbUrl = _FIREBASE_BASE + '/atom_recordings/' + rec.sessionId + '.json';
+      fetch(fbUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rec)
+      }).then(r => {
+        console.log("[Action Recorder] Gravação salva:", rec.sessionId, "| Ações:", rec.totalActions, "| Status:", r.status);
+      }).catch(err => {
+        console.error("[Action Recorder] Erro salvando:", err);
+      });
+    }
+    sendResponse({ success: true });
+    return true;
+  }
+
+  // Action Recorder: proxy start/stop para a tab ativa
+  if (request.action === "start_recording_proxy") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, { 
+          action: 'start_recording', 
+          label: request.label || 'Gravação'
+        }, (response) => {
+          sendResponse(response || { success: false });
+        });
+      }
+    });
+    return true;
+  }
+
+  if (request.action === "stop_recording_proxy") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, { 
+          action: 'stop_recording' 
+        }, (response) => {
+          sendResponse(response || { success: false });
+        });
+      }
+    });
+    return true;
+  }
+
   // Site Scanner: trigger on-demand scan
   if (request.action === "scan_page") {
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
