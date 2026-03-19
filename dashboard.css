@@ -401,6 +401,8 @@ body {
   color: var(--green);
   font-weight: 600;
 }
+.atom-table.compact th { padding: 6px 10px; font-size: 8px; }
+.atom-table.compact td { padding: 6px 10px; font-size: 10px; }
 
 /* ── STATUS DOT (tables) ── */
 .status-dot {
@@ -524,8 +526,8 @@ body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.3);
-  backdrop-filter: blur(4px);
+  background: rgba(26,26,24,0.55);
+  backdrop-filter: blur(2px);
   z-index: 100;
   display: flex;
   align-items: center;
@@ -535,10 +537,10 @@ body {
   background: var(--surface);
   border-radius: 12px;
   border: 1px solid var(--border);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-  max-width: 600px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.04);
+  max-width: 520px;
   width: 90%;
-  max-height: 80vh;
+  max-height: 85vh;
   overflow-y: auto;
 }
 .modal-header {

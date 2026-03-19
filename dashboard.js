@@ -450,17 +450,27 @@
         }
         html += '</div>';
 
-        // ── HEART BEATS ──
+        // ── HEART BEATS + SUMMARY ──
         if (hbKeys.length > 0) {
-            html += '<div class="fade-up fade-up-3" style="margin-bottom:24px">';
-            html += '<div class="panel">';
+            // Calculate extra metrics
+            var outdatedCount = 0, totalHb = hbKeys.length;
+            hbKeys.forEach(function(k) {
+                var hb = heartbeats[k];
+                if (hb && hb.version !== latestVer) outdatedCount++;
+            });
+            var uptimePct = totalHb > 0 ? Math.round((onlineCount / totalHb) * 100) : 0;
+
+            html += '<div class="two-col fade-up fade-up-3" style="margin-bottom:16px">';
+
+            // Left: compact table
+            html += '<div><div class="panel">';
             html += '<div class="panel-header">';
-            html += '  <div class="panel-title">' + panelIcon('E','var(--accent)','var(--accent-ghost)') + '<span class="panel-title-text">Extensões Ativas</span></div>';
-            html += '  <span class="panel-action">VERSÃO ATUAL: ' + latestVer + '</span>';
+            html += '  <div class="panel-title">' + panelIcon('E','var(--accent)','var(--accent-ghost)') + '<span class="panel-title-text">Extensões</span></div>';
+            html += '  <span class="panel-action">v' + latestVer + '</span>';
             html += '</div>';
             html += '<div class="panel-body no-pad">';
-            html += '<table class="atom-table"><thead><tr>';
-            html += '<th>Usuário</th><th style="width:80px">Versão</th><th>Perfil</th><th>Última Atividade</th>';
+            html += '<table class="atom-table compact"><thead><tr>';
+            html += '<th>Usuário</th><th>Ver</th><th>Perfil</th><th>Atividade</th>';
             html += '</tr></thead><tbody>';
             hbKeys.forEach(function(key) {
                 var hb = heartbeats[key];
@@ -469,9 +479,9 @@
                 var minAgo = Math.round((Date.now() - (hb.lastSeen || 0)) / 60000);
                 var isOnline = minAgo < 10;
                 var dotClass = !isOnline ? 'offline' : isUpToDate ? 'online pulse' : 'outdated';
-                var timeStr = minAgo < 1 ? 'agora' : minAgo < 60 ? minAgo + ' min atrás' : Math.floor(minAgo/60) + 'h atrás';
+                var timeStr = minAgo < 1 ? 'agora' : minAgo < 60 ? minAgo + 'm' : Math.floor(minAgo/60) + 'h';
                 html += '<tr>';
-                html += '<td><span style="display:inline-flex;align-items:center;gap:6px"><span class="status-dot ' + dotClass + '"></span>' + (hb.user || key) + '</span></td>';
+                html += '<td><span style="display:inline-flex;align-items:center;gap:5px"><span class="status-dot ' + dotClass + '"></span>' + (hb.user || key) + '</span></td>';
                 html += '<td class="accent">' + (hb.version || '?') + '</td>';
                 html += '<td>' + (hb.profile || '-') + '</td>';
                 html += '<td>' + timeStr + '</td>';
@@ -479,6 +489,28 @@
             });
             html += '</tbody></table>';
             html += '</div></div></div>';
+
+            // Right: summary metrics
+            html += '<div><div class="panel">';
+            html += '<div class="panel-header"><div class="panel-title">' + panelIcon('M','var(--green)','var(--green-ghost)') + '<span class="panel-title-text">Resumo Operacional</span></div></div>';
+            html += '<div class="panel-body">';
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+            html += '<div class="agent-metric"><div class="agent-metric-label">UPTIME</div><div class="agent-metric-value" style="color:var(--green)">' + uptimePct + '%</div></div>';
+            html += '<div class="agent-metric"><div class="agent-metric-label">ONLINE</div><div class="agent-metric-value" style="color:var(--accent)">' + onlineCount + '/' + totalHb + '</div></div>';
+            html += '<div class="agent-metric"><div class="agent-metric-label">DESATUALIZADOS</div><div class="agent-metric-value" style="color:' + (outdatedCount > 0 ? 'var(--red)' : 'var(--green)') + '">' + outdatedCount + '</div></div>';
+            html += '<div class="agent-metric"><div class="agent-metric-label">TOTAL AGENTES</div><div class="agent-metric-value" style="color:var(--accent)">' + AGENTS.length + '</div></div>';
+            html += '</div>';
+
+            // Today's activity summary
+            var todayStart = new Date(); todayStart.setHours(0,0,0,0);
+            var todayEvents = allEvents.filter(function(e) { return e.timestamp >= todayStart.getTime(); }).length;
+            html += '<div style="margin-top:14px;padding:10px;background:var(--bg-alt);border-radius:8px;border:1px solid var(--border);text-align:center">';
+            html += '<div style="font-size:9px;font-weight:700;letter-spacing:0.14em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">AÇÕES HOJE</div>';
+            html += '<div style="font-family:Bebas Neue,sans-serif;font-size:32px;color:var(--accent);line-height:1">' + todayEvents + '</div>';
+            html += '</div>';
+            html += '</div></div></div>';
+
+            html += '</div>'; // close two-col
         }
 
         // ── TWO COLUMN: RANKING + SERASA ──
