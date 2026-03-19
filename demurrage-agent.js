@@ -86,7 +86,8 @@
         // Drag no modo mini
         initDrag(bar);
 
-        console.log(TAG, 'Barra criada');
+        console.log(TAG, 'Barra criada (modo mini por padrão)');
+        collapsePanel(); // Inicia comprimida — não atrapalha a caixa
         loadData();
     }
 
