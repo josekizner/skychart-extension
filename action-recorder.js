@@ -109,7 +109,7 @@
         injectAtomCSS();
         var w = document.createElement('div');
         w.id = 'atom-widget';
-        w.style.cssText = 'position:fixed;bottom:20px;right:16px;z-index:999999;width:200px;background:#090C14;border-radius:14px;border:1px solid #1C222F;box-shadow:0 20px 60px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.03);overflow:hidden;font-family:DM Sans,sans-serif;user-select:none;transition:all 0.5s cubic-bezier(0.22,1,0.36,1);';
+        w.style.cssText = 'position:fixed;bottom:20px;right:16px;z-index:999999;width:240px;background:#090C14;border-radius:14px;border:1px solid #1C222F;box-shadow:0 20px 60px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.03);overflow:hidden;font-family:DM Sans,sans-serif;user-select:none;transition:all 0.5s cubic-bezier(0.22,1,0.36,1);';
 
         // Header
         var hdr = '<div id="atom-hdr" style="padding:12px 14px 10px;background:linear-gradient(180deg,#141820 0%,#090C14 100%);border-bottom:1px solid #1C222F;position:relative;overflow:hidden;">';
@@ -289,6 +289,11 @@
             if (modeLabel) { modeLabel.textContent = 'LEARN'; modeLabel.style.color = '#F59E0B'; }
             if (w) { w.style.borderColor = '#1C222F'; w.style.animation = 'none'; }
             loadAtomStats();
+        } else if (state === 'recording') {
+            if (robot) robot.innerHTML = atomRobotSVG('recording');
+            if (statusText) statusText.textContent = 'OBSERVANDO SUAS AÇÕES...';
+            if (modeLabel) { modeLabel.textContent = 'REC'; modeLabel.style.color = '#EF4444'; }
+            if (w) { w.style.borderColor = 'rgba(239,68,68,0.2)'; w.style.animation = 'alBorderRec 2s ease-in-out infinite'; }
         } else if (state === 'recorded') {
             if (robot) robot.innerHTML = atomRobotSVG('idle');
             if (statusText) statusText.textContent = 'APRENDIZADO SALVO';
@@ -367,25 +372,22 @@
 
             var ids = Object.keys(keys).sort();
             var options = [];
-            for (var i = 0; i < ids.length; i++) {
-                try {
-                    var label = null;
-                    var rTop = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/label.json');
-                    var topLabel = await rTop.json();
-                    if (topLabel) label = topLabel;
-                    if (!label) {
-                        var r1 = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/actions/1.json');
-                        var a1 = await r1.json();
-                        if (a1 && a1.label) label = a1.label;
-                    }
-                    if (!label) {
-                        var r0 = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/actions/0.json');
-                        var a0 = await r0.json();
-                        if (a0 && a0.label) label = a0.label;
-                    }
-                    options.push({ id: ids[i], label: label || ids[i] });
-                } catch(e) { options.push({ id: ids[i], label: ids[i] }); }
-            }
+            // Fetch labels em paralelo (muito mais rápido)
+            var labelPromises = ids.map(function(id) {
+                return fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + id + '/label.json')
+                    .then(function(r) { return r.json(); })
+                    .then(function(topLabel) {
+                        if (topLabel) return { id: id, label: topLabel };
+                        return fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + id + '/actions/1.json')
+                            .then(function(r) { return r.json(); })
+                            .then(function(a1) {
+                                if (a1 && a1.label) return { id: id, label: a1.label };
+                                return { id: id, label: id };
+                            });
+                    })
+                    .catch(function() { return { id: id, label: id }; });
+            });
+            options = await Promise.all(labelPromises);
 
             // Mostra painel de gerenciamento
             var result = await showWorkflowManager(options);

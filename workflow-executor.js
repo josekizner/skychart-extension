@@ -633,20 +633,29 @@
         setTimeout(function() { el.style.outline = o; }, 800);
     }
 
+    var _execStarted = false;
+
     function showIndicator(show, msg) {
         var e = document.getElementById('atom-replay-indicator');
         if (e) e.remove();
         // Dispatch events para o ATOM Learn panel
-        if (show && msg) {
-            var stepMatch = msg.match(/^(\d+)\/(\d+)/);
-            if (stepMatch) {
-                document.dispatchEvent(new CustomEvent('atom-exec-step', { detail: { current: parseInt(stepMatch[1]), total: parseInt(stepMatch[2]), text: msg } }));
+        if (show) {
+            if (!_execStarted) {
+                _execStarted = true;
+                document.dispatchEvent(new CustomEvent('atom-exec-start'));
             }
-            if (msg.indexOf('✅ Concluído') >= 0) {
-                document.dispatchEvent(new CustomEvent('atom-exec-done'));
+            if (msg) {
+                var stepMatch = msg.match(/^(\d+)\/(\d+)/);
+                if (stepMatch) {
+                    document.dispatchEvent(new CustomEvent('atom-exec-step', { detail: { current: parseInt(stepMatch[1]), total: parseInt(stepMatch[2]), text: msg } }));
+                }
+                if (msg.indexOf('✅ Concluído') >= 0) {
+                    document.dispatchEvent(new CustomEvent('atom-exec-done'));
+                    _execStarted = false;
+                }
             }
-        } else if (show) {
-            document.dispatchEvent(new CustomEvent('atom-exec-start'));
+        } else {
+            _execStarted = false;
         }
         if (!show) return;
         var d = document.createElement('div');
