@@ -1130,15 +1130,25 @@ Os valores estão corretos? Responda APENAS com JSON:
 
   // VISION: Captura screenshot da aba ativa
   if (request.action === "visionScreenshot") {
-    chrome.tabs.captureVisibleTab(null, { format: "png" }, function(dataUrl) {
-      if (chrome.runtime.lastError) {
-        console.error("[Vision] Screenshot erro:", chrome.runtime.lastError);
-        sendResponse({ success: false, error: chrome.runtime.lastError.message });
-        return;
-      }
-      console.log("[Vision] Screenshot capturado");
-      sendResponse({ success: true, image: dataUrl });
-    });
+    try {
+      chrome.tabs.captureVisibleTab(null, { format: "png" }, function(dataUrl) {
+        if (chrome.runtime.lastError) {
+          console.error("[Vision] Screenshot erro:", chrome.runtime.lastError.message);
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          return;
+        }
+        if (!dataUrl) {
+          console.error("[Vision] Screenshot retornou null");
+          sendResponse({ success: false, error: "dataUrl is null" });
+          return;
+        }
+        console.log("[Vision] Screenshot capturado (" + Math.round(dataUrl.length/1024) + "KB)");
+        sendResponse({ success: true, image: dataUrl });
+      });
+    } catch(e) {
+      console.error("[Vision] Screenshot exception:", e.message);
+      sendResponse({ success: false, error: e.message });
+    }
     return true;
   }
 
