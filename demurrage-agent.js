@@ -33,10 +33,17 @@
 
     // ===== CRIA BARRA =====
     function createBar() {
-        // Remove barra antiga (handlers zumbi de auto-update)
+        // Se barra já existe e context MORTO → recria preservando estado
+        // Se barra já existe e context VIVO → apenas re-attach handlers
         var oldBar = document.getElementById('atom-demurrage-bar');
+        var wasExpanded = false;
+        var savedPos = null;
         if (oldBar) {
-            console.log(TAG, 'Recriando barra (context refresh)');
+            wasExpanded = oldBar.classList.contains('expanded');
+            if (oldBar.style.left || oldBar.style.bottom) {
+                savedPos = { left: oldBar.style.left, bottom: oldBar.style.bottom };
+            }
+            console.log(TAG, 'Recriando barra (wasExpanded:', wasExpanded, ')');
             oldBar.remove();
         }
 
@@ -93,10 +100,33 @@
             collapsePanel();
         });
 
-        // Inicia como bolinha D (mini mode)
-        bar.classList.add('mini');
-        console.log(TAG, 'Barra criada (mini)');
-        // NÃO carrega dados na criação — carrega no primeiro expand
+        // Restaura posição se existia
+        if (savedPos) {
+            if (savedPos.left) bar.style.left = savedPos.left;
+            if (savedPos.bottom) bar.style.bottom = savedPos.bottom;
+        }
+
+        // Restaura estado: se tava expandido, mantém expandido
+        if (wasExpanded) {
+            bar.classList.add('expanded');
+            var content = document.getElementById('dm-content');
+            if (content) content.style.display = 'block';
+            console.log(TAG, 'Barra recriada (expandida — restaurado)');
+            // Carrega dados do cache imediatamente
+            chrome.storage.local.get(['demurrageData'], function(d) {
+                if (d.demurrageData && d.demurrageData.length > 0) {
+                    _data = d.demurrageData;
+                    updateBadge(getActiveData());
+                    renderTable(_data);
+                    console.log(TAG, 'Cache local restaurado:', _data.length, 'registros');
+                } else {
+                    loadData();
+                }
+            });
+        } else {
+            bar.classList.add('mini');
+            console.log(TAG, 'Barra criada (mini)');
+        }
     }
 
     // ===== TOGGLE =====
