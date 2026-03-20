@@ -273,19 +273,47 @@
         if (!recording) return;
         var el = e.target;
 
+        // FILTRO 1: Ignora clicks nos nossos próprios botões
+        if (el.closest('#atom-rec-button') || el.closest('#atom-play-button') || el.closest('#atom-replay-indicator')) {
+            return;
+        }
+
         // Sobe na árvore até achar algo clicável
         var clickable = findClickable(el);
         if (!clickable) return;
 
+        // FILTRO 2: Ignora clicks em elementos sem significado (nth-child genéricos sem texto)
+        var text = getVisibleText(clickable);
+        var id = clickable.id || '';
+        var selector = buildSelector(clickable);
+
+        // Se seletor é nth-child puro e não tem texto nem ID, pega texto do pai
+        if (selector.indexOf(':nth-child') >= 0 && !text && !id) {
+            var parent = clickable.parentElement;
+            while (parent && parent !== document.body) {
+                var parentText = (parent.textContent || '').trim();
+                if (parentText.length > 0 && parentText.length < 80) {
+                    text = parentText;
+                    break;
+                }
+                parent = parent.parentElement;
+            }
+            // Se mesmo o pai não tem texto útil, ignora (provavelmente lixo)
+            if (!text) {
+                console.log(TAG, '🗑️ Click ignorado (sem texto/ID, seletor genérico):', selector);
+                return;
+            }
+        }
+
         var info = {
             type: 'click',
             timestamp: Date.now(),
-            selector: buildSelector(clickable),
+            selector: selector,
             tagName: clickable.tagName.toLowerCase(),
-            text: getVisibleText(clickable),
+            text: text,
             label: getLabel(clickable),
             classes: (clickable.className || '').substring(0, 100),
-            id: clickable.id || '',
+            id: id,
             url: window.location.href,
             section: getCurrentSection()
         };
@@ -293,12 +321,21 @@
         // Se é um accordion/tab, marca como navegação
         if (clickable.closest('.ui-accordion-header') || clickable.closest('[role="tab"]')) {
             info.type = 'navigate_section';
-            info.sectionName = getVisibleText(clickable);
+            info.sectionName = text;
         }
 
-        // Se é link do menu
-        if (clickable.closest('.ui-menu, .nav, [class*="menu"]')) {
-            info.type = 'navigate_menu';
+        // Se é link do menu (MAS NÃO se é INPUT/SELECT — esses ficam como click)
+        var tag = clickable.tagName;
+        if (tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'TEXTAREA') {
+            if (clickable.closest('.ui-menu, .nav, [class*="menu"]')) {
+                info.type = 'navigate_menu';
+            }
+        }
+
+        // PrimeNG tree items — marcamos como navigate_section
+        if (clickable.closest('.ui-treenode, .p-treenode, [role="treeitem"]')) {
+            info.type = 'navigate_section';
+            info.sectionName = text;
         }
 
         actions.push(info);
@@ -320,13 +357,15 @@
         if (!recording) return;
         var el = e.target;
         if (isBlacklisted(el)) return;
+        // Ignora nossos próprios elementos
+        if (el.closest('#atom-rec-button, #atom-play-button, #atom-replay-indicator')) return;
 
-        // Debounce: espera o usuário parar de digitar
+        // Debounce: espera o usuário parar de digitar (300ms — era 800, perdia valores rápidos)
         var key = buildSelector(el);
         clearTimeout(inputDebounce[key]);
         inputDebounce[key] = setTimeout(function() {
             recordInput(el, 'input');
-        }, 800);
+        }, 300);
     }
 
     function onUserChange(e) {

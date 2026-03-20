@@ -66,9 +66,17 @@
 
             // Filtra executáveis + remove o click no próprio botão PARAR
             var actions = allActions.filter(function(a) {
-                if (a.id === 'atom-rec-button' || a.id === 'atom-play-button') return false;
-                return a.type === 'click' || a.type === 'type' || a.type === 'select' ||
-                       a.type === 'navigate_menu' || a.type === 'navigate_section';
+                // Tipos não-executáveis
+                if (a.type !== 'click' && a.type !== 'type' && a.type !== 'select' &&
+                    a.type !== 'navigate_menu' && a.type !== 'navigate_section') return false;
+                // Nossos próprios botões
+                if (a.id && a.id.indexOf('atom-') === 0) return false;
+                if (a.selector && a.selector.indexOf('#atom-') === 0) return false;
+                // Botão PARAR com texto
+                if (a.text && (a.text.indexOf('PARAR') >= 0 || a.text.indexOf('REC') >= 0 || a.text.indexOf('PLAY') >= 0)) return false;
+                // Seletor nth-child genérico sem texto nem ID (lixo)
+                if (a.selector && a.selector.indexOf(':nth-child') >= 0 && !a.text && !a.id) return false;
+                return true;
             });
 
             // Descobre o label
