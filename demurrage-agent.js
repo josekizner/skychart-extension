@@ -31,175 +31,136 @@
         try { return !!chrome.runtime && !!chrome.runtime.id; } catch(e) { return false; }
     }
 
-    // ===== CRIA BARRA =====
+    // ===== UI STATE — Uma variável, duas divs =====
+    var _panelOpen = false;
+
     function createBar() {
-        // Se barra já existe e context MORTO → recria preservando estado
-        // Se barra já existe e context VIVO → apenas re-attach handlers
+        // Remove tudo que existia antes
+        var oldBtn = document.getElementById('dm-mini-btn');
+        var oldPanel = document.getElementById('dm-panel');
+        var wasOpen = false;
+        if (oldPanel && oldPanel.style.display !== 'none') wasOpen = true;
+        if (oldBtn) oldBtn.remove();
+        if (oldPanel) oldPanel.remove();
+        // Compat: remove barra antiga se existir
         var oldBar = document.getElementById('atom-demurrage-bar');
-        var wasExpanded = false;
-        var savedPos = null;
-        if (oldBar) {
-            wasExpanded = oldBar.classList.contains('expanded');
-            if (oldBar.style.left || oldBar.style.bottom) {
-                savedPos = { left: oldBar.style.left, bottom: oldBar.style.bottom };
-            }
-            console.log(TAG, 'Recriando barra (wasExpanded:', wasExpanded, ')');
-            oldBar.remove();
-        }
+        if (oldBar) { wasOpen = oldBar.classList.contains('expanded'); oldBar.remove(); }
 
-        var bar = document.createElement('div');
-        bar.id = 'atom-demurrage-bar';
-        bar.innerHTML = [
-            '<div class="dm-bar-inner">',
-            '  <div class="dm-logo">D</div>',
-            '  <span class="dm-title">DEMURRAGE</span>',
-            '  <span class="dm-badge" id="dm-badge">—</span>',
-            '  <span class="dm-refresh" id="dm-refresh" title="Atualizar dados">⟳</span>',
-            '  <span class="dm-minimize" id="dm-minimize" title="Minimizar">−</span>',
-            '  <span class="dm-collapse" id="dm-collapse" title="Recolher">▼</span>',
-            '</div>',
-            '<div id="dm-content"></div>'
-        ].join('\n');
-
-        document.body.appendChild(bar);
-        injectStyles();
-
-        // Click na barra = SEMPRE expande (nunca colapsa por click)
-        // Colapsar = só via botões ▼ e − dedicados
-        bar.addEventListener('click', function(e) {
-            // Botões dedicados tem seus próprios handlers
-            if (e.target.closest('.dm-collapse, .dm-minimize, .dm-refresh')) return;
-            if (_dmDidDrag) { _dmDidDrag = false; return; }
-            // Se já expandido, ignora click (não colapsa!)
-            if (bar.classList.contains('expanded')) return;
-            // Qualquer outro caso: expande
-            console.log(TAG, 'Click → expandPanel');
-            expandPanel();
+        // === MINI BUTTON (o "D" redondo) ===
+        var btn = document.createElement('div');
+        btn.id = 'dm-mini-btn';
+        btn.innerHTML = '<span style="font-weight:900;font-size:16px;color:#fff;">D</span>';
+        btn.style.cssText = 'position:fixed;bottom:12px;left:12px;width:40px;height:40px;background:linear-gradient(135deg,#e94560,#c23152);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:999999;box-shadow:0 2px 12px rgba(233,69,96,0.4);transition:transform 0.15s;user-select:none;';
+        btn.addEventListener('mouseenter', function() { btn.style.transform = 'scale(1.12)'; });
+        btn.addEventListener('mouseleave', function() { btn.style.transform = 'scale(1)'; });
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            console.log(TAG, 'Mini btn clicked -> showPanel');
+            showPanel();
         });
+        document.body.appendChild(btn);
 
-        // ⟳ = força refresh da API
+        // === EXPANDED PANEL ===
+        var panel = document.createElement('div');
+        panel.id = 'dm-panel';
+        panel.style.cssText = 'position:fixed;bottom:60px;left:8px;width:640px;max-height:calc(100vh - 100px);background:#1a1a2e;border:1.5px solid rgba(233,69,96,0.35);border-radius:12px;z-index:999999;display:none;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:"Segoe UI",system-ui,sans-serif;';
+        panel.innerHTML = [
+            '<div id="dm-header" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(233,69,96,0.08);border-bottom:1px solid rgba(233,69,96,0.15);cursor:default;user-select:none;">',
+            '  <div style="display:flex;align-items:center;gap:8px;">',
+            '    <div style="width:28px;height:28px;background:linear-gradient(135deg,#e94560,#c23152);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:14px;">D</div>',
+            '    <span style="font-weight:700;font-size:13px;color:#f1f5f9;letter-spacing:0.5px;">DEMURRAGE</span>',
+            '    <span id="dm-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.15);color:#fca5a5;">\u2014</span>',
+            '  </div>',
+            '  <div style="display:flex;align-items:center;gap:6px;">',
+            '    <span id="dm-refresh" title="Atualizar" style="cursor:pointer;font-size:16px;color:#94a3b8;padding:2px 6px;border-radius:4px;transition:color 0.2s;">\u27F3</span>',
+            '    <span id="dm-close" title="Fechar" style="cursor:pointer;font-size:18px;color:#94a3b8;padding:2px 6px;border-radius:4px;transition:color 0.2s;font-weight:bold;">\u2715</span>',
+            '  </div>',
+            '</div>',
+            '<div id="dm-content" style="overflow-y:auto;max-height:calc(100vh - 160px);"></div>',
+            '<div id="dm-resize-handle" style="position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;"></div>'
+        ].join('\n');
+        document.body.appendChild(panel);
+
+        // === EVENT HANDLERS ===
+        document.getElementById('dm-close').addEventListener('click', function(e) {
+            e.stopPropagation();
+            hidePanel();
+        });
         document.getElementById('dm-refresh').addEventListener('click', function(e) {
             e.stopPropagation();
             loadData(true);
         });
 
-        // − = minimiza pra só o "D"
-        document.getElementById('dm-minimize').addEventListener('click', function(e) {
-            e.stopPropagation();
-            miniMode();
-        });
+        // Inject CSS (once)
+        injectStyles();
 
-        // ▼ = recolhe pra mini
-        document.getElementById('dm-collapse').addEventListener('click', function(e) {
-            e.stopPropagation();
-            collapsePanel();
-        });
+        // Resize handle
+        initResize();
 
-        // Restaura posição se existia
-        if (savedPos) {
-            if (savedPos.left) bar.style.left = savedPos.left;
-            if (savedPos.bottom) bar.style.bottom = savedPos.bottom;
-        }
-
-        // Restaura estado: se tava expandido, carrega cache e chama expandPanel()
-        if (wasExpanded) {
-            bar.classList.add('mini'); // Começa mini temporariamente
-            console.log(TAG, 'Barra recriada, restaurando expandido...');
+        // === RESTORE STATE ===
+        if (wasOpen) {
+            console.log(TAG, 'Restaurando painel aberto apos recriacao');
             chrome.storage.local.get(['demurrageData'], function(d) {
                 if (d.demurrageData && d.demurrageData.length > 0) {
                     _data = d.demurrageData;
                     updateBadge(getActiveData());
-                    console.log(TAG, 'Cache restaurado:', _data.length, 'registros');
                 }
-                // CHAMA expandPanel() que aplica inline styles + renderiza
-                expandPanel();
+                showPanel();
             });
         } else {
-            bar.classList.add('mini');
-            console.log(TAG, 'Barra criada (mini)');
+            console.log(TAG, 'Barra criada (fechado)');
+            chrome.storage.local.get(['demurrageData'], function(d) {
+                if (d.demurrageData && d.demurrageData.length > 0) {
+                    _data = d.demurrageData;
+                }
+            });
         }
     }
 
-    // ===== TOGGLE =====
-    function togglePanel() {
-        var bar = document.getElementById('atom-demurrage-bar');
-        if (bar.classList.contains('expanded')) {
-            collapsePanel();
-        } else {
-            expandPanel();
-        }
-    }
+    // ===== SHOW / HIDE — Direto, sem classe, sem toggle =====
+    function showPanel() {
+        var btn = document.getElementById('dm-mini-btn');
+        var panel = document.getElementById('dm-panel');
+        if (!panel) { console.error(TAG, 'showPanel: panel not found!'); return; }
 
-    function expandPanel() {
-        try {
-            var bar = document.getElementById('atom-demurrage-bar');
-            if (!bar) return;
-            console.log(TAG, 'expandPanel INICIO');
-            bar.classList.remove('mini');
-            bar.classList.add('expanded');
-            bar.style.cssText = 'position:fixed;bottom:52px;left:8px;width:620px;height:auto;max-height:calc(100vh - 120px);border-radius:10px;overflow-y:auto;z-index:999999;background:#1a1a2e;border:2px solid #e94560;padding:0;display:block;';
-            var content = document.getElementById('dm-content');
-            if (content) content.style.cssText = 'display:block !important;min-height:100px;';
-            restorePanelSize();
-            if (_data && _data.length > 0) {
-                renderTable(_data);
-            } else if (!_isLoading) {
-                loadData();
-            } else {
-                if (content) content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando...</div>';
-            }
-            console.log(TAG, 'expandPanel FIM. width:', bar.offsetWidth, 'height:', bar.offsetHeight);
-        } catch(err) {
-            console.error(TAG, 'expandPanel erro:', err);
-        }
-    }
+        if (btn) btn.style.display = 'none';
+        panel.style.display = 'block';
+        _panelOpen = true;
 
-    function collapsePanel() {
-        var bar = document.getElementById('atom-demurrage-bar');
-        if (!bar) return;
-        bar.classList.remove('expanded');
-        bar.classList.add('mini');
-        bar.style.cssText = '';
+        console.log(TAG, 'showPanel. _data:', _data ? _data.length : 'null');
+
         var content = document.getElementById('dm-content');
-        if (content) content.style.cssText = '';
-        console.log(TAG, 'collapsePanel OK');
+        if (_data && _data.length > 0) {
+            renderTable(_data);
+        } else if (!_isLoading) {
+            loadData();
+        } else if (content) {
+            content.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px;">Carregando...</div>';
+        }
     }
 
-    function miniMode() {
-        collapsePanel();
+    function hidePanel() {
+        var btn = document.getElementById('dm-mini-btn');
+        var panel = document.getElementById('dm-panel');
+        if (!panel) return;
+
+        if (btn) btn.style.display = 'flex';
+        panel.style.display = 'none';
+        _panelOpen = false;
+        console.log(TAG, 'hidePanel OK');
     }
+
+    function togglePanel() {
+        if (_panelOpen) hidePanel(); else showPanel();
+    }
+
+    // Compat aliases
+    function expandPanel() { showPanel(); }
+    function collapsePanel() { hidePanel(); }
+    function miniMode() { hidePanel(); }
 
     var _dmDidDrag = false;
-
-    // Drag (funciona só no mini mode)
-    function initDrag(bar) {
-        var isDragging = false;
-        var startX = 0, startY = 0, startLeft = 0, startBottom = 0;
-
-        bar.addEventListener('mousedown', function(e) {
-            if (!bar.classList.contains('mini')) return;
-            isDragging = true;
-            _dmDidDrag = false;
-            startX = e.clientX;
-            startY = e.clientY;
-            var rect = bar.getBoundingClientRect();
-            startLeft = rect.left;
-            startBottom = window.innerHeight - rect.bottom;
-        });
-        document.addEventListener('mousemove', function(e) {
-            if (!isDragging) return;
-            var dx = e.clientX - startX;
-            var dy = e.clientY - startY;
-            if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
-                _dmDidDrag = true;
-                bar.style.left = (startLeft + dx) + 'px';
-                bar.style.bottom = (startBottom - dy) + 'px';
-            }
-        });
-        document.addEventListener('mouseup', function() {
-            isDragging = false;
-        });
-    }
+    function initDrag(bar) { /* noop */ }
 
     // ===== FETCH =====
     var _lastLoadTimestamp = 0;
@@ -1019,8 +980,8 @@
         chrome.storage.local.set({ dmPanelSize: { w: w, h: h } });
     }
     function restorePanelSize() {
-        var bar = document.getElementById('atom-demurrage-bar');
-        if (!bar || !bar.classList.contains('expanded')) return;
+        var bar = document.getElementById('dm-panel');
+        if (!bar || bar.style.display === 'none') return;
         chrome.storage.local.get('dmPanelSize', function(d) {
             if (d.dmPanelSize) {
                 if (d.dmPanelSize.w) bar.style.width = d.dmPanelSize.w + 'px';
@@ -1029,7 +990,7 @@
         });
     }
     function initResize() {
-        var bar = document.getElementById('atom-demurrage-bar');
+        var bar = document.getElementById('dm-panel');
         if (!bar || bar.querySelector('.dm-resize-handle')) return;
 
         // Handle direito (largura)
