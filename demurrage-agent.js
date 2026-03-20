@@ -101,22 +101,18 @@
             if (savedPos.bottom) bar.style.bottom = savedPos.bottom;
         }
 
-        // Restaura estado: se tava expandido, mantém expandido
+        // Restaura estado: se tava expandido, carrega cache e chama expandPanel()
         if (wasExpanded) {
-            bar.classList.add('expanded');
-            var content = document.getElementById('dm-content');
-            if (content) content.style.display = 'block';
-            console.log(TAG, 'Barra recriada (expandida — restaurado)');
-            // Carrega dados do cache imediatamente
+            bar.classList.add('mini'); // Começa mini temporariamente
+            console.log(TAG, 'Barra recriada, restaurando expandido...');
             chrome.storage.local.get(['demurrageData'], function(d) {
                 if (d.demurrageData && d.demurrageData.length > 0) {
                     _data = d.demurrageData;
                     updateBadge(getActiveData());
-                    renderTable(_data);
-                    console.log(TAG, 'Cache local restaurado:', _data.length, 'registros');
-                } else {
-                    loadData();
+                    console.log(TAG, 'Cache restaurado:', _data.length, 'registros');
                 }
+                // CHAMA expandPanel() que aplica inline styles + renderiza
+                expandPanel();
             });
         } else {
             bar.classList.add('mini');
