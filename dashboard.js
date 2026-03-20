@@ -350,24 +350,34 @@
         var cotacoesExtraidas = outlookEvents.filter(function(e) { return e.action === 'cotacao_extraida'; }).length;
         var bookingsExtraidos = outlookEvents.filter(function(e) { return e.action === 'booking_extraido'; }).length;
 
-        // User activity — normaliza aliases
+        // User activity — normaliza aliases e resolve unknowns por perfil
         var USER_ALIASES = {
             'paulo zanella': 'José Kizner',
             'paulo zanella - mond': 'José Kizner',
             'josé kizner - mond shipping': 'José Kizner',
             'josé kizner - mondshipping': 'José Kizner',
-            'jose kizner': 'José Kizner'
+            'jose kizner': 'José Kizner',
+            'gerente de contas': 'José Kizner'
         };
-        function normalizeUser(name) {
-            if (!name || name === 'unknown') return name;
-            // Checa alias direto
+        // Mapeia perfil → nome real (pra quem ainda não configurou nome)
+        var PROFILE_NAMES = {
+            'financeiro-demurrage': 'Gabriela Cordeiro',
+            'financeiro': 'Bruna Paim'
+        };
+        function normalizeUser(name, profile) {
+            if (!name) name = 'unknown';
             var lower = name.toLowerCase().trim();
+            // Resolve unknown por perfil
+            if (lower === 'unknown' && profile && PROFILE_NAMES[profile]) {
+                return PROFILE_NAMES[profile];
+            }
+            // Checa alias direto
             if (USER_ALIASES[lower]) return USER_ALIASES[lower];
-            // Checa prefixo (ex: "José Kizner - Mond..." → "José Kizner")
+            // Checa prefixo
             for (var alias in USER_ALIASES) {
                 if (lower.indexOf(alias) === 0) return USER_ALIASES[alias];
             }
-            // Checa parcial "paulo zanella" em qualquer lugar
+            // Checa parcial
             if (lower.indexOf('paulo zanella') >= 0) return 'José Kizner';
             if (lower.indexOf('josé kizner') >= 0 || lower.indexOf('jose kizner') >= 0) return 'José Kizner';
             return name;
@@ -375,7 +385,7 @@
 
         var userStats = {};
         allEvents.forEach(function(e) {
-            var u = normalizeUser(e.user || 'unknown');
+            var u = normalizeUser(e.user || 'unknown', e.profile);
             if (!userStats[u]) userStats[u] = { total: 0, agents: {}, events: [] };
             userStats[u].total++;
             userStats[u].agents[e.agent] = (userStats[u].agents[e.agent] || 0) + 1;
@@ -494,16 +504,25 @@
             html += '<table class="atom-table compact"><thead><tr>';
             html += '<th>Usuário</th><th>Ver</th><th>Perfil</th><th>Atividade</th>';
             html += '</tr></thead><tbody>';
+            // Merge heartbeats por nome normalizado (mais recente ganha)
+            var mergedHb = {};
             hbKeys.forEach(function(key) {
                 var hb = heartbeats[key];
                 if (!hb) return;
+                var displayName = normalizeUser(hb.user || 'unknown', hb.profile);
+                if (!mergedHb[displayName] || (hb.lastSeen || 0) > (mergedHb[displayName].lastSeen || 0)) {
+                    mergedHb[displayName] = { user: displayName, version: hb.version, profile: hb.profile, lastSeen: hb.lastSeen };
+                }
+            });
+            Object.keys(mergedHb).forEach(function(name) {
+                var hb = mergedHb[name];
                 var isUpToDate = hb.version === latestVer;
                 var minAgo = Math.round((Date.now() - (hb.lastSeen || 0)) / 60000);
                 var isOnline = minAgo < 10;
                 var dotClass = !isOnline ? 'offline' : isUpToDate ? 'online pulse' : 'outdated';
                 var timeStr = minAgo < 1 ? 'agora' : minAgo < 60 ? minAgo + 'm' : Math.floor(minAgo/60) + 'h';
                 html += '<tr>';
-                html += '<td><span style="display:inline-flex;align-items:center;gap:5px"><span class="status-dot ' + dotClass + '"></span>' + normalizeUser(hb.user || key) + '</span></td>';
+                html += '<td><span style="display:inline-flex;align-items:center;gap:5px"><span class="status-dot ' + dotClass + '"></span>' + name + '</span></td>';
                 html += '<td class="accent">' + (hb.version || '?') + '</td>';
                 html += '<td>' + (hb.profile || '-') + '</td>';
                 html += '<td>' + timeStr + '</td>';
@@ -635,7 +654,7 @@
                 }
                 html += '<tr data-check-idx="' + idx + '" style="cursor:pointer">';
                 html += '<td>' + formatDate(e.timestamp) + '</td>';
-                html += '<td style="font-size:10px;color:var(--text-secondary)">' + normalizeUser(e.user || 'unknown') + '</td>';
+                html += '<td style="font-size:10px;color:var(--text-secondary)">' + normalizeUser(e.user || 'unknown', e.profile) + '</td>';
                 html += '<td><span class="badge ' + moduloBadgeClass + '"><span class="badge-dot"></span>' + (d.modulo || '-') + '</span></td>';
                 html += '<td class="mono">' + (d.processo || '-') + '</td>';
                 html += '<td>' + (d.totalItens || 0) + '</td>';
