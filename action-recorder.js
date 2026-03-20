@@ -21,33 +21,31 @@
     console.log(TAG, 'Carregado. Use o botão REC ou Ctrl+Shift+R para gravar.');
 
     // ========================================================================
-    // BOTÃO FLUTUANTE + ATALHO DE TECLADO — Controle sem console
+    // ATOM BRANDED WIDGET — Badge flutuante com identidade visual
     // ========================================================================
     function createRecButton() {
-        var btn = document.createElement('div');
-        btn.id = 'atom-rec-button';
-        btn.innerHTML = '⬤ REC';
-        btn.title = 'Ctrl+Shift+R — Inicia gravação de workflow';
-        btn.style.cssText = 'position:fixed;bottom:80px;right:16px;z-index:999999;background:rgba(50,50,50,0.9);color:#ff4444;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:bold;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4);user-select:none;transition:all 0.3s ease;border:2px solid #555;';
-        btn.addEventListener('mouseenter', function() { btn.style.transform = 'scale(1.1)'; });
-        btn.addEventListener('mouseleave', function() { btn.style.transform = 'scale(1)'; });
-        btn.addEventListener('click', function() {
-            toggleRecording();
-        });
-        document.body.appendChild(btn);
-
-        // PLAY button
-        var playBtn = document.createElement('div');
-        playBtn.id = 'atom-play-button';
-        playBtn.innerHTML = '▶ PLAY';
-        playBtn.title = 'Ctrl+Shift+P — Reproduz um workflow gravado';
-        playBtn.style.cssText = 'position:fixed;bottom:40px;right:16px;z-index:999999;background:rgba(50,50,50,0.9);color:#F59E0B;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:bold;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4);user-select:none;transition:all 0.3s ease;border:2px solid #555;';
-        playBtn.addEventListener('mouseenter', function() { playBtn.style.transform = 'scale(1.1)'; });
-        playBtn.addEventListener('mouseleave', function() { playBtn.style.transform = 'scale(1)'; });
-        playBtn.addEventListener('click', function() {
-            showRecordingPicker();
-        });
-        document.body.appendChild(playBtn);
+        if (!document.querySelector('link[href*="Barlow"]')) {
+            var font = document.createElement('link'); font.rel = 'stylesheet';
+            font.href = 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&display=swap';
+            document.head.appendChild(font);
+        }
+        var widget = document.createElement('div');
+        widget.id = 'atom-widget';
+        widget.innerHTML =
+            '<div style="display:flex;align-items:center;gap:6px;padding:0 4px;">' +
+                '<img src="' + chrome.runtime.getURL('atom-logo-light-128.png') + '" style="width:18px;height:18px;border-radius:50%;">' +
+                '<span style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:#C4B99A;">ATOM</span>' +
+            '</div>' +
+            '<div style="display:flex;gap:6px;width:100%;">' +
+                '<div id="atom-rec-button" style="flex:1;text-align:center;padding:6px 12px;border-radius:8px;font-size:10px;font-weight:700;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;background:rgba(255,68,68,0.12);color:#ff4444;border:1px solid rgba(255,68,68,0.25);">REC</div>' +
+                '<div id="atom-play-button" style="flex:1;text-align:center;padding:6px 12px;border-radius:8px;font-size:10px;font-weight:700;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;background:rgba(245,158,11,0.12);color:#F59E0B;border:1px solid rgba(245,158,11,0.25);">PLAY</div>' +
+            '</div>';
+        widget.style.cssText = 'position:fixed;bottom:20px;right:16px;z-index:999999;background:rgba(26,26,26,0.92);backdrop-filter:blur(12px);border:1px solid rgba(196,185,154,0.15);border-radius:14px;padding:8px 10px;font-family:Barlow Condensed,Arial,sans-serif;box-shadow:0 8px 32px rgba(0,0,0,0.5);user-select:none;display:flex;flex-direction:column;gap:6px;align-items:center;transition:all 0.3s ease;';
+        widget.addEventListener('mouseenter', function() { widget.style.transform = 'translateY(-2px)'; });
+        widget.addEventListener('mouseleave', function() { widget.style.transform = 'translateY(0)'; });
+        document.body.appendChild(widget);
+        document.getElementById('atom-rec-button').addEventListener('click', function() { toggleRecording(); });
+        document.getElementById('atom-play-button').addEventListener('click', function() { showRecordingPicker(); });
     }
 
     // Atalho Ctrl+Shift+P pro play
@@ -64,90 +62,49 @@
             var resp = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings.json?shallow=true');
             var keys = await resp.json();
             if (!keys || Object.keys(keys).length === 0) {
-                alert('Nenhuma gravação encontrada. Use o botão REC primeiro.');
+                showAtomModal({ title: 'Sem gravações', message: 'Use REC para criar uma gravação.', confirmText: 'OK', showCancel: false });
                 return;
             }
 
-            // Busca detalhes de cada gravação (ordena cronologicamente)
             var ids = Object.keys(keys).sort();
             var options = [];
             for (var i = 0; i < ids.length; i++) {
                 try {
-                    var detResp = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/actions/1.json');
-                    var firstAction = await detResp.json();
-                    var label = (firstAction && firstAction.label) ? firstAction.label : ids[i];
-                    options.push({ id: ids[i], label: label });
-                } catch(e) {
-                    options.push({ id: ids[i], label: ids[i] });
-                }
-            }
-
-            // Monta lista
-            var msg = 'Escolha uma gravação pra reproduzir:\n\n';
-            for (var j = 0; j < options.length; j++) {
-                msg += (j + 1) + '. ' + options[j].label + '\n';
-            }
-            msg += '\nDigite o número (ou 0 pra cancelar):';
-
-            var choice = prompt(msg);
-            if (!choice || choice === '0') return;
-
-            var idx = parseInt(choice) - 1;
-            if (idx < 0 || idx >= options.length) {
-                alert('Opção inválida.');
-                return;
-            }
-
-            // Pergunta se quer mudar datas
-            var customDates = prompt('Datas personalizadas? (formato: dd/mm/yyyy,dd/mm/yyyy)\nOu deixe vazio pra usar as datas originais:');
-            var params = {};
-            if (customDates && customDates.trim()) {
-                params.dates = customDates.split(',').map(function(d) { return d.trim(); });
-            }
-
-            // Pergunta: Play agora ou Agendar?
-            var mode = prompt('O que fazer?\n\n1. ▶ Play agora\n2. ⏰ Agendar execução automática\n\nDigite 1 ou 2:');
-
-            if (mode === '2') {
-                // SCHEDULING
-                var schedule = prompt(
-                    'Quando executar?\n\n' +
-                    'Exemplos:\n' +
-                    '  08:00          → Todo dia às 08:00\n' +
-                    '  seg 14:30      → Toda segunda às 14:30\n' +
-                    '  1 08:00        → Todo dia 1 do mês às 08:00\n' +
-                    '\nDigite o horário:'
-                );
-                if (!schedule || !schedule.trim()) return;
-
-                var scheduleData = {
-                    sessionId: options[idx].id,
-                    label: options[idx].label,
-                    schedule: schedule.trim(),
-                    params: params,
-                    createdAt: Date.now(),
-                    active: true
-                };
-
-                chrome.runtime.sendMessage({
-                    action: 'schedule_workflow',
-                    data: scheduleData
-                }, function(resp) {
-                    if (resp && resp.success) {
-                        alert('⏰ Agendado!\n\n' + options[idx].label + '\nHorário: ' + schedule.trim() + '\n\nO workflow vai rodar automaticamente.');
-                    } else {
-                        alert('Erro ao agendar: ' + (resp ? resp.error : 'unknown'));
+                    var label = null;
+                    var r0 = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/actions/0.json');
+                    var a0 = await r0.json();
+                    if (a0 && a0.label) label = a0.label;
+                    if (!label) {
+                        var r1 = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/actions/1.json');
+                        var a1 = await r1.json();
+                        if (a1 && a1.label) label = a1.label;
                     }
+                    options.push({ id: ids[i], label: label || ids[i] });
+                } catch(e) { options.push({ id: ids[i], label: ids[i] }); }
+            }
+
+            var pick = await showAtomModal({ title: 'Reproduzir Workflow', options: options.map(function(o) { return o.label; }) });
+            if (!pick) return;
+            var chosen = options[pick.selected];
+
+            var dateRes = await showAtomModal({ title: 'Datas', message: 'Datas customizadas? Vazio = originais.', input: true, placeholder: 'dd/mm/yyyy, dd/mm/yyyy', confirmText: 'Continuar' });
+            if (!dateRes) return;
+            var params = {};
+            if (dateRes.value && dateRes.value.trim()) { params.dates = dateRes.value.split(',').map(function(d) { return d.trim(); }); }
+
+            var modeRes = await showAtomModal({ title: 'Executar', options: ['Executar Agora', 'Agendar Automático'] });
+            if (!modeRes) return;
+
+            if (modeRes.selected === 1) {
+                var sr = await showAtomModal({ title: 'Agendar', message: '08:00 = diário\nseg 14:30 = semanal\n1 08:00 = mensal', input: true, placeholder: '08:00', confirmText: 'Agendar' });
+                if (!sr || !sr.value) return;
+                chrome.runtime.sendMessage({ action: 'schedule_workflow', data: { sessionId: chosen.id, label: chosen.label, schedule: sr.value.trim(), params: params, createdAt: Date.now(), active: true } }, function() {
+                    showAtomModal({ title: 'Agendado!', message: chosen.label + ' — ' + sr.value.trim(), confirmText: 'OK', showCancel: false });
                 });
                 return;
             }
 
-            // Play agora
-            chrome.runtime.sendMessage({
-                action: 'replay_workflow_proxy',
-                sessionId: options[idx].id,
-                params: params
-            });
+            chrome.runtime.sendMessage({ action: 'replay_workflow_proxy', sessionId: chosen.id, params: params });
 
         } catch(e) {
             console.error(TAG, 'Erro buscando gravações:', e);
@@ -159,17 +116,15 @@
         var btn = document.getElementById('atom-rec-button');
         if (!btn) return;
         if (recording) {
-            btn.innerHTML = '⏹ PARAR (' + actions.length + ')';
-            btn.style.background = 'rgba(220,20,20,0.95)';
+            btn.textContent = 'PARAR';
+            btn.style.background = 'rgba(255,68,68,0.4)';
             btn.style.color = '#fff';
-            btn.style.border = '2px solid #ff6666';
-            btn.title = 'Clique pra parar a gravação';
+            btn.style.border = '1px solid rgba(255,68,68,0.6)';
         } else {
-            btn.innerHTML = '⬤ REC';
-            btn.style.background = 'rgba(50,50,50,0.9)';
+            btn.textContent = 'REC';
+            btn.style.background = 'rgba(255,68,68,0.12)';
             btn.style.color = '#ff4444';
-            btn.style.border = '2px solid #555';
-            btn.title = 'Ctrl+Shift+R — Inicia gravação de workflow';
+            btn.style.border = '1px solid rgba(255,68,68,0.25)';
         }
     }
 
@@ -177,10 +132,60 @@
         if (recording) {
             stopRecording();
         } else {
-            var label = prompt('Nome da gravação (ex: Relatório Financeiro):');
-            if (label === null) return; // Cancelou
-            startRecording(label || 'Gravação sem nome');
+            showAtomModal({ title: 'Nova Gravação', message: 'Dê um nome para identificar este workflow.', input: true, placeholder: 'Ex: Relatório Financeiro', confirmText: 'Gravar' }).then(function(result) {
+                if (!result) return;
+                startRecording(result.value || 'Gravação sem nome');
+            });
         }
+    }
+
+    // ATOM Modal — substitui prompt/alert nativos
+    function showAtomModal(config) {
+        return new Promise(function(resolve) {
+            var old = document.getElementById('atom-modal-overlay'); if (old) old.remove();
+            var ov = document.createElement('div'); ov.id = 'atom-modal-overlay';
+            ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999999;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;font-family:Barlow Condensed,Arial,sans-serif;';
+            var m = document.createElement('div');
+            m.style.cssText = 'background:rgba(26,26,26,0.97);border:1px solid rgba(196,185,154,0.2);border-radius:16px;padding:24px 28px;min-width:300px;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,0.6);color:#E8E4DA;';
+            if (config.title) { var t = document.createElement('div'); t.textContent = config.title; t.style.cssText = 'font-size:15px;font-weight:700;color:#C4B99A;margin-bottom:12px;letter-spacing:0.05em;text-transform:uppercase;'; m.appendChild(t); }
+            if (config.message) { var mg = document.createElement('div'); mg.textContent = config.message; mg.style.cssText = 'font-size:13px;color:#8A8980;margin-bottom:14px;line-height:1.5;white-space:pre-line;'; m.appendChild(mg); }
+            if (config.options) {
+                var list = document.createElement('div'); list.style.cssText = 'max-height:240px;overflow-y:auto;margin-bottom:14px;display:flex;flex-direction:column;gap:4px;';
+                for (var i = 0; i < config.options.length; i++) { (function(idx, label) {
+                    var it = document.createElement('div'); it.textContent = typeof label === 'string' ? label : label.label;
+                    it.style.cssText = 'padding:10px 14px;border-radius:8px;cursor:pointer;font-size:13px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.12);color:#E8E4DA;transition:all 0.15s;font-weight:600;';
+                    it.addEventListener('mouseenter', function() { it.style.background = 'rgba(245,158,11,0.2)'; it.style.borderColor = '#F59E0B'; });
+                    it.addEventListener('mouseleave', function() { it.style.background = 'rgba(245,158,11,0.08)'; it.style.borderColor = 'rgba(245,158,11,0.12)'; });
+                    it.addEventListener('click', function() { ov.remove(); resolve({ selected: idx, value: label }); });
+                    list.appendChild(it);
+                })(i, config.options[i]); }
+                m.appendChild(list);
+            }
+            if (config.input) {
+                var inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = config.placeholder || ''; inp.value = config.defaultValue || '';
+                inp.style.cssText = 'width:100%;padding:10px 14px;border-radius:8px;border:1px solid rgba(196,185,154,0.3);background:rgba(255,255,255,0.05);color:#E8E4DA;font-size:14px;font-family:Barlow Condensed,Arial,sans-serif;margin-bottom:14px;outline:none;box-sizing:border-box;';
+                inp.addEventListener('focus', function() { inp.style.borderColor = '#F59E0B'; });
+                inp.addEventListener('blur', function() { inp.style.borderColor = 'rgba(196,185,154,0.3)'; });
+                inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { ov.remove(); resolve({ value: inp.value }); } if (e.key === 'Escape') { ov.remove(); resolve(null); } });
+                m.appendChild(inp); setTimeout(function() { inp.focus(); }, 100);
+            }
+            var br = document.createElement('div'); br.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+            if (config.showCancel !== false && !config.options) {
+                var cb = document.createElement('div'); cb.textContent = 'Cancelar';
+                cb.style.cssText = 'padding:8px 18px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;color:#8A8980;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);letter-spacing:0.05em;text-transform:uppercase;transition:all 0.15s;';
+                cb.addEventListener('click', function() { ov.remove(); resolve(null); }); br.appendChild(cb);
+            }
+            if (config.confirmText) {
+                var ok = document.createElement('div'); ok.textContent = config.confirmText;
+                ok.style.cssText = 'padding:8px 18px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;color:#1a1a1a;background:#F59E0B;border:1px solid #F59E0B;letter-spacing:0.05em;text-transform:uppercase;transition:all 0.15s;';
+                ok.addEventListener('mouseenter', function() { ok.style.background = '#d4880a'; });
+                ok.addEventListener('mouseleave', function() { ok.style.background = '#F59E0B'; });
+                ok.addEventListener('click', function() { var v = inp ? inp.value : true; ov.remove(); resolve({ value: v }); }); br.appendChild(ok);
+            }
+            if (!config.options || config.confirmText) m.appendChild(br);
+            ov.addEventListener('click', function(e) { if (e.target === ov) { ov.remove(); resolve(null); } });
+            ov.appendChild(m); document.body.appendChild(ov);
+        });
     }
 
     // Atalho Ctrl+Shift+R
