@@ -23,6 +23,10 @@
     var replaying = false;
     var currentStep = 0;
     var totalSteps = 0;
+    var _visionCalls = 0;
+    var MAX_VISION_CALLS = 2; // Limite de chamadas Vision por workflow (custo API)
+    var _consecutiveFails = 0;
+    var MAX_CONSECUTIVE_FAILS = 2; // Aborta se 2 steps falharem seguidos
 
     console.log(TAG, 'v7 Carregado (verified navigation)');
 
@@ -50,6 +54,8 @@
     async function startReplay(sessionId, params) {
         replaying = true;
         currentStep = 0;
+        _visionCalls = 0;
+        _consecutiveFails = 0;
         showIndicator(true, 'Carregando...');
         console.log(TAG, '▶️ Replay:', sessionId);
 
@@ -277,8 +283,9 @@
             if (!clicked) {
                 console.error(TAG, '❌', currentStep, 'FALHOU após', maxRetries, 'tentativas');
                 // Tenta Gemini Vision como último recurso
-                if (typeof VisionAgent !== 'undefined') {
-                    console.log(TAG, '🤖 Gemini Vision fallback...');
+                if (typeof VisionAgent !== 'undefined' && _visionCalls < MAX_VISION_CALLS) {
+                    _visionCalls++;
+                    console.log(TAG, '🤖 Gemini Vision fallback (' + _visionCalls + '/' + MAX_VISION_CALLS + ')...');
                     try {
                         var vr = await VisionAgent.findElement('Encontre o item de menu "' + desc + '" na tela');
                         if (vr && vr.found && vr.x && vr.y) {
