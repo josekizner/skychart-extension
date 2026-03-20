@@ -52,15 +52,14 @@
         document.body.appendChild(bar);
         injectStyles();
 
-        // Click no painel = toggle (mesma logica do ATOM agent que funciona)
+        // Click no painel = toggle
         bar.addEventListener('click', function(e) {
-            // Se clicou em botão de ação, não faz toggle
             if (e.target.closest('.dm-collapse, .dm-minimize, .dm-refresh')) return;
+            if (_dmDidDrag) { _dmDidDrag = false; return; } // ignore drag clicks
+            console.log(TAG, 'Click! mini:', bar.classList.contains('mini'), 'expanded:', bar.classList.contains('expanded'));
             if (bar.classList.contains('mini')) {
-                // Mini → abre expandido
                 expandPanel();
             } else if (bar.classList.contains('expanded')) {
-                // Clicou no header expandido → volta pra mini
                 if (e.target.closest('.dm-bar-inner')) {
                     collapsePanel();
                 }
@@ -88,7 +87,7 @@
         // Inicia como bolinha D (mini mode)
         bar.classList.add('mini');
         console.log(TAG, 'Barra criada (mini)');
-        loadData();
+        // NÃO carrega dados na criação — carrega no primeiro expand
     }
 
     // ===== TOGGLE =====
@@ -102,14 +101,30 @@
     }
 
     function expandPanel() {
-        var bar = document.getElementById('atom-demurrage-bar');
-        bar.classList.remove('mini');
-        bar.classList.add('expanded');
-        restorePanelSize();
-        if (_data) {
-            renderTable(_data);
-        } else {
-            loadData();
+        try {
+            var bar = document.getElementById('atom-demurrage-bar');
+            if (!bar) { console.log(TAG, 'expandPanel: bar not found!'); return; }
+            
+            console.log(TAG, 'expandPanel chamado, _data:', _data ? _data.length : 'null', '_isLoading:', _isLoading);
+            
+            bar.classList.remove('mini');
+            bar.classList.add('expanded');
+            
+            // Força dm-content visível
+            var content = document.getElementById('dm-content');
+            if (content) content.style.display = 'block';
+            
+            restorePanelSize();
+            
+            if (_data && _data.length > 0) {
+                renderTable(_data);
+            } else if (!_isLoading) {
+                loadData();
+            } else {
+                if (content) content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando...</div>';
+            }
+        } catch(err) {
+            console.error(TAG, 'expandPanel erro:', err);
         }
     }
 
@@ -163,8 +178,11 @@
 
     // ===== FETCH =====
     var _lastLoadTimestamp = 0;
+    var _isLoading = false;
 
     function loadData(forceRefresh) {
+        if (_isLoading && !forceRefresh) return; // Previne chamadas concorrentes
+        _isLoading = true;
         var content = document.getElementById('dm-content');
         console.log(TAG, 'loadData chamado, forceRefresh:', !!forceRefresh);
 
@@ -187,6 +205,7 @@
                 updateBadge(getActiveData());
                 renderTable(_data);
                 resetRefreshBtn(false);
+                _isLoading = false;
                 console.log(TAG, 'Renderizado via', source, ':', _data.length, 'registros, resolvidos:', Object.keys(_resolvedMap).length);
             } else if (source === 'resolved') {
                 updateBadge(getActiveData());
@@ -296,12 +315,14 @@
                     } catch(e) {}
                 }
                 resetRefreshBtn(false);
+                _isLoading = false;
             });
         }
 
         function showError(msg) {
             if (_data) return;
             resetRefreshBtn(false);
+            _isLoading = false;
             content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">' + msg +
                 '<br><button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button></div>';
             var retryBtn = document.getElementById('dm-retry');
