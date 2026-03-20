@@ -636,14 +636,26 @@
     function showIndicator(show, msg) {
         var e = document.getElementById('atom-replay-indicator');
         if (e) e.remove();
+        // Dispatch events para o ATOM Learn panel
+        if (show && msg) {
+            var stepMatch = msg.match(/^(\d+)\/(\d+)/);
+            if (stepMatch) {
+                document.dispatchEvent(new CustomEvent('atom-exec-step', { detail: { current: parseInt(stepMatch[1]), total: parseInt(stepMatch[2]), text: msg } }));
+            }
+            if (msg.indexOf('✅ Concluído') >= 0) {
+                document.dispatchEvent(new CustomEvent('atom-exec-done'));
+            }
+        } else if (show) {
+            document.dispatchEvent(new CustomEvent('atom-exec-start'));
+        }
         if (!show) return;
         var d = document.createElement('div');
         d.id = 'atom-replay-indicator';
         d.textContent = '▶ ' + (msg || 'Executando...');
         d.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:999999;' +
-            'background:rgba(245,158,11,0.95);color:#000;padding:10px 24px;border-radius:20px;' +
-            'font-size:13px;font-weight:bold;font-family:Arial;box-shadow:0 4px 12px rgba(0,0,0,0.3);' +
-            'cursor:pointer;max-width:80%;text-align:center;';
+            'background:rgba(9,12,20,0.95);color:#F59E0B;padding:10px 24px;border-radius:20px;' +
+            'font-size:12px;font-weight:600;font-family:Oswald,DM Sans,Arial;box-shadow:0 4px 12px rgba(0,0,0,0.5);' +
+            'border:1px solid rgba(245,158,11,0.2);cursor:pointer;max-width:80%;text-align:center;letter-spacing:0.05em;';
         d.onclick = function() { replaying = false; showIndicator(false); };
         document.body.appendChild(d);
     }

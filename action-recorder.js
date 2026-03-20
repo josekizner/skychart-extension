@@ -124,7 +124,7 @@
         var cnt = '<div id="atom-content" style="padding:10px 12px 12px;">';
         // Idle: REC + PLAY buttons
         cnt += '<div id="atom-idle" style="display:flex;flex-direction:column;gap:8px;">';
-        cnt += '<div style="text-align:center;padding:8px 0;margin-bottom:4px;"><div style="font-size:10px;font-family:DM Sans,sans-serif;color:#8892A4;line-height:1.5;">Aperte <strong style="color:#EF4444;">REC</strong> e eu observo. Depois <strong style="color:#F59E0B;">PLAY</strong> e eu repito.</div></div>';
+        cnt += '<div style="text-align:center;padding:8px 0;margin-bottom:4px;"><div style="font-size:10px;font-family:DM Sans,sans-serif;color:#8892A4;line-height:1.5;">Aperte <strong style="color:#EF4444;">REC</strong> e eu vou observar cada ação sua. Depois, aperte <strong style="color:#F59E0B;">PLAY</strong> e eu repito tudo sozinho.</div></div>';
         cnt += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
         // REC
         cnt += '<div id="atom-rec-button" style="text-align:center;padding:12px 8px;border-radius:10px;cursor:pointer;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);transition:all 0.25s;">';
@@ -134,11 +134,39 @@
         cnt += '<div id="atom-play-button" style="text-align:center;padding:12px 8px;border-radius:10px;cursor:pointer;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.18);transition:all 0.25s;">';
         cnt += '<div style="width:28px;height:28px;border-radius:50%;background:rgba(245,158,11,0.12);border:2px solid rgba(245,158,11,0.3);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 2L14 8L4 14V2Z" fill="#F59E0B"/></svg></div>';
         cnt += '<span style="font-family:Oswald,sans-serif;font-size:13px;font-weight:600;color:#F59E0B;letter-spacing:0.12em;">PLAY</span></div>';
+        cnt += '</div>';
+        // Stats
+        cnt += '<div id="atom-stats" style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:6px;padding:6px 0;">';
+        cnt += '<div style="text-align:center;"><div id="atom-stat-wf" style="font-family:Oswald,sans-serif;font-size:16px;font-weight:600;color:#F59E0B;">—</div><div style="font-size:7px;font-family:DM Sans,sans-serif;font-weight:600;color:#4E586C;letter-spacing:0.08em;">WORKFLOWS</div></div>';
+        cnt += '<div style="width:1px;height:18px;background:#1C222F;"></div>';
+        cnt += '<div style="text-align:center;"><div id="atom-stat-steps" style="font-family:Oswald,sans-serif;font-size:16px;font-weight:600;color:#DEE2EA;">—</div><div style="font-size:7px;font-family:DM Sans,sans-serif;font-weight:600;color:#4E586C;letter-spacing:0.08em;">PASSOS</div></div>';
+        cnt += '<div style="width:1px;height:18px;background:#1C222F;"></div>';
+        cnt += '<div style="text-align:center;"><div id="atom-stat-hours" style="font-family:Oswald,sans-serif;font-size:16px;font-weight:600;color:#10B981;">—</div><div style="font-size:7px;font-family:DM Sans,sans-serif;font-weight:600;color:#4E586C;letter-spacing:0.08em;">ECONOMIZADAS</div></div>';
         cnt += '</div></div>';
-        // Recording state (hidden initially)
+        // Recording state (hidden)
         cnt += '<div id="atom-recording" style="display:none;"><div id="atom-rec-steps" style="max-height:160px;overflow-y:auto;margin-bottom:8px;display:flex;flex-direction:column;gap:4px;"></div>';
-        cnt += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:6px;background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.1);margin-bottom:8px;"><div style="font-size:9px;font-family:DM Sans,sans-serif;font-weight:600;color:#8892A4;"><span id="atom-step-count" style="color:#EF4444;font-family:Oswald,sans-serif;font-size:14px;font-weight:600;margin-right:3px;">0</span>ações</div><div id="atom-timer" style="font-family:Oswald,sans-serif;font-size:12px;font-weight:500;color:#EF4444;letter-spacing:0.05em;">00:00</div></div>';
-        cnt += '<div id="atom-stop-btn" style="text-align:center;padding:10px;border-radius:8px;cursor:pointer;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);transition:all 0.2s;"><span style="font-family:Oswald,sans-serif;font-size:12px;font-weight:600;color:#EF4444;letter-spacing:0.1em;">PARAR GRAVAÇÃO</span></div></div>';
+        cnt += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:6px;background:rgba(239,68,68,0.04);border:1px solid rgba(239,68,68,0.1);margin-bottom:8px;"><div style="font-size:9px;font-family:DM Sans,sans-serif;font-weight:600;color:#8892A4;"><span id="atom-step-count" style="color:#EF4444;font-family:Oswald,sans-serif;font-size:14px;font-weight:600;margin-right:3px;">0</span>ações capturadas</div><div id="atom-timer" style="font-family:Oswald,sans-serif;font-size:12px;font-weight:500;color:#EF4444;letter-spacing:0.05em;">00:00</div></div>';
+        cnt += '<div id="atom-stop-btn" style="text-align:center;padding:10px;border-radius:8px;cursor:pointer;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);transition:all 0.2s;"><div style="display:flex;align-items:center;justify-content:center;gap:6px;"><div style="width:10px;height:10px;border-radius:2px;background:#EF4444;"></div><span style="font-family:Oswald,sans-serif;font-size:12px;font-weight:600;color:#EF4444;letter-spacing:0.1em;">PARAR GRAVAÇÃO</span></div></div></div>';
+        // Recorded (Aprendizado Completo) state (hidden)
+        cnt += '<div id="atom-recorded" style="display:none;text-align:center;animation:alDoneScale 0.4s ease;">';
+        cnt += '<div style="padding:12px 8px 16px;"><div style="width:44px;height:44px;border-radius:50%;margin:0 auto 10px;background:rgba(245,158,11,0.08);border:2px solid rgba(245,158,11,0.2);display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 1.5L2.5 4V8.5C2.5 11.5 5 14 8 14.5C11 14 13.5 11.5 13.5 8.5V4L8 1.5Z" stroke="#F59E0B" stroke-width="1.3" stroke-linejoin="round" fill="none"/><path d="M5.5 8L7 9.5L10.5 6" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
+        cnt += '<div style="font-family:Oswald,sans-serif;font-size:15px;font-weight:600;color:#DEE2EA;letter-spacing:0.06em;margin-bottom:4px;">APRENDIZADO COMPLETO</div>';
+        cnt += '<div style="font-size:10px;font-family:DM Sans,sans-serif;color:#8892A4;line-height:1.5;">Capturei <strong id="atom-rec-count" style="color:#F59E0B;">0 ações</strong> em <strong id="atom-rec-time" style="color:#F59E0B;">00:00</strong>.<br>Posso reproduzir quando quiser.</div></div>';
+        cnt += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+        cnt += '<div id="atom-back-btn" style="padding:10px;border-radius:8px;cursor:pointer;background:#0F1219;border:1px solid #1C222F;font-family:Oswald,sans-serif;font-size:11px;font-weight:600;color:#8892A4;letter-spacing:0.08em;text-align:center;transition:all 0.2s;">VOLTAR</div>';
+        cnt += '<div id="atom-exec-btn" style="padding:10px;border-radius:8px;cursor:pointer;background:#F59E0B;border:1px solid #FBBF24;font-family:Oswald,sans-serif;font-size:11px;font-weight:600;color:#000;letter-spacing:0.08em;text-align:center;transition:all 0.2s;">EXECUTAR AGORA</div>';
+        cnt += '</div></div>';
+        // Executing state (hidden)
+        cnt += '<div id="atom-executing" style="display:none;animation:alSlideUp 0.3s ease;">';
+        cnt += '<div style="height:3px;border-radius:2px;background:#0F1219;margin-bottom:12px;overflow:hidden;"><div id="atom-exec-bar" style="height:100%;border-radius:2px;width:0%;background:linear-gradient(90deg,#F59E0B,#FBBF24);background-size:200% 100%;animation:alShine 1.5s linear infinite;transition:width 0.5s cubic-bezier(0.22,1,0.36,1);"></div></div>';
+        cnt += '<div id="atom-exec-steps" style="margin-bottom:10px;"></div>';
+        cnt += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:6px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.18);"><span style="font-size:9px;font-family:DM Sans,sans-serif;font-weight:600;color:#8892A4;">Progresso</span><span id="atom-exec-pct" style="font-family:Oswald,sans-serif;font-size:13px;font-weight:600;color:#F59E0B;letter-spacing:0.05em;">0%</span></div></div>';
+        // Done state (hidden)
+        cnt += '<div id="atom-done" style="display:none;text-align:center;animation:alDoneScale 0.5s ease;">';
+        cnt += '<div style="padding:12px 8px 16px;"><div style="width:48px;height:48px;border-radius:50%;margin:0 auto 12px;background:rgba(16,185,129,0.08);border:2px solid rgba(16,185,129,0.25);display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
+        cnt += '<div style="font-family:Oswald,sans-serif;font-size:16px;font-weight:600;color:#10B981;letter-spacing:0.08em;margin-bottom:4px;">MISSÃO CUMPRIDA</div>';
+        cnt += '<div style="font-size:10px;font-family:DM Sans,sans-serif;color:#8892A4;line-height:1.5;">Todos os <strong id="atom-done-steps" style="color:#DEE2EA;">0 passos</strong> foram executados com sucesso.</div></div>';
+        cnt += '<div id="atom-done-back" style="padding:10px;border-radius:8px;cursor:pointer;background:#0F1219;border:1px solid #1C222F;font-family:Oswald,sans-serif;font-size:11px;font-weight:600;color:#8892A4;letter-spacing:0.08em;text-align:center;transition:all 0.2s;">VOLTAR AO INÍCIO</div></div>';
         cnt += '</div>';
 
         // Footer
@@ -154,6 +182,13 @@
         document.getElementById('atom-rec-button').addEventListener('click', function() { toggleRecording(); });
         document.getElementById('atom-play-button').addEventListener('click', function() { showRecordingPicker(); });
         document.getElementById('atom-stop-btn').addEventListener('click', function() { if (recording) stopRecording(); });
+        document.getElementById('atom-back-btn').addEventListener('click', function() { switchPanelState('idle'); });
+        document.getElementById('atom-exec-btn').addEventListener('click', function() {
+            // Executa a última gravação
+            if (sessionId) chrome.runtime.sendMessage({ action: 'replay_workflow_proxy', sessionId: sessionId });
+            switchPanelState('idle');
+        });
+        document.getElementById('atom-done-back').addEventListener('click', function() { switchPanelState('idle'); });
 
         // Hover effects
         var rb = document.getElementById('atom-rec-button');
@@ -162,6 +197,154 @@
         var pb = document.getElementById('atom-play-button');
         pb.addEventListener('mouseenter', function() { pb.style.background = 'rgba(245,158,11,0.12)'; pb.style.borderColor = 'rgba(245,158,11,0.35)'; pb.style.transform = 'translateY(-2px)'; });
         pb.addEventListener('mouseleave', function() { pb.style.background = 'rgba(245,158,11,0.08)'; pb.style.borderColor = 'rgba(245,158,11,0.18)'; pb.style.transform = 'none'; });
+
+        // Executor events - execução em tempo real
+        var _execTotal = 0;
+        document.addEventListener('atom-exec-start', function() {
+            switchPanelState('executing');
+            _execTotal = 0;
+        });
+        document.addEventListener('atom-exec-step', function(e) {
+            var d = e.detail;
+            _execTotal = d.total;
+            var pct = Math.round((d.current / d.total) * 100);
+            var bar = document.getElementById('atom-exec-bar');
+            if (bar) bar.style.width = pct + '%';
+            var pctEl = document.getElementById('atom-exec-pct');
+            if (pctEl) pctEl.textContent = pct + '%';
+            // Atualiza lista de steps
+            var stepsEl = document.getElementById('atom-exec-steps');
+            if (stepsEl) {
+                var stepText = d.text.replace(/^\d+\/\d+:\s*/, '');
+                // Atualiza existente ou cria novo
+                var existingItem = document.getElementById('atom-es-' + d.current);
+                if (!existingItem) {
+                    // Marca anteriores como done
+                    for (var k = 1; k < d.current; k++) {
+                        var prev = document.getElementById('atom-es-' + k);
+                        if (prev && !prev.dataset.done) {
+                            prev.dataset.done = '1';
+                            prev.querySelector('.al-dot').innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                            prev.querySelector('.al-dot').style.background = 'rgba(16,185,129,0.12)';
+                            prev.querySelector('.al-dot').style.borderColor = '#10B981';
+                            prev.querySelector('.al-lbl').style.fontWeight = '400';
+                            prev.querySelector('.al-lbl').style.color = '#8892A4';
+                            var execBadge = prev.querySelector('.al-exec');
+                            if (execBadge) execBadge.remove();
+                        }
+                    }
+                    var item = document.createElement('div');
+                    item.id = 'atom-es-' + d.current;
+                    item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;';
+                    item.innerHTML = '<div class="al-dot" style="width:18px;height:18px;border-radius:50%;background:rgba(245,158,11,0.08);border:1.5px solid #F59E0B;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><div style="width:5px;height:5px;border-radius:50%;background:#F59E0B;animation:alDotPulse 0.8s ease-in-out infinite;"></div></div>' +
+                        '<div class="al-lbl" style="flex:1;font-size:10px;font-family:DM Sans,sans-serif;font-weight:600;color:#DEE2EA;">' + stepText + '</div>' +
+                        '<div class="al-exec" style="font-size:8px;font-family:Oswald,sans-serif;font-weight:500;color:#F59E0B;letter-spacing:0.08em;animation:alBlink 1s step-end infinite;">EXEC</div>';
+                    stepsEl.appendChild(item);
+                }
+            }
+        });
+        document.addEventListener('atom-exec-done', function() {
+            // Marca todos como done
+            var stepsEl = document.getElementById('atom-exec-steps');
+            if (stepsEl) {
+                var items = stepsEl.querySelectorAll('[id^=atom-es-]');
+                for (var k = 0; k < items.length; k++) {
+                    if (!items[k].dataset.done) {
+                        items[k].dataset.done = '1';
+                        items[k].querySelector('.al-dot').innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                        items[k].querySelector('.al-dot').style.background = 'rgba(16,185,129,0.12)';
+                        items[k].querySelector('.al-dot').style.borderColor = '#10B981';
+                        var execBadge = items[k].querySelector('.al-exec');
+                        if (execBadge) execBadge.remove();
+                    }
+                }
+            }
+            var doneSteps = document.getElementById('atom-done-steps');
+            if (doneSteps) doneSteps.textContent = _execTotal + ' passos';
+            setTimeout(function() { switchPanelState('done'); }, 1500);
+        });
+
+        // Carrega stats
+        loadAtomStats();
+    }
+
+    // Alterna estados visuais do painel
+    function switchPanelState(state) {
+        var views = ['atom-idle', 'atom-recording', 'atom-recorded', 'atom-executing', 'atom-done'];
+        for (var v = 0; v < views.length; v++) {
+            var el = document.getElementById(views[v]);
+            if (el) el.style.display = 'none';
+        }
+        var target = document.getElementById('atom-' + state);
+        if (target) target.style.display = state === 'idle' ? 'flex' : 'block';
+
+        var robot = document.getElementById('atom-robot');
+        var statusText = document.getElementById('atom-status-text');
+        var modeLabel = document.getElementById('atom-mode-label');
+        var w = document.getElementById('atom-widget');
+
+        if (state === 'idle') {
+            if (robot) robot.innerHTML = atomRobotSVG('idle');
+            if (statusText) statusText.textContent = 'PRONTO PARA APRENDER';
+            if (modeLabel) { modeLabel.textContent = 'LEARN'; modeLabel.style.color = '#F59E0B'; }
+            if (w) { w.style.borderColor = '#1C222F'; w.style.animation = 'none'; }
+            loadAtomStats();
+        } else if (state === 'recorded') {
+            if (robot) robot.innerHTML = atomRobotSVG('idle');
+            if (statusText) statusText.textContent = 'APRENDIZADO SALVO';
+            if (modeLabel) { modeLabel.textContent = 'LEARN'; modeLabel.style.color = '#F59E0B'; }
+            if (w) { w.style.borderColor = '#1C222F'; w.style.animation = 'none'; }
+        } else if (state === 'executing') {
+            if (robot) robot.innerHTML = atomRobotSVG('executing');
+            if (statusText) statusText.textContent = 'EXECUTANDO WORKFLOW';
+            if (modeLabel) { modeLabel.textContent = 'EXEC'; modeLabel.style.color = '#F59E0B'; }
+            if (w) { w.style.animation = 'alBorderExec 2.5s ease-in-out infinite'; }
+            var bar = document.getElementById('atom-exec-bar');
+            if (bar) bar.style.width = '0%';
+            var pct = document.getElementById('atom-exec-pct');
+            if (pct) pct.textContent = '0%';
+            var stepsEl = document.getElementById('atom-exec-steps');
+            if (stepsEl) stepsEl.innerHTML = '';
+        } else if (state === 'done') {
+            if (robot) robot.innerHTML = atomRobotSVG('done');
+            if (statusText) statusText.textContent = 'WORKFLOW CONCLUÍDO';
+            if (modeLabel) { modeLabel.textContent = 'LEARN'; modeLabel.style.color = '#10B981'; }
+            if (w) { w.style.borderColor = 'rgba(16,185,129,0.2)'; w.style.animation = 'none'; }
+        }
+        // Update footer
+        var sd = document.getElementById('atom-status-dot');
+        var sl = document.getElementById('atom-status-label');
+        if (state === 'recording') {
+            if (sd) { sd.style.background = '#EF4444'; sd.style.boxShadow = '0 0 6px rgba(239,68,68,0.4)'; }
+            if (sl) { sl.textContent = 'GRAVANDO'; sl.style.color = '#EF4444'; }
+        } else {
+            if (sd) { sd.style.background = '#10B981'; sd.style.boxShadow = '0 0 6px rgba(16,185,129,0.4)'; }
+            if (sl) { sl.textContent = 'ONLINE'; sl.style.color = '#10B981'; }
+        }
+    }
+
+    // Carrega WORKFLOWS / PASSOS / HORAS do Firebase
+    function loadAtomStats() {
+        fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings.json?shallow=true').then(function(r) { return r.json(); }).then(function(keys) {
+            if (!keys) return;
+            var wfCount = Object.keys(keys).length;
+            var wfEl = document.getElementById('atom-stat-wf');
+            if (wfEl) wfEl.textContent = String(wfCount);
+            // Estima passos e horas baseado nos workflows
+            var totalSteps = 0;
+            var promises = Object.keys(keys).map(function(id) {
+                return fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + id + '/totalActions.json').then(function(r) { return r.json(); });
+            });
+            Promise.all(promises).then(function(counts) {
+                for (var c = 0; c < counts.length; c++) totalSteps += (counts[c] || 0);
+                var stepsEl = document.getElementById('atom-stat-steps');
+                if (stepsEl) stepsEl.textContent = String(totalSteps);
+                // Estima horas economizadas (cada workflow exec economiza ~5min)
+                var hours = Math.max(1, Math.round(wfCount * 0.5));
+                var hoursEl = document.getElementById('atom-stat-hours');
+                if (hoursEl) hoursEl.textContent = hours + 'h';
+            });
+        }).catch(function() {});
     }
 
     // Atalho Ctrl+Shift+P pro play
@@ -347,25 +530,10 @@
 
     function updateRecButton() {
         var w = document.getElementById('atom-widget');
-        var robot = document.getElementById('atom-robot');
-        var idle = document.getElementById('atom-idle');
-        var rec = document.getElementById('atom-recording');
-        var statusText = document.getElementById('atom-status-text');
-        var modeLabel = document.getElementById('atom-mode-label');
-        var statusDot = document.getElementById('atom-status-dot');
-        var statusLabel = document.getElementById('atom-status-label');
         if (!w) return;
 
         if (recording) {
-            if (idle) idle.style.display = 'none';
-            if (rec) rec.style.display = 'block';
-            if (robot) robot.innerHTML = atomRobotSVG('recording');
-            if (statusText) statusText.textContent = 'OBSERVANDO SUAS AÇÕES...';
-            if (modeLabel) { modeLabel.textContent = 'REC'; modeLabel.style.color = '#EF4444'; }
-            w.style.borderColor = 'rgba(239,68,68,0.2)';
-            w.style.animation = 'alBorderRec 2s ease-in-out infinite';
-            if (statusDot) { statusDot.style.background = '#EF4444'; statusDot.style.boxShadow = '0 0 6px rgba(239,68,68,0.4)'; }
-            if (statusLabel) { statusLabel.textContent = 'GRAVANDO'; statusLabel.style.color = '#EF4444'; }
+            switchPanelState('recording');
             // Start timer
             _atomRecElapsed = 0;
             clearInterval(_atomRecTimer);
@@ -378,15 +546,19 @@
             }, 1000);
         } else {
             clearInterval(_atomRecTimer);
-            if (idle) idle.style.display = 'flex';
-            if (rec) rec.style.display = 'none';
-            if (robot) robot.innerHTML = atomRobotSVG('idle');
-            if (statusText) statusText.textContent = 'PRONTO PARA APRENDER';
-            if (modeLabel) { modeLabel.textContent = 'LEARN'; modeLabel.style.color = '#F59E0B'; }
-            w.style.borderColor = '#1C222F';
-            w.style.animation = 'none';
-            if (statusDot) { statusDot.style.background = '#10B981'; statusDot.style.boxShadow = '0 0 6px rgba(16,185,129,0.4)'; }
-            if (statusLabel) { statusLabel.textContent = 'ONLINE'; statusLabel.style.color = '#10B981'; }
+            // Popula dados do "Aprendizado Completo"
+            var recCount = document.getElementById('atom-rec-count');
+            if (recCount) recCount.textContent = actions.length + ' ações';
+            var recTime = document.getElementById('atom-rec-time');
+            var m2 = Math.floor(_atomRecElapsed / 60);
+            var s2 = _atomRecElapsed % 60;
+            if (recTime) recTime.textContent = String(m2).padStart(2,'0') + ':' + String(s2).padStart(2,'0');
+            // Mostra "Aprendizado Completo" se teve ações, senão volta pro idle
+            if (actions.length > 0) {
+                switchPanelState('recorded');
+            } else {
+                switchPanelState('idle');
+            }
             // Clear steps UI
             var stepsDiv = document.getElementById('atom-rec-steps');
             if (stepsDiv) stepsDiv.innerHTML = '';
