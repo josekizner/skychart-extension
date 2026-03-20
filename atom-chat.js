@@ -336,8 +336,9 @@
     // INIT
     // ========================================================================
     function init() {
-        // Só cria no Skychart
-        if (window.location.href.indexOf('skychart.com.br') < 0) return;
+        var isDashboard = window.location.href.indexOf('dashboard.html') >= 0;
+        var isSkychart = window.location.href.indexOf('skychart.com.br') >= 0;
+        if (!isDashboard && !isSkychart) return;
         if (document.getElementById('atom-chat-badge')) return;
         // MASTER ONLY — checa perfil
         chrome.storage.local.get(['userProfile'], function(data) {
@@ -352,8 +353,8 @@
 
     // Aguarda body existir
     if (document.body) {
-        setTimeout(init, 2000);
+        setTimeout(init, 1500);
     } else {
-        document.addEventListener('DOMContentLoaded', function() { setTimeout(init, 2000); });
+        document.addEventListener('DOMContentLoaded', function() { setTimeout(init, 1500); });
     }
 })();
