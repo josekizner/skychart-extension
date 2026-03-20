@@ -63,7 +63,7 @@
         // === EXPANDED PANEL ===
         var panel = document.createElement('div');
         panel.id = 'dm-panel';
-        panel.style.cssText = 'position:fixed;bottom:100px;left:8px;width:640px;max-height:calc(100vh - 140px);background:#1a1a2e;border:1.5px solid rgba(233,69,96,0.35);border-radius:12px;z-index:999999;display:none;overflow:hidden;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:"Segoe UI",system-ui,sans-serif;';
+        panel.style.cssText = 'position:fixed;bottom:100px;left:8px;width:640px;max-height:calc(100vh - 140px);background:#1a1a2e;border:1.5px solid rgba(233,69,96,0.35);border-radius:12px;z-index:999999;display:none;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:"Segoe UI",system-ui,sans-serif;';
         panel.innerHTML = [
             '<div id="dm-header" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(233,69,96,0.08);border-bottom:1px solid rgba(233,69,96,0.15);cursor:default;user-select:none;">',
             '  <div style="display:flex;align-items:center;gap:8px;">',
@@ -76,7 +76,7 @@
             '    <span id="dm-close" title="Fechar" style="cursor:pointer;font-size:18px;color:#94a3b8;padding:2px 6px;border-radius:4px;transition:color 0.2s;font-weight:bold;">\u2715</span>',
             '  </div>',
             '</div>',
-            '<div id="dm-content" style="overflow-y:auto;max-height:calc(100vh - 160px);"></div>',
+            '<div id="dm-content" style="overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 200px);scrollbar-width:none;"></div>',
             '<div id="dm-resize-handle" style="position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;"></div>'
         ].join('\n');
         document.body.appendChild(panel);
@@ -1142,8 +1142,8 @@
             '.dm-proc { color: #e2e8f0 !important; font-weight: 600; white-space: nowrap; }',
             '.dm-proc-name { margin-right: 4px; }',
             '',
-            '.dm-table-wrap { max-height: 320px; overflow-y: auto; padding: 0 6px 8px; scrollbar-width: thin; scrollbar-color: rgba(239,68,68,0.2) transparent; }',
-            '.dm-table-wrap::-webkit-scrollbar { width: 4px; }',
+            '.dm-table-wrap { max-height: 320px; overflow-x: hidden; overflow-y: auto; padding: 0 6px 8px; scrollbar-width: none; }',
+            '.dm-table-wrap::-webkit-scrollbar { display: none; }',
             '.dm-table-wrap::-webkit-scrollbar-track { background: transparent; }',
             '.dm-table-wrap::-webkit-scrollbar-thumb { background: rgba(239,68,68,0.25); border-radius: 4px; }',
             '#atom-demurrage-bar.expanded { scrollbar-width: thin; scrollbar-color: rgba(239,68,68,0.2) transparent; }',
