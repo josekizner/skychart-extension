@@ -146,6 +146,8 @@
         "page-inject.js",
         "modules/*.json",
         "zechart-logo.png",
+        "atom-logo-dark-transparent-128.png",
+        "atom-logo-light-128.png",
         "dashboard.html",
         "dashboard.css",
         "dashboard.js"

@@ -249,6 +249,11 @@
                             el.closest('li'),
                             el.parentElement
                         ];
+                        // PrimeNG tree: tenta clicar no toggler
+                        var toggler = el.closest('li') ? el.closest('li').querySelector('.ui-tree-toggler, .ui-treenode-icon, .p-tree-toggler') : null;
+                        if (toggler) tryTargets.unshift(toggler);
+                        var content = el.closest('.ui-treenode-content, .p-treenode-content');
+                        if (content) tryTargets.unshift(content);
                         for (var rt = 0; rt < tryTargets.length; rt++) {
                             var tt = tryTargets[rt];
                             if (!tt || !isVisible(tt)) continue;
@@ -347,6 +352,8 @@
             var els = document.querySelectorAll(tags[t]);
             for (var i = 0; i < els.length; i++) {
                 if (!isVisible(els[i])) continue;
+                // Skip nossos próprios elementos
+                if (els[i].closest('#atom-widget, #atom-replay-indicator, #atom-modal-overlay, #atom-rec-button, #atom-play-button')) continue;
                 var et = (els[i].textContent || '').trim().toLowerCase();
 
                 // Match exato — pega o MENOR (mais específico)
@@ -363,6 +370,7 @@
             var els2 = document.querySelectorAll(tags[t2]);
             for (var j = 0; j < els2.length; j++) {
                 if (!isVisible(els2[j])) continue;
+                if (els2[j].closest('#atom-widget, #atom-replay-indicator, #atom-modal-overlay, #atom-rec-button, #atom-play-button')) continue;
                 var et2 = (els2[j].textContent || '').trim().toLowerCase();
                 if (et2.indexOf(search) >= 0 && et2.length < search.length * 2) {
                     return els2[j];
