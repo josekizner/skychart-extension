@@ -68,8 +68,8 @@
                 return;
             }
 
-            // Busca detalhes de cada gravação
-            var ids = Object.keys(keys);
+            // Busca detalhes de cada gravação (ordena cronologicamente)
+            var ids = Object.keys(keys).sort();
             var options = [];
             for (var i = 0; i < ids.length; i++) {
                 try {
