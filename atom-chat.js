@@ -338,10 +338,16 @@
     function init() {
         // Só cria no Skychart
         if (window.location.href.indexOf('skychart.com.br') < 0) return;
-        // Espera DOM estabilizar
         if (document.getElementById('atom-chat-badge')) return;
-        createBadge();
-        console.log(TAG, 'Carregado');
+        // MASTER ONLY — checa perfil
+        chrome.storage.local.get(['userProfile'], function(data) {
+            if (data.userProfile && data.userProfile !== 'master') {
+                console.log(TAG, 'Chat bloqueado — perfil:', data.userProfile);
+                return;
+            }
+            createBadge();
+            console.log(TAG, 'Carregado (master)');
+        });
     }
 
     // Aguarda body existir
