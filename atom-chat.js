@@ -279,12 +279,11 @@
                     ctx.push('Resolvidos por cliente: ' + Object.keys(resByCliente).map(function(c) { return c + ': ' + resByCliente[c]; }).join(', '));
                 }
             }
-            if (demCache) {
+            if (demCache && demCache.items && demCache.items.length > 0) {
                 var items = [];
-                Object.keys(demCache).forEach(function(k) {
-                    var item = demCache[k];
+                demCache.items.forEach(function(item, idx) {
                     if (!item) return;
-                    var line = 'Processo ' + k + ': ';
+                    var line = '';
                     line += 'cliente=' + (item.cliente || '?');
                     line += ', armador=' + (item.armador || '?');
                     line += ', status=' + (item.status || '?');
@@ -295,10 +294,10 @@
                     }
                     if (item.container && item.container !== '—') line += ', container=' + item.container;
                     if (item.navio) line += ', navio=' + item.navio;
+                    if (item.processo) line += ', processo=' + item.processo;
                     items.push(line);
                 });
                 ctx.push('DEMURRAGE ATIVOS (' + items.length + ' processos):');
-                // Envia todos (até 60 linhas pro context não ficar gigante)
                 items.slice(0, 60).forEach(function(line) { ctx.push(line); });
             }
         } catch(e) {}
