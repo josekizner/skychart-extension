@@ -454,8 +454,25 @@
         var isCalendar = el.closest('.ui-calendar, .p-calendar') ||
                          /\d{2}\/\d{2}\/\d{4}/.test(task.value);
 
-        if (isCalendar) {
+        // PrimeNG autocomplete detection
+        var isAutocomplete = el.classList.contains('ui-autocomplete-input') ||
+                             el.closest('.ui-autocomplete') ||
+                             el.getAttribute('role') === 'listbox' ||
+                             (el.getAttribute('autocomplete') === 'off' && el.closest('p-autocomplete, [class*="autocomplete"]'));
+
+        if (isCalendar || isAutocomplete) {
+            console.log(TAG, isCalendar ? 'Calendar' : 'Autocomplete', 'detectado, digitando char-by-char');
             await typeCharByChar(el, task.value);
+            // Para autocomplete: espera dropdown aparecer e seleciona primeiro item
+            if (isAutocomplete && !isCalendar) {
+                await delay(1500); // Espera API do autocomplete responder
+                var dropdownItem = document.querySelector('.ui-autocomplete-list-item, .ui-autocomplete-panel li');
+                if (dropdownItem) {
+                    console.log(TAG, 'Autocomplete dropdown item encontrado, clicando...');
+                    dropdownItem.click();
+                    await delay(500);
+                }
+            }
         } else {
             await typeNative(el, task.value);
         }
