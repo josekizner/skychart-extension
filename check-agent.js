@@ -850,14 +850,18 @@
             var bestMatch = null;
             var bestScore = 0;
             var bestIdx = -1;
+            var bestValueDiff = Infinity;
 
             for (var k = 0; k < custos.length; k++) {
-                if (usedCustos[k]) continue; // Já pareado com outro item
+                if (usedCustos[k]) continue;
                 var score = fuzzyMatch(cotItem.taxa, custos[k].taxa);
-                if (score > bestScore) {
+                if (score < 0.5) continue;
+                var valueDiff = Math.abs((cotItem.valorNum || 0) - (custos[k].totalVendaNum || 0));
+                if (score > bestScore || (score === bestScore && valueDiff < bestValueDiff)) {
                     bestScore = score;
                     bestMatch = custos[k];
                     bestIdx = k;
+                    bestValueDiff = valueDiff;
                 }
             }
 
