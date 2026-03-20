@@ -587,7 +587,7 @@
         html += '<div class="panel-body no-pad">';
         if (checkResults.length > 0) {
             html += '<table class="atom-table" id="check-table"><thead><tr>';
-            html += '<th>Quando</th><th>Módulo</th><th>Processo</th><th style="width:50px">Itens</th><th style="width:50px">Erros</th><th style="width:60px">Acerto</th><th style="width:80px">ATOM</th>';
+            html += '<th>Quando</th><th>Usuário</th><th>Módulo</th><th>Processo</th><th style="width:50px">Itens</th><th style="width:50px">Erros</th><th style="width:60px">Acerto</th><th style="width:80px">ATOM</th>';
             html += '</tr></thead><tbody>';
             checkResults.slice(0, 10).forEach(function(e, idx) {
                 var d = e.data || {};
@@ -613,6 +613,7 @@
                 }
                 html += '<tr data-check-idx="' + idx + '" style="cursor:pointer">';
                 html += '<td>' + formatDate(e.timestamp) + '</td>';
+                html += '<td style="font-size:10px;color:var(--text-secondary)">' + (e.user || 'unknown') + '</td>';
                 html += '<td><span class="badge ' + moduloBadgeClass + '"><span class="badge-dot"></span>' + (d.modulo || '-') + '</span></td>';
                 html += '<td class="mono">' + (d.processo || '-') + '</td>';
                 html += '<td>' + (d.totalItens || 0) + '</td>';

@@ -10,15 +10,15 @@
     var ATOM_ANALYTICS_VERSION = '1.1';
     var _cachedUser = null;
 
-    // Detecta o nome do usuário — com cache
+    // Detecta o nome do usuário — prioriza nome configurado no popup
     function getUser() {
         if (_cachedUser) return _cachedUser;
+        // Fallback: tenta detectar do Outlook/Skychart (melhor que "unknown")
         try {
-            // 1. Outlook: aria-label do botão de perfil (vários seletores)
+            // 1. Outlook: aria-label do botão de perfil
             var selectors = [
                 'button#O365_MainLink_Me',
                 'button[data-tid="me-control"]',
-                'div[data-testid="owaPeoplePicker"] button',
                 '#meInitialsButton',
                 '#mectrl_main_trigger',
                 'button[aria-label*="Conta"], button[aria-label*="Account"]'
@@ -34,22 +34,10 @@
                 }
             }
 
-            // 2. Outlook: email do remetente no header
-            var accountEl = document.querySelector('[data-testid="currentAccountName"], .accountName, ._3Vaw4eUC');
-            if (accountEl) {
-                _cachedUser = accountEl.textContent.trim().substring(0, 30);
-                return _cachedUser;
-            }
-
-            // 3. Skychart: nome do usuário (various selectors for Skychart UI)
+            // 2. Skychart: nome do usuário
             var skySelectors = [
                 '.user-name', '.nome-usuario', '.user-info span',
-                '[class*="userName"]', '[class*="userInfo"]',
-                '.header-user', '.usuario-logado',
-                // Skychart top-right user area
                 '#ctl00_ContentPlaceHolder1_lblUsuario',
-                '.masthead .user', '.top-nav .user',
-                // Angular Skychart
                 'app-header .user-name', 'app-toolbar .username'
             ];
             for (var s = 0; s < skySelectors.length; s++) {
@@ -60,7 +48,7 @@
                 }
             }
 
-            // 4. Fallback: tenta o title da página do Outlook "Email – José Kizner"
+            // 3. Fallback: título do Outlook "Email – José Kizner"
             var title = document.title || '';
             var match = title.match(/[–—-]\s*(.+)/);
             if (match && match[1] && match[1].length > 2) {

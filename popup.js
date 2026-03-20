@@ -33,8 +33,9 @@ var LABELS = { master:'Master', financeiro:'Financeiro', 'financeiro-demurrage':
 var ADMIN_PWD = 'realsteel';
 
 // Load from chrome.storage FIRST (most reliable)
-chrome.storage.local.get(['enabledAgents','userProfile','pricingEmail'], function(d) {
+chrome.storage.local.get(['enabledAgents','userProfile','pricingEmail','atomUserName'], function(d) {
   document.getElementById('pricing-email').value = d.pricingEmail || 'paulo.zanella@mondshipping.com.br';
+  document.getElementById('user-name').value = d.atomUserName || '';
 
   if (d.userProfile && d.enabledAgents) {
     applyPermissions(d.enabledAgents, d.userProfile);
@@ -54,7 +55,11 @@ function showProfileSelector() {
   overlay.className = 'profile-overlay';
   overlay.innerHTML = '<div style="text-align:center;max-width:280px">' +
     '<h2>Bem-vindo ao ATOM</h2>' +
-    '<p>Selecione seu departamento:</p>' +
+    '<p>Digite seu nome e selecione seu departamento:</p>' +
+    '<div class="input-group" style="margin-bottom:12px;text-align:left">' +
+    '<label style="font-size:10px;color:var(--tx2);font-weight:500;margin-bottom:4px;display:block">Seu nome</label>' +
+    '<input type="text" id="profile-user-name" placeholder="Seu nome completo" style="width:100%;padding:8px 10px;background:var(--input-bg);border:1px solid var(--bd);border-radius:5px;color:var(--tx);font-size:12px;font-family:DM Sans,sans-serif;outline:none">' +
+    '</div>' +
     '<button class="prof-btn" data-p="financeiro">Financeiro</button>' +
     '<button class="prof-btn" data-p="financeiro-demurrage">Financeiro + Demurrage</button>' +
     '<button class="prof-btn" data-p="operacional">Operacional</button>' +
@@ -68,9 +73,16 @@ function showProfileSelector() {
     btns[i].addEventListener('click', function() {
       var prof = this.getAttribute('data-p');
       var agents = PROFILES[prof];
-      chrome.storage.local.set({ userProfile: prof, enabledAgents: agents });
+      var nameInput = document.getElementById('profile-user-name');
+      var userName = nameInput ? nameInput.value.trim() : '';
+      var saveObj = { userProfile: prof, enabledAgents: agents };
+      if (userName) saveObj.atomUserName = userName;
+      chrome.storage.local.set(saveObj);
       overlay.remove();
       applyPermissions(agents, prof);
+      // Update name field in settings if it exists
+      var nameField = document.getElementById('user-name');
+      if (nameField && userName) nameField.value = userName;
     });
   }
 }
@@ -99,11 +111,14 @@ function applyPermissions(agents, profile) {
   }
 }
 
-// Save email
 document.getElementById('save-btn').addEventListener('click', function() {
   var email = document.getElementById('pricing-email').value.trim();
-  if (!email || !email.includes('@')) return;
-  chrome.storage.local.set({ pricingEmail: email }, function() {
+  var userName = document.getElementById('user-name').value.trim();
+  var saveObj = {};
+  if (email && email.includes('@')) saveObj.pricingEmail = email;
+  if (userName) saveObj.atomUserName = userName;
+  if (Object.keys(saveObj).length === 0) return;
+  chrome.storage.local.set(saveObj, function() {
     var m = document.getElementById('saved-msg'); m.style.display = 'block';
     setTimeout(function() { m.style.display = 'none'; }, 2000);
   });
