@@ -33,7 +33,12 @@
 
     // ===== CRIA BARRA =====
     function createBar() {
-        if (document.getElementById('atom-demurrage-bar')) return;
+        // Remove barra antiga (handlers zumbi de auto-update)
+        var oldBar = document.getElementById('atom-demurrage-bar');
+        if (oldBar) {
+            console.log(TAG, 'Recriando barra (context refresh)');
+            oldBar.remove();
+        }
 
         var bar = document.createElement('div');
         bar.id = 'atom-demurrage-bar';
@@ -54,6 +59,7 @@
 
         // Click no painel = toggle
         bar.addEventListener('click', function(e) {
+            if (!isContextValid()) { console.log(TAG, 'Context morto, ignorando click'); return; }
             if (e.target.closest('.dm-collapse, .dm-minimize, .dm-refresh')) return;
             if (_dmDidDrag) { _dmDidDrag = false; console.log(TAG, 'Click ignorado (drag)'); return; }
             console.log(TAG, 'Click! mini:', bar.classList.contains('mini'), 'expanded:', bar.classList.contains('expanded'));
@@ -105,6 +111,12 @@
 
     function expandPanel() {
         try {
+            if (!isContextValid()) {
+                console.log(TAG, 'expandPanel: context invalidated, reloading bar...');
+                var oldBar = document.getElementById('atom-demurrage-bar');
+                if (oldBar) oldBar.remove();
+                return;
+            }
             var bar = document.getElementById('atom-demurrage-bar');
             if (!bar) { console.log(TAG, 'expandPanel: bar not found!'); return; }
             
