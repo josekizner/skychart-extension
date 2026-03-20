@@ -148,12 +148,105 @@ function _doHeartbeat(user, profile) {
 
 // chrome.alarms: sobrevive ao shutdown do service worker
 chrome.alarms.create('atomAutoReload', { delayInMinutes: 0.25, periodInMinutes: 1 });
+chrome.alarms.create('atomWorkflowScheduler', { delayInMinutes: 0.5, periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'atomAutoReload') {
     checkForUpdate();
     sendHeartbeat();
   }
+  if (alarm.name === 'atomWorkflowScheduler') {
+    checkScheduledWorkflows();
+  }
 });
+
+// ========================================================================
+// WORKFLOW SCHEDULER — Executa workflows agendados
+// ========================================================================
+function checkScheduledWorkflows() {
+  chrome.storage.local.get('atom_schedules', (data) => {
+    const schedules = data.atom_schedules || [];
+    if (schedules.length === 0) return;
+
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const currentTime = hh + ':' + mm;
+    const dayOfWeek = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'][now.getDay()];
+    const dayOfMonth = now.getDate();
+
+    for (const sched of schedules) {
+      if (!sched.active) continue;
+      const pattern = (sched.schedule || '').trim().toLowerCase();
+      let shouldRun = false;
+
+      // Formato: "08:00" → todo dia às 08:00
+      if (/^\d{2}:\d{2}$/.test(pattern)) {
+        shouldRun = (currentTime === pattern);
+      }
+      // Formato: "seg 14:30" → toda segunda às 14:30
+      else if (/^(dom|seg|ter|qua|qui|sex|sab)\s+\d{2}:\d{2}$/.test(pattern)) {
+        const parts = pattern.split(/\s+/);
+        shouldRun = (dayOfWeek === parts[0] && currentTime === parts[1]);
+      }
+      // Formato: "1 08:00" → todo dia 1 do mês às 08:00
+      else if (/^\d{1,2}\s+\d{2}:\d{2}$/.test(pattern)) {
+        const parts = pattern.split(/\s+/);
+        shouldRun = (dayOfMonth === parseInt(parts[0]) && currentTime === parts[1]);
+      }
+
+      if (shouldRun) {
+        // Evita dupla execução no mesmo minuto
+        const lastRun = sched.lastRun || 0;
+        if (Date.now() - lastRun < 120000) continue; // 2 min cooldown
+
+        console.log('[Scheduler] ⏰ Executando:', sched.label, 'schedule:', sched.schedule);
+        sched.lastRun = Date.now();
+
+        // Salva o lastRun
+        chrome.storage.local.set({ atom_schedules: schedules });
+
+        // Abre ou foca aba do Skychart
+        launchWorkflow(sched.sessionId, sched.params || {});
+      }
+    }
+  });
+}
+
+function launchWorkflow(sessionId, params) {
+  // Procura aba do Skychart aberta
+  chrome.tabs.query({ url: 'https://app2.skychart.com.br/*' }, (tabs) => {
+    if (tabs.length > 0) {
+      // Foca a aba e manda replay
+      const tab = tabs[0];
+      chrome.tabs.update(tab.id, { active: true }, () => {
+        setTimeout(() => {
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'replay_workflow',
+            sessionId: sessionId,
+            params: params
+          });
+        }, 2000); // 2s pra garantir que a página tá renderizada
+      });
+    } else {
+      // Abre nova aba
+      chrome.tabs.create({ url: 'https://app2.skychart.com.br/skyline-mond-83474/#/app/painel-usuario' }, (tab) => {
+        // Espera a página carregar
+        chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
+          if (tabId === tab.id && info.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(listener);
+            setTimeout(() => {
+              chrome.tabs.sendMessage(tab.id, {
+                action: 'replay_workflow',
+                sessionId: sessionId,
+                params: params
+              });
+            }, 5000); // 5s pra scripts da extensão carregarem
+          }
+        });
+      });
+    }
+  });
+}
 
 // API config
 const _b = 'QUl6YVN5QTVwOU41a1hLQ1hYRm9aZ3FZcl9HMjNwTkFLZERHYUhV';
@@ -648,12 +741,45 @@ Os valores estão corretos? Responda APENAS com JSON:
   if (request.action === "stop_recording_proxy") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, { 
-          action: 'stop_recording' 
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: 'stop_recording'
         }, (response) => {
           sendResponse(response || { success: false });
         });
       }
+    });
+    return true;
+  }
+
+  // ========================================================================
+  // WORKFLOW SCHEDULING — Manage scheduled workflows
+  // ========================================================================
+  if (request.action === "schedule_workflow") {
+    chrome.storage.local.get('atom_schedules', (data) => {
+      const schedules = data.atom_schedules || [];
+      schedules.push(request.data);
+      chrome.storage.local.set({ atom_schedules: schedules }, () => {
+        console.log('[Scheduler] ✅ Agendado:', request.data.label, '→', request.data.schedule);
+        sendResponse({ success: true });
+      });
+    });
+    return true;
+  }
+
+  if (request.action === "list_schedules") {
+    chrome.storage.local.get('atom_schedules', (data) => {
+      sendResponse({ success: true, schedules: data.atom_schedules || [] });
+    });
+    return true;
+  }
+
+  if (request.action === "delete_schedule") {
+    chrome.storage.local.get('atom_schedules', (data) => {
+      let schedules = data.atom_schedules || [];
+      schedules = schedules.filter((s, i) => i !== request.index);
+      chrome.storage.local.set({ atom_schedules: schedules }, () => {
+        sendResponse({ success: true });
+      });
     });
     return true;
   }

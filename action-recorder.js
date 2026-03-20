@@ -105,7 +105,44 @@
                 params.dates = customDates.split(',').map(function(d) { return d.trim(); });
             }
 
-            // Dispara replay via chrome.runtime (mesmo contexto da extensão)
+            // Pergunta: Play agora ou Agendar?
+            var mode = prompt('O que fazer?\n\n1. ▶ Play agora\n2. ⏰ Agendar execução automática\n\nDigite 1 ou 2:');
+
+            if (mode === '2') {
+                // SCHEDULING
+                var schedule = prompt(
+                    'Quando executar?\n\n' +
+                    'Exemplos:\n' +
+                    '  08:00          → Todo dia às 08:00\n' +
+                    '  seg 14:30      → Toda segunda às 14:30\n' +
+                    '  1 08:00        → Todo dia 1 do mês às 08:00\n' +
+                    '\nDigite o horário:'
+                );
+                if (!schedule || !schedule.trim()) return;
+
+                var scheduleData = {
+                    sessionId: options[idx].id,
+                    label: options[idx].label,
+                    schedule: schedule.trim(),
+                    params: params,
+                    createdAt: Date.now(),
+                    active: true
+                };
+
+                chrome.runtime.sendMessage({
+                    action: 'schedule_workflow',
+                    data: scheduleData
+                }, function(resp) {
+                    if (resp && resp.success) {
+                        alert('⏰ Agendado!\n\n' + options[idx].label + '\nHorário: ' + schedule.trim() + '\n\nO workflow vai rodar automaticamente.');
+                    } else {
+                        alert('Erro ao agendar: ' + (resp ? resp.error : 'unknown'));
+                    }
+                });
+                return;
+            }
+
+            // Play agora
             chrome.runtime.sendMessage({
                 action: 'replay_workflow_proxy',
                 sessionId: options[idx].id,
