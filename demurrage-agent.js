@@ -64,22 +64,17 @@
         document.body.appendChild(bar);
         injectStyles();
 
-        // Click no painel = toggle
+        // Click na barra = SEMPRE expande (nunca colapsa por click)
+        // Colapsar = só via botões ▼ e − dedicados
         bar.addEventListener('click', function(e) {
-            if (!isContextValid()) { console.log(TAG, 'Context morto, ignorando click'); return; }
+            // Botões dedicados tem seus próprios handlers
             if (e.target.closest('.dm-collapse, .dm-minimize, .dm-refresh')) return;
-            if (_dmDidDrag) { _dmDidDrag = false; console.log(TAG, 'Click ignorado (drag)'); return; }
-            console.log(TAG, 'Click! mini:', bar.classList.contains('mini'), 'expanded:', bar.classList.contains('expanded'));
-            if (bar.classList.contains('mini')) {
-                expandPanel();
-            } else if (bar.classList.contains('expanded')) {
-                if (e.target.closest('.dm-bar-inner')) {
-                    collapsePanel();
-                }
-            } else {
-                // Fallback: sem classe, forca expand
-                expandPanel();
-            }
+            if (_dmDidDrag) { _dmDidDrag = false; return; }
+            // Se já expandido, ignora click (não colapsa!)
+            if (bar.classList.contains('expanded')) return;
+            // Qualquer outro caso: expande
+            console.log(TAG, 'Click → expandPanel');
+            expandPanel();
         });
 
         // ⟳ = força refresh da API
@@ -141,12 +136,6 @@
 
     function expandPanel() {
         try {
-            if (!isContextValid()) {
-                console.log(TAG, 'expandPanel: context invalidated, reloading bar...');
-                var oldBar = document.getElementById('atom-demurrage-bar');
-                if (oldBar) oldBar.remove();
-                return;
-            }
             var bar = document.getElementById('atom-demurrage-bar');
             if (!bar) { console.log(TAG, 'expandPanel: bar not found!'); return; }
             
