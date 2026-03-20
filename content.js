@@ -3994,15 +3994,21 @@ try {
     // INIT — Inicializa tudo
     // ========================================================================
 
-    createStatusHUD();
+    // createStatusHUD só é criado dentro de scanTable quando na página de câmbio
     if (typeof pdfjsLib !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('lib/pdf.worker.min.js'); }
 
     // Scanner de URL: mostra/esconde HUD baseado na pagina
     var lastUrl = location.href;
     function scanTable() {
         var isCambio = location.href.indexOf('/app/cambio') >= 0 || document.body.innerText.indexOf('Cambio:') >= 0;
-        var hud = document.getElementById('sk-ai-hud');
-        if (hud) hud.style.display = isCambio ? 'flex' : 'none';
+        if (isCambio) {
+            createStatusHUD(); // Cria apenas se na página de câmbio
+            var hud = document.getElementById('sk-ai-hud');
+            if (hud) hud.style.display = 'flex';
+        } else {
+            var hud = document.getElementById('sk-ai-hud');
+            if (hud) hud.style.display = 'none';
+        }
         if (lastUrl !== location.href) { lastUrl = location.href; updateStatus("Pronto"); }
         scanForSerasa();
         scanForFreight();
