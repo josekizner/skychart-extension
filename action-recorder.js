@@ -188,20 +188,22 @@
         });
     }
 
-    // Atalho Ctrl+Shift+R
-    document.addEventListener('keydown', function(e) {
-        if (e.ctrlKey && e.shiftKey && e.key === 'R') {
-            e.preventDefault();
-            toggleRecording();
-        }
-    });
-
-    // Cria o botão assim que o DOM carrega
-    if (document.body) {
-        createRecButton();
-    } else {
-        document.addEventListener('DOMContentLoaded', createRecButton);
+    // MASTER ONLY — Widget + atalhos só aparecem pro perfil master
+    function initIfMaster() {
+        chrome.storage.local.get('userProfile', function(data) {
+            if (data.userProfile !== 'master') return;
+            if (document.body) {
+                createRecButton();
+            } else {
+                document.addEventListener('DOMContentLoaded', createRecButton);
+            }
+            // Atalho Ctrl+Shift+R
+            document.addEventListener('keydown', function(e) {
+                if (e.ctrlKey && e.shiftKey && e.key === 'R') { e.preventDefault(); toggleRecording(); }
+            });
+        });
     }
+    initIfMaster();
 
     // ========================================================================
     // CONTROLE — Start/Stop via mensagem do background/popup
