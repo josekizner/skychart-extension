@@ -1,22 +1,23 @@
 /**
- * WORKFLOW EXECUTOR v5 — Context-Aware + MutationObserver
+ * WORKFLOW EXECUTOR v6 — Agent-Driven Replay
  * 
- * Princípio: cada ação executa no CONTEXTO do que a anterior produziu.
+ * A gravação captura a INTENÇÃO. Os agentes executam.
  * 
  * Para navigate_menu/navigate_section:
- *   1. Busca por texto ESCOPADO (dentro do menu/sidebar ativos)
- *   2. Busca por selector com contexto
- *   3. Busca global por texto (fallback)
- *   4. Gemini Vision (último recurso)
- * 
- * Após cada click de navegação:
- *   - waitForMutation: espera o DOM mudar antes de prosseguir
- *   - Garante que Angular renderizou o submenu/seção
+ *   1. Chama window.__atomSiteScan() (Radar)
+ *   2. Busca na lista de links por text ou ID
+ *   3. .click() nativo no <a> encontrado
  * 
  * Para type:
- *   - nthIndex: distingue inputs irmãos com mesmo selector
+ *   1. Busca inputs visíveis na página
+ *   2. Usa nthIndex pra pegar o campo certo
+ *   3. Preenche char-by-char (PrimeNG calendar pattern)
  * 
- * SEM dismissModals (crashava Angular). Usa Escape 1x no início.
+ * Para click (botões):
+ *   1. Busca em buttons do Radar por texto
+ *   2. .click() nativo
+ * 
+ * Fallback: Gemini Vision (VisionAgent)
  */
 (function() {
     'use strict';
@@ -26,10 +27,7 @@
     var currentStep = 0;
     var totalSteps = 0;
 
-    // Contexto: último elemento clicado (pra busca escopada)
-    var lastClickedEl = null;
-
-    console.log(TAG, 'v5 Carregado (context-aware)');
+    console.log(TAG, 'v6 Carregado (agent-driven)');
 
     // ========================================================================
     // CONTROLE
@@ -55,7 +53,6 @@
     async function startReplay(sessionId, params) {
         replaying = true;
         currentStep = 0;
-        lastClickedEl = null;
         showIndicator(true, 'Carregando...');
         console.log(TAG, '▶️ Replay:', sessionId);
 
@@ -67,10 +64,7 @@
                 showIndicator(false); replaying = false; return;
             }
 
-            // Filtra executáveis
             var actions = rec.actions.filter(isExecutable);
-
-            // Label
             var label = '';
             for (var k = 0; k < rec.actions.length; k++) {
                 if (rec.actions[k].type === 'session_start' && rec.actions[k].label) {
@@ -81,7 +75,7 @@
             totalSteps = actions.length;
             console.log(TAG, 'Gravação:', label || sessionId, '|', totalSteps, 'passos');
 
-            // Fecha modal com Escape (seguro pro Angular)
+            // Escape pra fechar possíveis modais (seguro pro Angular)
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await delay(500);
 
@@ -94,19 +88,32 @@
                 showIndicator(true, currentStep + '/' + totalSteps + ': ' + desc);
                 console.log(TAG, '➡️', currentStep + '/' + totalSteps, action.type, '|', desc);
 
-                var result = await executeAction(action);
+                var result;
+                switch (action.type) {
+                    case 'navigate_menu':
+                    case 'navigate_section':
+                        result = await executeNav(action);
+                        break;
+                    case 'type':
+                        result = await executeType(action);
+                        break;
+                    case 'click':
+                    case 'select':
+                        result = await executeClick(action);
+                        break;
+                    default:
+                        result = { ok: false, method: 'unknown-type' };
+                }
 
-                if (result.ok) {
-                    console.log(TAG, '✅', currentStep, 'via', result.method);
-                } else {
-                    console.error(TAG, '❌', currentStep, 'FALHOU (' + result.method + ')');
+                var status = result.ok ? '✅' : '❌';
+                console.log(TAG, status, currentStep, 'via', result.method);
+
+                if (!result.ok) {
                     showIndicator(true, '❌ ' + currentStep + ': ' + desc);
                     await delay(2000);
                 }
 
-                // Delay pós-ação
-                var waitMs = getDelay(action, i, actions);
-                await delay(waitMs);
+                await delay(getDelay(action, i, actions));
             }
 
             showIndicator(true, '✅ Concluído! (' + totalSteps + ' passos)');
@@ -124,371 +131,253 @@
         if (validTypes.indexOf(a.type) < 0) return false;
         if (a.id && a.id.indexOf('atom-') === 0) return false;
         if (a.selector && a.selector.indexOf('#atom-') === 0) return false;
-        if (a.text && (a.text.indexOf('PARAR') >= 0 || a.text.indexOf('⏹') >= 0)) return false;
+        if (a.text && a.text.indexOf('PARAR') >= 0) return false;
         return true;
     }
 
     // ========================================================================
-    // EXECUTE ACTION — Orquestra busca + execução + espera
+    // EXECUTE NAV — Usa o Radar pra encontrar links/menus
     // ========================================================================
-    async function executeAction(action) {
-        var isNav = (action.type === 'navigate_menu' || action.type === 'navigate_section');
-        var isType = (action.type === 'type');
+    async function executeNav(action) {
+        var text = (action.text || '').trim();
+        var selector = action.selector || '';
 
-        // BUSCA: Espera até 10s pelo elemento
-        var el = await waitForElement(action, 10000);
+        // Polling: espera até 12s pelo elemento
+        var el = null;
+        var start = Date.now();
+        while (Date.now() - start < 12000) {
+            // ESTRATÉGIA 1: Radar — busca na lista de links escaneados
+            el = findViaRadar(text, selector);
+            if (el) { 
+                console.log(TAG, '📡 Achado via Radar:', el.tagName, el.id || el.textContent.trim().substring(0, 20));
+                break; 
+            }
+
+            // ESTRATÉGIA 2: Selector direto (pra seletores com ID, ex: #Utilidades)
+            if (selector) {
+                try {
+                    var bysel = document.querySelector(selector);
+                    if (bysel && isVisible(bysel)) {
+                        // Sobe pra <a> se é span
+                        el = getClickableParent(bysel);
+                        console.log(TAG, '🎯 Achado via selector:', selector);
+                        break;
+                    }
+                } catch(e) {}
+            }
+
+            // ESTRATÉGIA 3: Busca por texto em links <a> visíveis
+            if (text) {
+                el = findLinkByText(text);
+                if (el) {
+                    console.log(TAG, '🔤 Achado via link text:', text);
+                    break;
+                }
+            }
+
+            await delay(500);
+        }
 
         if (el) {
-            // Executa
-            if (isType) {
-                await doType(el, (action.value || '').trim());
-            } else {
-                await doClick(el);
-            }
-
-            // Se foi navegação, espera DOM mudar (Angular renderizar)
-            if (isNav) {
-                lastClickedEl = el;
-                await waitForMutation(2000);
-            }
-
-            return { ok: true, method: 'dom' };
+            highlight(el);
+            el.click(); // .click() nativo — Angular reage
+            await waitForMutation(2500);
+            return { ok: true, method: 'agent' };
         }
 
         // FALLBACK: Gemini Vision
-        if (typeof VisionAgent !== 'undefined') {
-            console.log(TAG, '🤖 Tentando Gemini Vision...');
-            showIndicator(true, '🤖 ' + currentStep + ': Gemini Vision...');
-            try {
-                var desc = buildVisionDesc(action);
-                var vr = await VisionAgent.findElement(desc);
-                if (vr && vr.found && vr.x && vr.y) {
-                    console.log(TAG, '🎯 Gemini:', vr.x, vr.y);
-                    await VisionAgent.act({ type: 'click', x: vr.x, y: vr.y });
-                    if (isType) {
-                        await delay(400);
-                        var focused = document.activeElement;
-                        if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA')) {
-                            await doType(focused, (action.value || '').trim());
-                        }
-                    }
-                    if (isNav) await waitForMutation(2000);
-                    return { ok: true, method: 'gemini' };
-                }
-            } catch(e) {
-                console.error(TAG, 'Gemini erro:', e.message);
-            }
-        }
-
-        return { ok: false, method: 'not-found' };
+        return await tryGeminiVision(action);
     }
 
-    // ========================================================================
-    // WAIT FOR ELEMENT — Polling com busca inteligente
-    // ========================================================================
-    async function waitForElement(action, timeoutMs) {
-        var start = Date.now();
-        var attempts = 0;
-
-        while (Date.now() - start < timeoutMs) {
-            attempts++;
-            var el = findElement(action);
-            if (el) {
-                if (attempts > 1) console.log(TAG, '⏳', (Date.now() - start) + 'ms');
-                return el;
+    // Busca via dados do Radar (site-scanner)
+    function findViaRadar(text, selector) {
+        // Chama o Radar pra scan fresco
+        var scan = null;
+        try {
+            if (typeof window.__atomSiteScan === 'function') {
+                scan = window.__atomSiteScan();
             }
-            await delay(attempts < 3 ? 300 : attempts < 6 ? 500 : 800);
+        } catch(e) {}
+
+        if (!scan || !scan.links) return null;
+
+        var searchText = text.toLowerCase().trim();
+
+        // Busca exata por texto nos links
+        for (var i = 0; i < scan.links.length; i++) {
+            var link = scan.links[i];
+            var linkText = (link.text || '').toLowerCase().trim();
+            
+            if (linkText === searchText) {
+                // Encontrou! Agora pega o elemento real pelo selector ou ID
+                var el = null;
+                if (link.id) {
+                    el = document.getElementById(link.id);
+                } else if (link.selector) {
+                    try { el = document.querySelector(link.selector); } catch(e) {}
+                }
+                if (el && isVisible(el)) return el;
+            }
         }
 
-        console.warn(TAG, '⏰ Timeout após', timeoutMs + 'ms buscando:', action.text || action.selector);
+        // Busca parcial
+        for (var j = 0; j < scan.links.length; j++) {
+            var link2 = scan.links[j];
+            var lt = (link2.text || '').toLowerCase().trim();
+            if (lt.indexOf(searchText) >= 0 && lt.length < searchText.length * 2) {
+                var el2 = null;
+                if (link2.id) {
+                    el2 = document.getElementById(link2.id);
+                } else if (link2.selector) {
+                    try { el2 = document.querySelector(link2.selector); } catch(e) {}
+                }
+                if (el2 && isVisible(el2)) return el2;
+            }
+        }
+
+        // Também busca nos buttons
+        if (scan.buttons) {
+            for (var k = 0; k < scan.buttons.length; k++) {
+                var btn = scan.buttons[k];
+                var btnText = (btn.text || '').toLowerCase().trim();
+                if (btnText === searchText || btnText.indexOf(searchText) >= 0) {
+                    var el3 = null;
+                    if (btn.selector) {
+                        try { el3 = document.querySelector(btn.selector); } catch(e) {}
+                    }
+                    if (el3 && isVisible(el3)) return el3;
+                }
+            }
+        }
+
         return null;
     }
 
-    // ========================================================================
-    // FIND ELEMENT — 4 níveis, busca escopada
-    // ========================================================================
-    function findElement(action) {
-        var el;
-
-        // NÍVEL 1: Para TYPE com nthIndex → pega o input certo por posição
-        if (action.type === 'type' && action.nthIndex != null && action.selector) {
-            el = findByNth(action.selector, action.nthIndex);
-            if (el) return el;
+    // Busca links <a> diretamente no DOM por texto
+    function findLinkByText(text) {
+        var search = text.toLowerCase().trim();
+        var links = document.querySelectorAll('a, [role="menuitem"], [role="treeitem"]');
+        
+        // Match exato primeiro
+        for (var i = 0; i < links.length; i++) {
+            var lt = (links[i].textContent || '').trim().toLowerCase();
+            if (lt === search && isVisible(links[i])) return links[i];
         }
 
-        // NÍVEL 2: Selector direto (IDs como #Utilidades são confiáveis)
-        if (action.selector) {
+        // Match quase exato (link text é ligeiramente diferente)
+        for (var j = 0; j < links.length; j++) {
+            var lt2 = (links[j].textContent || '').trim().toLowerCase();
+            if (lt2.indexOf(search) >= 0 && lt2.length < search.length * 1.5 && isVisible(links[j])) {
+                return links[j];
+            }
+        }
+
+        // Match em spans/tds (fallback), mas sobe pro <a> pai
+        var spans = document.querySelectorAll('span, td, li');
+        for (var k = 0; k < spans.length; k++) {
+            var st = (spans[k].textContent || '').trim().toLowerCase();
+            if (st === search && isVisible(spans[k])) {
+                return getClickableParent(spans[k]);
+            }
+        }
+
+        return null;
+    }
+
+    // Sobe de SPAN/TD para o A/BUTTON/LI pai mais próximo
+    function getClickableParent(el) {
+        if (!el) return el;
+        if (el.tagName === 'A' || el.tagName === 'BUTTON') return el;
+        var parent = el.closest('a, button, li, [role="menuitem"], [role="treeitem"]');
+        return parent || el;
+    }
+
+    // ========================================================================
+    // EXECUTE TYPE — Usa DOMScanner pra encontrar inputs
+    // ========================================================================
+    async function executeType(action) {
+        var value = (action.value || '').trim();
+        if (!value) return { ok: false, method: 'no-value' };
+
+        // Polling: espera input aparecer
+        var el = null;
+        var start = Date.now();
+        while (Date.now() - start < 10000) {
+            el = findInputForAction(action);
+            if (el) break;
+            await delay(500);
+        }
+
+        if (!el) return await tryGeminiVision(action);
+
+        highlight(el);
+
+        // Preenche com a estratégia correta
+        // Detecta se é calendar (PrimeNG) pelo contexto
+        var isCalendar = el.closest('.ui-calendar, .p-calendar') ||
+                         (el.className && el.className.indexOf('ui-inputtext') >= 0 && /\d{2}\/\d{2}\/\d{4}/.test(value));
+
+        if (isCalendar) {
+            await typeCharByChar(el, value);
+        } else {
+            await typeNativeSet(el, value);
+        }
+
+        return { ok: true, method: 'agent' };
+    }
+
+    function findInputForAction(action) {
+        var selector = action.selector || '';
+        var nthIndex = action.nthIndex;
+        var label = action.label || '';
+
+        // Por selector + nthIndex (mais preciso pra campos duplicados como datas)
+        if (selector) {
             try {
-                el = document.querySelector(action.selector);
-                if (el && isVisible(el)) {
-                    // Verifica se o texto bate (evita falso positivo)
-                    if (!action.text || textMatches(el, action.text)) return el;
+                var all = document.querySelectorAll(selector);
+                var visible = [];
+                for (var i = 0; i < all.length; i++) {
+                    if (isVisible(all[i])) visible.push(all[i]);
                 }
+                
+                if (nthIndex != null && visible.length > 0) {
+                    // Tenta index direto e index-1 (1-based vs 0-based)
+                    if (nthIndex < visible.length) return visible[nthIndex];
+                    if (nthIndex > 0 && (nthIndex - 1) < visible.length) return visible[nthIndex - 1];
+                }
+                if (visible.length > 0) return visible[0];
             } catch(e) {}
         }
 
-        // NÍVEL 3: Texto ESCOPADO — busca dentro do contexto de navegação
-        if (action.text && action.text.length > 1) {
-            // 3a: Dentro do menu lateral / sidebar
-            el = findByTextScoped(action.text, getSidebarContainer());
-            if (el) return el;
-
-            // 3b: Dentro do último elemento clicado (submenu expandido)
-            if (lastClickedEl) {
-                var expandedContainer = findExpandedContainer(lastClickedEl);
-                if (expandedContainer) {
-                    el = findByTextScoped(action.text, expandedContainer);
-                    if (el) return el;
-                }
+        // Por label via SkScanner (DOMScanner)
+        if (label && typeof SkScanner !== 'undefined') {
+            var field = SkScanner.getField(label);
+            if (field && field.selector) {
+                try {
+                    var el = document.querySelector(field.selector);
+                    if (el && isVisible(el)) return el;
+                } catch(e) {}
             }
-
-            // 3c: Busca global (mas com preferência por elementos menores/mais específicos)
-            el = findByTextGlobal(action.text);
-            if (el) return el;
         }
 
-        // NÍVEL 4: ID direto
-        if (action.id && action.id.length > 0) {
-            el = document.getElementById(action.id);
-            if (el && isVisible(el)) return el;
-        }
-
-        // NÍVEL 5: Label / sectionName
-        if (action.label && action.label.length > 1) {
-            el = findByTextGlobal(action.label);
-            if (el) return el;
-        }
-        if (action.sectionName) {
-            el = findByTextGlobal(action.sectionName);
-            if (el) return el;
+        // Por fieldName/formcontrolname
+        if (action.fieldName) {
+            var el2 = document.querySelector('[formcontrolname="' + action.fieldName + '"]') ||
+                      document.querySelector('[name="' + action.fieldName + '"]');
+            if (el2 && isVisible(el2)) return el2;
         }
 
         return null;
     }
 
-    // ========================================================================
-    // FIND HELPERS
-    // ========================================================================
-
-    // Retorna o container do sidebar/menu lateral
-    function getSidebarContainer() {
-        // PrimeNG sidebar patterns
-        var selectors = [
-            '.ui-panelmenu', '.ui-menu', '.ui-tree',
-            '.p-panelmenu', '.p-menu', '.p-tree',
-            '[class*="sidebar"]', '[class*="menu-lateral"]',
-            'nav', '.nav'
-        ];
-        for (var i = 0; i < selectors.length; i++) {
-            var el = document.querySelector(selectors[i]);
-            if (el && isVisible(el)) return el;
-        }
-        return null;
-    }
-
-    // Encontra o container expandido mais próximo do último click
-    function findExpandedContainer(el) {
-        var current = el;
-        var maxUp = 5;
-        while (current && current !== document.body && maxUp-- > 0) {
-            // PrimeNG tree expanded children
-            var children = current.querySelector(
-                '.ui-treenode-children, .ui-submenu-list, .ui-panelmenu-content, ' +
-                '.p-treenode-children, .p-submenu-list, .p-panelmenu-content, ' +
-                '[class*="submenu"], [class*="children"]'
-            );
-            if (children && isVisible(children)) return children;
-
-            // O próprio parent que tem filhos visíveis
-            var sibling = current.nextElementSibling;
-            if (sibling && isVisible(sibling)) {
-                var hasInteractive = sibling.querySelector('a, span, li, button');
-                if (hasInteractive) return sibling;
-            }
-
-            current = current.parentElement;
-        }
-        return null;
-    }
-
-    // Busca por texto DENTRO de um container específico
-    function findByTextScoped(text, container) {
-        if (!container || !text) return null;
-        var search = text.trim().toLowerCase();
-        var tags = ['SPAN', 'A', 'BUTTON', 'LI', 'TD', 'LABEL', 'DIV'];
-
-        for (var t = 0; t < tags.length; t++) {
-            var els = container.querySelectorAll(tags[t]);
-            for (var i = 0; i < els.length; i++) {
-                var elText = (els[i].textContent || '').trim().toLowerCase();
-                // Match exato ou quase exato (texto do elemento ≈ texto buscado)
-                if (elText === search && isVisible(els[i])) return els[i];
-                if (elText.length > 0 && elText.length < search.length * 1.5 &&
-                    elText.indexOf(search) >= 0 && isVisible(els[i])) return els[i];
-            }
-        }
-        return null;
-    }
-
-    // Busca global: prefere elementos mais específicos (menor textContent)
-    function findByTextGlobal(text) {
-        if (!text || text.length < 2) return null;
-        var search = text.trim().toLowerCase();
-        var tags = ['SPAN', 'A', 'BUTTON', 'LI', 'TD', 'LABEL'];
-        var bestMatch = null;
-        var bestLen = Infinity;
-
-        for (var t = 0; t < tags.length; t++) {
-            var els = document.querySelectorAll(tags[t]);
-            for (var i = 0; i < els.length; i++) {
-                if (!isVisible(els[i])) continue;
-                var elText = (els[i].textContent || '').trim().toLowerCase();
-                // Match exato
-                if (elText === search) {
-                    if (elText.length < bestLen) {
-                        bestMatch = els[i];
-                        bestLen = elText.length;
-                    }
-                }
-            }
-        }
-
-        // Se achou match exato, retorna o mais curto (mais específico)
-        if (bestMatch) return bestMatch;
-
-        // Match parcial
-        for (var t2 = 0; t2 < tags.length; t2++) {
-            var els2 = document.querySelectorAll(tags[t2]);
-            for (var j = 0; j < els2.length; j++) {
-                if (!isVisible(els2[j])) continue;
-                var tx = (els2[j].textContent || '').trim().toLowerCase();
-                if (tx.indexOf(search) >= 0 && tx.length < search.length * 2) {
-                    return els2[j];
-                }
-            }
-        }
-        return null;
-    }
-
-    // Busca por nthIndex entre elementos com mesmo selector
-    function findByNth(selector, nthIndex) {
-        try {
-            var all = document.querySelectorAll(selector);
-            var visible = [];
-            for (var i = 0; i < all.length; i++) {
-                if (isVisible(all[i])) visible.push(all[i]);
-            }
-            // Tenta index direto e index-1 (1-based vs 0-based)
-            if (nthIndex < visible.length) return visible[nthIndex];
-            if (nthIndex > 0 && (nthIndex - 1) < visible.length) return visible[nthIndex - 1];
-            if (visible.length > 0) return visible[0];
-        } catch(e) {}
-        return null;
-    }
-
-    function textMatches(el, text) {
-        if (!text) return true;
-        var elText = (el.textContent || el.value || '').trim().toLowerCase();
-        var search = text.trim().toLowerCase();
-        return elText.indexOf(search) >= 0 || search.indexOf(elText) >= 0;
-    }
-
-    function isVisible(el) {
-        if (!el) return false;
-        if (el.offsetParent !== null) return true;
-        if (el.offsetWidth > 0 || el.offsetHeight > 0) return true;
-        try {
-            var s = getComputedStyle(el);
-            return s.display !== 'none' && s.visibility !== 'hidden';
-        } catch(e) {}
-        return false;
-    }
-
-    // ========================================================================
-    // WAIT FOR MUTATION — Espera o DOM mudar (Angular renderizar)
-    // ========================================================================
-    function waitForMutation(timeoutMs) {
-        return new Promise(function(resolve) {
-            var resolved = false;
-            var observer = new MutationObserver(function(mutations) {
-                // Só resolve se houve adição de nós significativa
-                var significant = false;
-                for (var i = 0; i < mutations.length; i++) {
-                    if (mutations[i].addedNodes.length > 0 || mutations[i].removedNodes.length > 0) {
-                        significant = true;
-                        break;
-                    }
-                }
-                if (significant && !resolved) {
-                    resolved = true;
-                    observer.disconnect();
-                    // Delay extra pra Angular terminar rendering
-                    setTimeout(resolve, 500);
-                }
-            });
-
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-
-            // Timeout: se nada mudar, segue mesmo assim
-            setTimeout(function() {
-                if (!resolved) {
-                    resolved = true;
-                    observer.disconnect();
-                    resolve();
-                }
-            }, timeoutMs);
-        });
-    }
-
-    // ========================================================================
-    // ACTIONS: Click & Type
-    // ========================================================================
-    async function doClick(el) {
-        // REGRA FUNDAMENTAL: Se é SPAN/I/EM dentro de A/BUTTON/LI, clica no PAI
-        // PrimeNG SEMPRE coloca o handler no <a>, nunca no <span> interno
-        var clickTarget = el;
-        var tag = el.tagName;
-        if (tag === 'SPAN' || tag === 'I' || tag === 'EM' || tag === 'STRONG' || tag === 'B') {
-            var parent = el.closest('a, button, li, [role="menuitem"], [role="treeitem"], td');
-            if (parent) {
-                console.log(TAG, '⬆️ Subindo de', tag, 'para', parent.tagName, 
-                    '(id:', parent.id || 'sem', '| classes:', (parent.className || '').substring(0, 40) + ')');
-                clickTarget = parent;
-            }
-        }
-
-        clickTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        await delay(200);
-        highlight(clickTarget);
-
-        // Click nativo (melhor pra Angular change detection)
-        try { clickTarget.click(); } catch(e) {}
-        await delay(100);
-
-        // Também dispara eventos sintéticos (redundância)
-        clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-        await delay(30);
-        clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-        await delay(30);
-        clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    }
-
-    async function doType(el, value) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        await delay(200);
-        highlight(el);
+    async function typeCharByChar(el, value) {
         el.focus();
         el.dispatchEvent(new Event('focus', { bubbles: true }));
         await delay(100);
-        // Limpa
         if (el.select) el.select();
         el.value = '';
         el.dispatchEvent(new Event('input', { bubbles: true }));
         await delay(100);
-        // Digita char por char
         for (var c = 0; c < value.length; c++) {
             el.value += value[c];
             el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -500,28 +389,135 @@
         el.dispatchEvent(new Event('blur', { bubbles: true }));
     }
 
-    // ========================================================================
-    // GEMINI VISION DESCRIPTION
-    // ========================================================================
-    function buildVisionDesc(action) {
-        var parts = [];
-        if (action.text) parts.push('com texto "' + action.text + '"');
-        if (action.label) parts.push('com label "' + action.label + '"');
-        var types = {
-            click: 'botão ou link',
-            navigate_menu: 'item de menu lateral',
-            navigate_section: 'item de árvore/seção',
-            type: 'campo de input',
-            select: 'dropdown'
-        };
-        return 'Encontre o ' + (types[action.type] || 'elemento') +
-               (parts.length ? ' ' + parts.join(' ') : '') +
-               (action.selector ? '. Selector CSS original: ' + action.selector : '');
+    async function typeNativeSet(el, value) {
+        el.focus();
+        await delay(100);
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.dispatchEvent(new Event('blur', { bubbles: true }));
     }
 
     // ========================================================================
-    // PARAMS & HELPERS
+    // EXECUTE CLICK — Botões e elementos genéricos
     // ========================================================================
+    async function executeClick(action) {
+        var el = null;
+        var start = Date.now();
+
+        while (Date.now() - start < 10000) {
+            // Radar buttons
+            el = findViaRadar(action.text || '', action.selector || '');
+            if (el) break;
+
+            // Selector direto
+            if (action.selector) {
+                try {
+                    el = document.querySelector(action.selector);
+                    if (el && isVisible(el)) { el = getClickableParent(el); break; }
+                    el = null;
+                } catch(e) {}
+            }
+
+            // Inputs (pra cliques em campos de data que precedem typing)
+            if (action.selector && action.selector.indexOf('input') >= 0) {
+                try {
+                    var inputs = document.querySelectorAll(action.selector);
+                    for (var i = 0; i < inputs.length; i++) {
+                        if (isVisible(inputs[i])) { el = inputs[i]; break; }
+                    }
+                    if (el) break;
+                } catch(e) {}
+            }
+
+            await delay(500);
+        }
+
+        if (el) {
+            highlight(el);
+            el.click();
+            return { ok: true, method: 'agent' };
+        }
+
+        return await tryGeminiVision(action);
+    }
+
+    // ========================================================================
+    // GEMINI VISION FALLBACK
+    // ========================================================================
+    async function tryGeminiVision(action) {
+        if (typeof VisionAgent === 'undefined') {
+            console.warn(TAG, '⚠️ VisionAgent não disponível');
+            return { ok: false, method: 'no-vision' };
+        }
+
+        console.log(TAG, '🤖 Tentando Gemini Vision...');
+        showIndicator(true, '🤖 ' + currentStep + ': Gemini Vision...');
+
+        try {
+            var desc = 'Encontre o ';
+            var types = { navigate_menu: 'item de menu', navigate_section: 'item de seção', type: 'campo de input', click: 'botão', select: 'dropdown' };
+            desc += (types[action.type] || 'elemento');
+            if (action.text) desc += ' com texto "' + action.text + '"';
+            if (action.label) desc += ' com label "' + action.label + '"';
+
+            var vr = await VisionAgent.findElement(desc);
+            if (vr && vr.found && vr.x && vr.y) {
+                console.log(TAG, '🎯 Gemini:', vr.x, vr.y);
+                await VisionAgent.act({ type: 'click', x: vr.x, y: vr.y });
+                if (action.type === 'type' && action.value) {
+                    await delay(500);
+                    var focused = document.activeElement;
+                    if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA')) {
+                        await typeCharByChar(focused, action.value.trim());
+                    }
+                }
+                return { ok: true, method: 'gemini' };
+            }
+        } catch(e) {
+            console.error(TAG, 'Gemini erro:', e.message);
+        }
+
+        return { ok: false, method: 'not-found' };
+    }
+
+    // ========================================================================
+    // MUTATION OBSERVER — Espera Angular renderizar
+    // ========================================================================
+    function waitForMutation(timeoutMs) {
+        return new Promise(function(resolve) {
+            var resolved = false;
+            var observer = new MutationObserver(function(mutations) {
+                var significant = false;
+                for (var i = 0; i < mutations.length; i++) {
+                    if (mutations[i].addedNodes.length > 0 || mutations[i].removedNodes.length > 0) {
+                        significant = true; break;
+                    }
+                }
+                if (significant && !resolved) {
+                    resolved = true;
+                    observer.disconnect();
+                    setTimeout(resolve, 500);
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+            setTimeout(function() {
+                if (!resolved) { resolved = true; observer.disconnect(); resolve(); }
+            }, timeoutMs);
+        });
+    }
+
+    // ========================================================================
+    // HELPERS
+    // ========================================================================
+    function isVisible(el) {
+        if (!el) return false;
+        if (el.offsetParent !== null) return true;
+        if (el.offsetWidth > 0 || el.offsetHeight > 0) return true;
+        try { var s = getComputedStyle(el); return s.display !== 'none' && s.visibility !== 'hidden'; } catch(e) {}
+        return false;
+    }
+
     function applyParams(action, params, idx, all) {
         if (!params || Object.keys(params).length === 0) return action;
         var mod = JSON.parse(JSON.stringify(action));
@@ -536,7 +532,6 @@
     function getDelay(action, idx, all) {
         var next = all[idx + 1];
         if (action.type === 'navigate_menu' || action.type === 'navigate_section') {
-            // Mais tempo se próximo é tipo diferente (mudou de seção)
             if (next && next.type !== 'navigate_menu' && next.type !== 'navigate_section') return 2500;
             return 1200;
         }
@@ -546,8 +541,8 @@
     }
 
     function delay(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
-
     function highlight(el) {
+        if (!el || !el.style) return;
         var o = el.style.outline;
         el.style.outline = '3px solid #F59E0B';
         setTimeout(function() { el.style.outline = o; }, 800);
