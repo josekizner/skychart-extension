@@ -17,14 +17,22 @@
         'Você é o ATOM, o assistente inteligente da Mond Shipping.',
         'Você é parte de uma plataforma de multiagentes que automatiza processos de câmbio, tracking, booking, demurrage, frete e operacional.',
         'Você fala de forma direta, objetiva e profissional, mas com personalidade — confiante, eficiente, um pouco futurista.',
-        'Nunca use emojis demais. Use no máximo 1-2 por mensagem quando relevante.',
+        'Nunca use emojis demais. Use no máximo 1 por mensagem quando relevante.',
         'Responda SEMPRE em português do Brasil.',
         'Seja conciso — máximo 3-4 frases por resposta, a não ser que peçam detalhes.',
-        'Você tem acesso aos seguintes dados em tempo real:',
-        '- Workflows gravados (ATOM Learn): quantos existem, nomes, passos',
-        '- Dados da página Skychart que o usuário está vendo',
-        '- Agentes ativos: câmbio, tracking (Maersk/CMA), serasa, frete, demurrage, booking, frequência',
-        'Se perguntarem algo que você NÃO tem dados, diga honestamente que não tem acesso a esse dado específico ainda.',
+        '',
+        'REGRA CRÍTICA: Responda IMEDIATAMENTE com os dados que você tem no contexto.',
+        'NUNCA diga "estou processando", "aguarde", "vou consultar" ou "assim que tiver os dados".',
+        'Você NÃO está buscando dados em tempo real. Você já recebeu todos os dados disponíveis no contexto abaixo.',
+        'Se o dado está no contexto, responda direto. Se NÃO está, diga "Não tenho esse dado no momento" — nunca finja que vai buscar.',
+        '',
+        'Dados disponíveis no contexto:',
+        '- Workflows gravados (ATOM Learn): quantidade e nomes',
+        '- Demurrage: processos ativos, expirados, em alerta, por armador',
+        '- Serasa: scores e limites de crédito dos clientes',
+        '- Analytics: eventos dos agentes, chequeios, assertividade',
+        '- Agentes ativos da plataforma',
+        '',
         'Quando falarem de "gravar" ou "aprender", explique o ATOM Learn.',
         'Você é o ATOM — observa, aprende e executa. Esse é seu lema.'
     ].join('\n');
@@ -228,21 +236,16 @@
     async function gatherContext() {
         var ctx = [];
 
-        // 1. URL atual
+        // 1. Página / Dashboard
         ctx.push('Página atual: ' + window.location.href);
 
-        // 2. Título ou seção visível
-        var h1 = document.querySelector('h1, .page-title, .ui-panel-title');
-        if (h1) ctx.push('Seção: ' + h1.textContent.trim().substring(0, 80));
-
-        // 3. Workflows do Firebase
+        // 2. Workflows do Firebase
         try {
             var resp = await fetch(FIREBASE + '/atom_recordings.json?shallow=true');
             var keys = await resp.json();
             if (keys) {
                 var wfCount = Object.keys(keys).length;
                 ctx.push('Workflows gravados: ' + wfCount);
-                // Busca labels dos últimos 5
                 var ids = Object.keys(keys).slice(-5);
                 var labels = await Promise.all(ids.map(function(id) {
                     return fetch(FIREBASE + '/atom_recordings/' + id + '/label.json')
@@ -252,24 +255,77 @@
                 }));
                 ctx.push('Últimos workflows: ' + labels.join(', '));
             }
-        } catch(e) { /* sem acesso ao firebase */ }
-
-        // 4. Agentes ativos
-        try {
-            var agents = [];
-            if (typeof SkAgent !== 'undefined') agents.push('Smart Agent');
-            if (typeof SkDebug !== 'undefined') agents.push('Debug Panel');
-            if (typeof SkMemory !== 'undefined') agents.push('Memory');
-            if (document.getElementById('atom-widget')) agents.push('ATOM Learn');
-            if (agents.length > 0) ctx.push('Agentes carregados: ' + agents.join(', '));
         } catch(e) {}
 
-        // 5. Dados da página (tabelas, campos relevantes)
+        // 3. Demurrage — portfolio + cache
         try {
-            var tables = document.querySelectorAll('table');
-            if (tables.length > 0) ctx.push('Tabelas na página: ' + tables.length);
-            var inputs = document.querySelectorAll('input:not([type=hidden])');
-            if (inputs.length > 0) ctx.push('Campos de input: ' + inputs.length);
+            var [demRes, demCache] = await Promise.all([
+                fetch(FIREBASE + '/demurrage/resolved.json').then(function(r) { return r.json(); }).catch(function() { return null; }),
+                fetch(FIREBASE + '/demurrage/cache.json').then(function(r) { return r.json(); }).catch(function() { return null; })
+            ]);
+            if (demRes) {
+                var resolvedKeys = Object.keys(demRes);
+                ctx.push('Demurrage resolvidos: ' + resolvedKeys.length + ' containers devolvidos');
+            }
+            if (demCache) {
+                var cacheKeys = Object.keys(demCache);
+                var expirados = 0, alertas = 0, ok = 0;
+                var armadores = {};
+                var clientes = {};
+                cacheKeys.forEach(function(k) {
+                    var item = demCache[k];
+                    if (!item) return;
+                    if (item.status === 'expirado') expirados++;
+                    else if (item.status === 'alerta') alertas++;
+                    else ok++;
+                    if (item.armador) armadores[item.armador] = (armadores[item.armador] || 0) + 1;
+                    if (item.cliente) clientes[item.cliente] = (clientes[item.cliente] || 0) + 1;
+                });
+                ctx.push('Demurrage ativos: ' + cacheKeys.length + ' (expirados: ' + expirados + ', alerta: ' + alertas + ', ok: ' + ok + ')');
+                if (Object.keys(armadores).length > 0) {
+                    ctx.push('Demurrage por armador: ' + Object.keys(armadores).map(function(a) { return a + ': ' + armadores[a]; }).join(', '));
+                }
+                if (Object.keys(clientes).length > 0) {
+                    ctx.push('Demurrage por cliente: ' + Object.keys(clientes).map(function(c) { return c + ': ' + clientes[c]; }).join(', '));
+                }
+            }
+        } catch(e) {}
+
+        // 4. Serasa scores
+        try {
+            var serasaResp = await fetch(FIREBASE + '/serasa.json');
+            var serasaData = await serasaResp.json();
+            if (serasaData) {
+                var serasaList = [];
+                Object.keys(serasaData).forEach(function(key) {
+                    var s = serasaData[key];
+                    if (s && s.score) serasaList.push(key.replace(/_/g, ' ') + ': score ' + s.score + (s.limiteCredito ? ' (limite R$ ' + Number(s.limiteCredito).toLocaleString('pt-BR') + ')' : ''));
+                });
+                if (serasaList.length > 0) ctx.push('Serasa: ' + serasaList.join(' | '));
+            }
+        } catch(e) {}
+
+        // 5. Analytics resumo
+        try {
+            var analyticsResp = await fetch(FIREBASE + '/analytics.json?shallow=true');
+            var analyticsKeys = await analyticsResp.json();
+            if (analyticsKeys) {
+                ctx.push('Agentes com analytics: ' + Object.keys(analyticsKeys).join(', '));
+            }
+        } catch(e) {}
+
+        // 6. KPIs visiveis no dashboard
+        try {
+            var statCards = document.querySelectorAll('.stat-card');
+            if (statCards.length > 0) {
+                var kpis = [];
+                statCards.forEach(function(card) {
+                    var label = card.querySelector('.stat-label');
+                    var value = card.querySelector('.stat-value');
+                    if (label && value) kpis.push(label.textContent.trim() + ': ' + value.textContent.trim());
+                });
+                if (kpis.length > 0) ctx.push('KPIs do dashboard: ' + kpis.join(' | '));
+            }
         } catch(e) {}
 
         return ctx.join('\n');
