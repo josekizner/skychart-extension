@@ -14,6 +14,7 @@
     var recording = false;
     var actions = [];
     var sessionId = null;
+    var currentLabel = '';
     var lastHash = window.location.hash;
     var lastPageScan = null;
     var BLACKLIST_TYPES = ['password', 'token', 'secret']; // Nunca grava esses
@@ -70,14 +71,20 @@
             var options = [];
             for (var i = 0; i < ids.length; i++) {
                 try {
+                    // Busca label no topo (novo) ou dentro de actions (legacy)
                     var label = null;
-                    var r0 = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/actions/0.json');
-                    var a0 = await r0.json();
-                    if (a0 && a0.label) label = a0.label;
+                    var rTop = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/label.json');
+                    var topLabel = await rTop.json();
+                    if (topLabel) label = topLabel;
                     if (!label) {
                         var r1 = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/actions/1.json');
                         var a1 = await r1.json();
                         if (a1 && a1.label) label = a1.label;
+                    }
+                    if (!label) {
+                        var r0 = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/actions/0.json');
+                        var a0 = await r0.json();
+                        if (a0 && a0.label) label = a0.label;
                     }
                     options.push({ id: ids[i], label: label || ids[i] });
                 } catch(e) { options.push({ id: ids[i], label: ids[i] }); }
@@ -234,6 +241,7 @@
         sessionId = 'rec_' + Date.now();
         actions = [];
         recording = true;
+        currentLabel = label;
 
         // Grava contexto inicial (tela atual)
         recordPageContext();
@@ -296,6 +304,7 @@
 
         var result = {
             sessionId: sessionId,
+            label: currentLabel,
             actions: actions,
             totalActions: actions.length,
             duration: actions.length > 1 ? actions[actions.length - 1].timestamp - actions[0].timestamp : 0
