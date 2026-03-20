@@ -28,10 +28,10 @@
         '',
         'Dados disponíveis no contexto:',
         '- Workflows gravados (ATOM Learn): quantidade e nomes',
-        '- Demurrage: processos ativos, expirados, em alerta, por armador',
+        '- Demurrage: processos ativos (excluindo resolvidos), por cliente, armador, status, dias restantes',
         '- Serasa: scores e limites de crédito dos clientes',
+        '- Frequência de cotação: clientes monitorados, dias sem cotar, média de gap, status (atrasado/atenção/ok), vendedor',
         '- Analytics: eventos dos agentes, chequeios, assertividade',
-        '- Agentes ativos da plataforma',
         '',
         'Quando falarem de "gravar" ou "aprender", explique o ATOM Learn.',
         'Você é o ATOM — observa, aprende e executa. Esse é seu lema.'
@@ -235,97 +235,126 @@
     // ========================================================================
     async function gatherContext() {
         var ctx = [];
-
-        // 1. Página / Dashboard
         ctx.push('Página atual: ' + window.location.href);
 
-        // 2. Workflows do Firebase
-        try {
-            var resp = await fetch(FIREBASE + '/atom_recordings.json?shallow=true');
-            var keys = await resp.json();
-            if (keys) {
-                var wfCount = Object.keys(keys).length;
-                ctx.push('Workflows gravados: ' + wfCount);
-                var ids = Object.keys(keys).slice(-5);
-                var labels = await Promise.all(ids.map(function(id) {
-                    return fetch(FIREBASE + '/atom_recordings/' + id + '/label.json')
-                        .then(function(r) { return r.json(); })
-                        .then(function(l) { return l || id; })
-                        .catch(function() { return id; });
-                }));
-                ctx.push('Últimos workflows: ' + labels.join(', '));
-            }
-        } catch(e) {}
+        // === TODAS as chamadas em paralelo === 
+        var [wfShallow, demRes, demCache, serasaData, analyticsKeys, freqData] = await Promise.all([
+            fetch(FIREBASE + '/atom_recordings.json?shallow=true').then(function(r) { return r.json(); }).catch(function() { return null; }),
+            fetch(FIREBASE + '/demurrage/resolved.json').then(function(r) { return r.json(); }).catch(function() { return null; }),
+            fetch(FIREBASE + '/demurrage/cache.json').then(function(r) { return r.json(); }).catch(function() { return null; }),
+            fetch(FIREBASE + '/serasa.json').then(function(r) { return r.json(); }).catch(function() { return null; }),
+            fetch(FIREBASE + '/analytics.json?shallow=true').then(function(r) { return r.json(); }).catch(function() { return null; }),
+            new Promise(function(resolve) {
+                try {
+                    chrome.runtime.sendMessage({ action: 'fetchFrequencyData' }, function(resp) {
+                        if (chrome.runtime.lastError || !resp || !resp.success) { resolve(null); return; }
+                        resolve(resp.data);
+                    });
+                } catch(e) { resolve(null); }
+            })
+        ]);
 
-        // 3. Demurrage — dados detalhados por processo/cliente
-        try {
-            var [demRes, demCache] = await Promise.all([
-                fetch(FIREBASE + '/demurrage/resolved.json').then(function(r) { return r.json(); }).catch(function() { return null; }),
-                fetch(FIREBASE + '/demurrage/cache.json').then(function(r) { return r.json(); }).catch(function() { return null; })
-            ]);
-            if (demRes) {
-                var resolvedKeys = Object.keys(demRes);
-                ctx.push('Demurrage resolvidos: ' + resolvedKeys.length + ' containers devolvidos');
-                // Detalhe dos resolvidos por cliente
-                var resByCliente = {};
-                resolvedKeys.forEach(function(k) {
-                    var item = demRes[k];
-                    if (item && item.cliente) {
-                        if (!resByCliente[item.cliente]) resByCliente[item.cliente] = 0;
-                        resByCliente[item.cliente]++;
-                    }
-                });
-                if (Object.keys(resByCliente).length > 0) {
-                    ctx.push('Resolvidos por cliente: ' + Object.keys(resByCliente).map(function(c) { return c + ': ' + resByCliente[c]; }).join(', '));
+        // 1. Workflows
+        if (wfShallow) {
+            var wfKeys = Object.keys(wfShallow);
+            ctx.push('Workflows gravados: ' + wfKeys.length);
+        }
+
+        // 2. Demurrage — filtra resolvidos do cache
+        var resolvedProcessos = {};
+        if (demRes) {
+            Object.keys(demRes).forEach(function(k) { resolvedProcessos[k.replace(/_/g, '/')] = true; });
+            ctx.push('Demurrage resolvidos: ' + Object.keys(demRes).length + ' containers devolvidos');
+        }
+        if (demCache && demCache.items && demCache.items.length > 0) {
+            var activeItems = demCache.items.filter(function(item) {
+                if (!item) return false;
+                // Filtra processos já resolvidos
+                var proc = item.processo || '';
+                if (resolvedProcessos[proc]) return false;
+                return true;
+            });
+            var lines = [];
+            activeItems.forEach(function(item) {
+                var line = 'cliente=' + (item.cliente || '?');
+                line += ', armador=' + (item.armador || '?');
+                line += ', status=' + (item.status || '?');
+                if (item.status === 'expirado') {
+                    line += ', atrasado ' + (item.diasAtrasados || 0) + ' dias';
+                } else {
+                    line += ', ' + (item.diasRestantes || 0) + ' dias restantes';
                 }
-            }
-            if (demCache && demCache.items && demCache.items.length > 0) {
-                var items = [];
-                demCache.items.forEach(function(item, idx) {
-                    if (!item) return;
-                    var line = '';
-                    line += 'cliente=' + (item.cliente || '?');
-                    line += ', armador=' + (item.armador || '?');
-                    line += ', status=' + (item.status || '?');
-                    if (item.status === 'expirado') {
-                        line += ', atrasado ' + (item.diasAtrasados || 0) + ' dias';
-                    } else {
-                        line += ', ' + (item.diasRestantes || 0) + ' dias restantes';
-                    }
-                    if (item.container && item.container !== '—') line += ', container=' + item.container;
-                    if (item.navio) line += ', navio=' + item.navio;
-                    if (item.processo) line += ', processo=' + item.processo;
-                    items.push(line);
+                if (item.processo) line += ', processo=' + item.processo;
+                if (item.container && item.container !== '—') line += ', container=' + item.container;
+                lines.push(line);
+            });
+            ctx.push('DEMURRAGE ATIVOS (' + activeItems.length + ' processos, excluindo resolvidos):');
+            lines.slice(0, 60).forEach(function(l) { ctx.push(l); });
+        }
+
+        // 3. Serasa
+        if (serasaData) {
+            var sList = [];
+            Object.keys(serasaData).forEach(function(key) {
+                var s = serasaData[key];
+                if (s && s.score) sList.push(key.replace(/_/g, ' ') + ': score ' + s.score + (s.limiteCredito ? ' (limite R$ ' + Number(s.limiteCredito).toLocaleString('pt-BR') + ')' : ''));
+            });
+            if (sList.length > 0) ctx.push('SERASA SCORES: ' + sList.join(' | '));
+        }
+
+        // 4. Analytics
+        if (analyticsKeys) {
+            ctx.push('Agentes com analytics: ' + Object.keys(analyticsKeys).join(', '));
+        }
+
+        // 5. Frequência — dados comerciais processados
+        if (freqData && freqData.length > 0) {
+            var clientMap = {};
+            var now = new Date();
+            freqData.forEach(function(q) {
+                if (!q.DS_CLIENTE) return;
+                var name = q.DS_CLIENTE.toUpperCase().trim().split('-')[0].trim();
+                if (!clientMap[name]) clientMap[name] = { dates: [], total: 0, approved: 0, vendedor: '', dest: '' };
+                clientMap[name].total++;
+                if (q.DT_ABERTURA) {
+                    var d = new Date(q.DT_ABERTURA);
+                    if (!isNaN(d.getTime())) clientMap[name].dates.push(d);
+                }
+                var analise = (q.DS_ANALISE || '').toLowerCase();
+                if (analise.indexOf('aprovad') >= 0) clientMap[name].approved++;
+                if (q.DS_RESPONSAVEL_VENDEDOR) clientMap[name].vendedor = q.DS_RESPONSAVEL_VENDEDOR;
+                if (q.DS_DESTINO) clientMap[name].dest = q.DS_DESTINO;
+            });
+            var freqLines = [];
+            Object.keys(clientMap).forEach(function(name) {
+                var c = clientMap[name];
+                if (c.dates.length < 2) return;
+                c.dates.sort(function(a, b) { return a - b; });
+                var gaps = [];
+                for (var i = 1; i < c.dates.length; i++) {
+                    var gap = (c.dates[i] - c.dates[i-1]) / 86400000;
+                    if (gap > 0 && gap < 180) gaps.push(gap);
+                }
+                if (gaps.length === 0) return;
+                var avgGap = gaps.reduce(function(s, g) { return s + g; }, 0) / gaps.length;
+                var daysSince = Math.round((now - c.dates[c.dates.length - 1]) / 86400000);
+                var ratio = daysSince / avgGap;
+                var status = ratio >= 1.3 ? 'atrasado' : ratio >= 0.9 ? 'atenção' : 'ok';
+                freqLines.push(name + ': ' + c.total + ' cotações, ' + daysSince + 'd sem cotar (média ' + Math.round(avgGap) + 'd), status=' + status + ', vendedor=' + (c.vendedor || '?'));
+            });
+            if (freqLines.length > 0) {
+                // Ordena: atrasados primeiro
+                freqLines.sort(function(a, b) {
+                    var aAt = a.indexOf('atrasado') >= 0 ? 0 : a.indexOf('atenção') >= 0 ? 1 : 2;
+                    var bAt = b.indexOf('atrasado') >= 0 ? 0 : b.indexOf('atenção') >= 0 ? 1 : 2;
+                    return aAt - bAt;
                 });
-                ctx.push('DEMURRAGE ATIVOS (' + items.length + ' processos):');
-                items.slice(0, 60).forEach(function(line) { ctx.push(line); });
+                ctx.push('FREQUÊNCIA DE COTAÇÃO (' + freqLines.length + ' clientes monitorados):');
+                freqLines.slice(0, 40).forEach(function(l) { ctx.push(l); });
             }
-        } catch(e) {}
+        }
 
-        // 4. Serasa scores
-        try {
-            var serasaResp = await fetch(FIREBASE + '/serasa.json');
-            var serasaData = await serasaResp.json();
-            if (serasaData) {
-                var serasaList = [];
-                Object.keys(serasaData).forEach(function(key) {
-                    var s = serasaData[key];
-                    if (s && s.score) serasaList.push(key.replace(/_/g, ' ') + ': score ' + s.score + (s.limiteCredito ? ' (limite R$ ' + Number(s.limiteCredito).toLocaleString('pt-BR') + ')' : ''));
-                });
-                if (serasaList.length > 0) ctx.push('Serasa: ' + serasaList.join(' | '));
-            }
-        } catch(e) {}
-
-        // 5. Analytics resumo
-        try {
-            var analyticsResp = await fetch(FIREBASE + '/analytics.json?shallow=true');
-            var analyticsKeys = await analyticsResp.json();
-            if (analyticsKeys) {
-                ctx.push('Agentes com analytics: ' + Object.keys(analyticsKeys).join(', '));
-            }
-        } catch(e) {}
-
-        // 6. KPIs visiveis no dashboard
+        // 6. KPIs do dashboard
         try {
             var statCards = document.querySelectorAll('.stat-card');
             if (statCards.length > 0) {
