@@ -253,8 +253,12 @@
                 for (var m = 0; m < inputs.length; m++) {
                     if (isVisible(inputs[m])) visibleInputs.push(inputs[m]);
                 }
-                if (visibleInputs.length > action.nthIndex) return visibleInputs[action.nthIndex];
-                if (visibleInputs.length > 0) return visibleInputs[0];
+                // nthIndex pode ser 0-based ou 1-based dependendo da gravação
+                var idx = action.nthIndex;
+                // Se idx >= visibleInputs.length, tenta idx-1 (pode ser 1-based)
+                if (idx >= visibleInputs.length && idx > 0) idx = idx - 1;
+                if (visibleInputs.length > idx && idx >= 0) return visibleInputs[idx];
+                if (visibleInputs.length > 0) return visibleInputs[visibleInputs.length - 1]; // último visível
             } catch(e) {}
         }
 
