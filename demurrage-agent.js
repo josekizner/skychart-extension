@@ -137,19 +137,14 @@
     function expandPanel() {
         try {
             var bar = document.getElementById('atom-demurrage-bar');
-            if (!bar) { console.log(TAG, 'expandPanel: bar not found!'); return; }
-            
-            console.log(TAG, 'expandPanel chamado, _data:', _data ? _data.length : 'null', '_isLoading:', _isLoading);
-            
+            if (!bar) return;
+            console.log(TAG, 'expandPanel INICIO');
             bar.classList.remove('mini');
             bar.classList.add('expanded');
-            
-            // Força dm-content visível
+            bar.style.cssText = 'position:fixed;bottom:52px;left:8px;width:620px;height:auto;max-height:calc(100vh - 120px);border-radius:10px;overflow-y:auto;z-index:999999;background:#1a1a2e;border:2px solid #e94560;padding:0;display:block;';
             var content = document.getElementById('dm-content');
-            if (content) content.style.display = 'block';
-            
+            if (content) content.style.cssText = 'display:block !important;min-height:100px;';
             restorePanelSize();
-            
             if (_data && _data.length > 0) {
                 renderTable(_data);
             } else if (!_isLoading) {
@@ -157,6 +152,7 @@
             } else {
                 if (content) content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando...</div>';
             }
+            console.log(TAG, 'expandPanel FIM. width:', bar.offsetWidth, 'height:', bar.offsetHeight);
         } catch(err) {
             console.error(TAG, 'expandPanel erro:', err);
         }
@@ -164,18 +160,17 @@
 
     function collapsePanel() {
         var bar = document.getElementById('atom-demurrage-bar');
+        if (!bar) return;
         bar.classList.remove('expanded');
         bar.classList.add('mini');
-        bar.style.width = '';
-        bar.style.height = '';
+        bar.style.cssText = '';
+        var content = document.getElementById('dm-content');
+        if (content) content.style.cssText = '';
+        console.log(TAG, 'collapsePanel OK');
     }
 
     function miniMode() {
-        var bar = document.getElementById('atom-demurrage-bar');
-        bar.classList.remove('expanded');
-        bar.classList.add('mini');
-        bar.style.width = '';
-        bar.style.height = '';
+        collapsePanel();
     }
 
     var _dmDidDrag = false;
