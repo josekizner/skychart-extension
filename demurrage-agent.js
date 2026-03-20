@@ -166,13 +166,12 @@
 
     function loadData(forceRefresh) {
         var content = document.getElementById('dm-content');
-        var refreshBtn = document.getElementById('dm-refresh');
         console.log(TAG, 'loadData chamado, forceRefresh:', !!forceRefresh);
 
         _lastLoadTimestamp = Date.now();
 
-        // Feedback visual
-        if (refreshBtn) { refreshBtn.classList.add('spinning'); refreshBtn.style.pointerEvents = 'none'; }
+        // Feedback visual — sempre busca fresco do DOM
+        resetRefreshBtn(true); // spinning ON
         content.innerHTML = '<div class="dm-loading"><div class="dm-spinner"></div>Carregando...</div>';
 
         // PASSO 1: Busca TUDO em paralelo (resolved, cache local, Firebase cache)
@@ -180,16 +179,16 @@
         var _resolvedDone = false;
 
         function tryRender(source) {
-            if (_rendered && source !== 'resolved') return; // já renderizou, só resolved pode re-renderizar
-            if (_data.length === 0) return; // sem dados ainda
+            if (_rendered && source !== 'resolved') return;
+            if (_data.length === 0) return;
 
             if (!_rendered) {
                 _rendered = true;
                 updateBadge(getActiveData());
                 renderTable(_data);
+                resetRefreshBtn(false);
                 console.log(TAG, 'Renderizado via', source, ':', _data.length, 'registros, resolvidos:', Object.keys(_resolvedMap).length);
             } else if (source === 'resolved') {
-                // Resolved chegou depois — re-renderiza pra filtrar
                 updateBadge(getActiveData());
                 renderTable(_data);
                 console.log(TAG, 'Re-render com resolvidos:', Object.keys(_resolvedMap).length);
@@ -208,7 +207,6 @@
                 }
             });
         } catch(e) {}
-        // Timeout pra não travar
         setTimeout(function() { _resolvedDone = true; }, 2000);
 
         // === PARALELO 2: Cache local ===
@@ -232,7 +230,7 @@
                         chrome.storage.local.set({ demurrageData: resp.data, demurrageTimestamp: resp.timestamp });
                         tryRender('firebase_cache');
                     }
-                    if (!_rendered) fetchFromAPI(); // nenhum cache funcionou
+                    if (!_rendered) fetchFromAPI();
                 });
             } catch(e) {}
         }
@@ -255,17 +253,16 @@
         function fetchFromAPI() {
             if (_apiFetching) return;
             _apiFetching = true;
-            // REFRESH da API
             try {
                 chrome.runtime.sendMessage({ action: 'fetchDemurrageData' }, function(response) {
                     if (chrome.runtime.lastError) console.log(TAG, 'sendMessage error:', chrome.runtime.lastError.message);
                     if (response && response.fromStorage) { applyNewData(); }
                     else if (response && !response.success) {
-                        resetRefreshBtn();
+                        resetRefreshBtn(false);
                         if (!_data) showError(response.error || 'Erro ao buscar dados');
                     }
                 });
-            } catch(e) { console.log(TAG, 'sendMessage falhou:', e.message); }
+            } catch(e) { console.log(TAG, 'sendMessage falhou:', e.message); resetRefreshBtn(false); }
 
             // POLL fallback
             var pollInterval = setInterval(function() {
@@ -276,7 +273,8 @@
                     }
                 });
             }, 3000);
-            setTimeout(function() { clearInterval(pollInterval); resetRefreshBtn(); }, 120000);
+            // Safety timeout: 60s max
+            setTimeout(function() { clearInterval(pollInterval); resetRefreshBtn(false); }, 60000);
         }
 
         function applyNewData() {
@@ -286,7 +284,6 @@
                     updateBadge(getActiveData());
                     renderTable(_data);
                     console.log(TAG, 'Dados atualizados:', _data.length);
-                    // Analytics: snapshot do portfolio
                     try {
                         var stats = { total: _data.length, expirado: 0, alerta: 0, ok: 0, armadores: {} };
                         _data.forEach(function(p) {
@@ -298,20 +295,30 @@
                         AtomAnalytics.log('demurrage', 'portfolio_snapshot', stats);
                     } catch(e) {}
                 }
-                resetRefreshBtn();
+                resetRefreshBtn(false);
             });
-        }
-
-        function resetRefreshBtn() {
-            if (refreshBtn) { refreshBtn.classList.remove('spinning'); refreshBtn.style.pointerEvents = ''; }
         }
 
         function showError(msg) {
             if (_data) return;
+            resetRefreshBtn(false);
             content.innerHTML = '<div style="padding:10px;color:#f87171;font-size:11px;">' + msg +
                 '<br><button id="dm-retry" style="margin-top:6px;padding:4px 12px;background:#6C63FF;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">Tentar novamente</button></div>';
             var retryBtn = document.getElementById('dm-retry');
             if (retryBtn) retryBtn.onclick = function() { loadData(true); };
+        }
+    }
+
+    // Sempre busca o botão fresco do DOM
+    function resetRefreshBtn(spinning) {
+        var btn = document.getElementById('dm-refresh');
+        if (!btn) return;
+        if (spinning) {
+            btn.classList.add('spinning');
+            btn.style.pointerEvents = 'none';
+        } else {
+            btn.classList.remove('spinning');
+            btn.style.pointerEvents = '';
         }
     }
 
