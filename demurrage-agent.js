@@ -55,7 +55,7 @@
         // Click no painel = toggle
         bar.addEventListener('click', function(e) {
             if (e.target.closest('.dm-collapse, .dm-minimize, .dm-refresh')) return;
-            if (_dmDidDrag) { _dmDidDrag = false; return; } // ignore drag clicks
+            if (_dmDidDrag) { _dmDidDrag = false; console.log(TAG, 'Click ignorado (drag)'); return; }
             console.log(TAG, 'Click! mini:', bar.classList.contains('mini'), 'expanded:', bar.classList.contains('expanded'));
             if (bar.classList.contains('mini')) {
                 expandPanel();
@@ -63,6 +63,9 @@
                 if (e.target.closest('.dm-bar-inner')) {
                     collapsePanel();
                 }
+            } else {
+                // Fallback: sem classe, forca expand
+                expandPanel();
             }
         });
 
@@ -165,7 +168,7 @@
             if (!isDragging) return;
             var dx = e.clientX - startX;
             var dy = e.clientY - startY;
-            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+            if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
                 _dmDidDrag = true;
                 bar.style.left = (startLeft + dx) + 'px';
                 bar.style.bottom = (startBottom - dy) + 'px';

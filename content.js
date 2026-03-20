@@ -3615,7 +3615,7 @@ try {
         // #vlSerasa
         var vlSerasa = document.querySelector('#vlSerasa');
         if (vlSerasa) {
-            var limite = String(serasaData.limiteCredito || '0').replace('.', ',');
+            var limite = Number(serasaData.limiteCredito || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             vlSerasa.focus();
             SkAgent.engine.nativeSet(vlSerasa, limite);
             vlSerasa.dispatchEvent(new Event('input', { bubbles: true }));
