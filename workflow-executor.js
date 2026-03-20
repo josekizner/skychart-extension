@@ -219,14 +219,14 @@
                     continue;
                 }
 
-                // Resolve pra ancestral clicável
-                var clickTarget = getClickableAncestor(el);
-                console.log(TAG, '🖱️ Clicando:', clickTarget.tagName,
-                    'id=' + (clickTarget.id || 'sem'),
-                    'text=' + (clickTarget.textContent || '').trim().substring(0, 25));
+                // Clica DIRETO no elemento — .click() borbulha naturalmente pro pai
+                // NÃO sobe pra ancestral (ia pro <a> errado)
+                console.log(TAG, '🖱️ Clicando:', el.tagName,
+                    'id=' + (el.id || 'sem'),
+                    'text=' + (el.textContent || '').trim().substring(0, 25));
 
-                highlight(clickTarget);
-                clickTarget.click();
+                highlight(el);
+                el.click();
                 await delay(300);
 
                 // Espera DOM mudar
@@ -240,19 +240,25 @@
                         clicked = true;
                     } else {
                         console.warn(TAG, '⚠️ Click ok mas', nextStep.text, 'não apareceu (retry', retries + ')');
-                        // Tenta clicar num elemento diferente (irmão, pai)
                         await delay(1000);
-                        // Se é td/span, tenta clicar no tr pai (pode expandir a row)
-                        if (el.tagName === 'SPAN' || el.tagName === 'TD') {
-                            var tr = el.closest('tr');
-                            if (tr) {
-                                console.log(TAG, '🔄 Tentando click no TR pai...');
-                                tr.click();
-                                await waitForMutation(2000);
-                                if (isTextVisible(nextStep.text)) {
-                                    console.log(TAG, '✅', currentStep, '| TR expandiu!');
-                                    clicked = true;
-                                }
+                        // Retry: tenta ancestrais diferentes
+                        var tryTargets = [
+                            el.closest('a'),
+                            el.closest('td'),
+                            el.closest('tr'),
+                            el.closest('li'),
+                            el.parentElement
+                        ];
+                        for (var rt = 0; rt < tryTargets.length; rt++) {
+                            var tt = tryTargets[rt];
+                            if (!tt || !isVisible(tt)) continue;
+                            console.log(TAG, '🔄 Retry click em', tt.tagName, 'id=' + (tt.id || 'sem'));
+                            tt.click();
+                            await waitForMutation(2000);
+                            if (isTextVisible(nextStep.text)) {
+                                console.log(TAG, '✅', currentStep, '| Expandiu via', tt.tagName);
+                                clicked = true;
+                                break;
                             }
                         }
                     }
@@ -292,11 +298,24 @@
         while (Date.now() - start < timeoutMs) {
             var el;
 
-            // 1. Selector direto (funciona pra #Utilidades, #Relatórios)
+            // 1. Selector direto — mas VALIDA texto (td.undefined pega qualquer td)
             if (selector) {
                 try {
                     el = document.querySelector(selector);
-                    if (el && isVisible(el)) return el;
+                    if (el && isVisible(el)) {
+                        // Se tem texto esperado, verifica se bate
+                        if (text && text.length > 1) {
+                            var selText = (el.textContent || '').trim().toLowerCase();
+                            var searchText = text.trim().toLowerCase();
+                            if (selText === searchText || selText.indexOf(searchText) >= 0) {
+                                return el;
+                            }
+                            // Texto não bate — selector genérico, ignora
+                            console.log(TAG, '⚠️ Selector achou', selText.substring(0, 20), 'mas buscava', searchText.substring(0, 20));
+                        } else {
+                            return el;
+                        }
+                    }
                 } catch(e) {}
             }
 
