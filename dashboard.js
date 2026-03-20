@@ -350,10 +350,32 @@
         var cotacoesExtraidas = outlookEvents.filter(function(e) { return e.action === 'cotacao_extraida'; }).length;
         var bookingsExtraidos = outlookEvents.filter(function(e) { return e.action === 'booking_extraido'; }).length;
 
-        // User activity
+        // User activity — normaliza aliases
+        var USER_ALIASES = {
+            'paulo zanella': 'José Kizner',
+            'paulo zanella - mond': 'José Kizner',
+            'josé kizner - mond shipping': 'José Kizner',
+            'josé kizner - mondshipping': 'José Kizner',
+            'jose kizner': 'José Kizner'
+        };
+        function normalizeUser(name) {
+            if (!name || name === 'unknown') return name;
+            // Checa alias direto
+            var lower = name.toLowerCase().trim();
+            if (USER_ALIASES[lower]) return USER_ALIASES[lower];
+            // Checa prefixo (ex: "José Kizner - Mond..." → "José Kizner")
+            for (var alias in USER_ALIASES) {
+                if (lower.indexOf(alias) === 0) return USER_ALIASES[alias];
+            }
+            // Checa parcial "paulo zanella" em qualquer lugar
+            if (lower.indexOf('paulo zanella') >= 0) return 'José Kizner';
+            if (lower.indexOf('josé kizner') >= 0 || lower.indexOf('jose kizner') >= 0) return 'José Kizner';
+            return name;
+        }
+
         var userStats = {};
         allEvents.forEach(function(e) {
-            var u = e.user || 'unknown';
+            var u = normalizeUser(e.user || 'unknown');
             if (!userStats[u]) userStats[u] = { total: 0, agents: {}, events: [] };
             userStats[u].total++;
             userStats[u].agents[e.agent] = (userStats[u].agents[e.agent] || 0) + 1;
@@ -481,7 +503,7 @@
                 var dotClass = !isOnline ? 'offline' : isUpToDate ? 'online pulse' : 'outdated';
                 var timeStr = minAgo < 1 ? 'agora' : minAgo < 60 ? minAgo + 'm' : Math.floor(minAgo/60) + 'h';
                 html += '<tr>';
-                html += '<td><span style="display:inline-flex;align-items:center;gap:5px"><span class="status-dot ' + dotClass + '"></span>' + (hb.user || key) + '</span></td>';
+                html += '<td><span style="display:inline-flex;align-items:center;gap:5px"><span class="status-dot ' + dotClass + '"></span>' + normalizeUser(hb.user || key) + '</span></td>';
                 html += '<td class="accent">' + (hb.version || '?') + '</td>';
                 html += '<td>' + (hb.profile || '-') + '</td>';
                 html += '<td>' + timeStr + '</td>';
@@ -613,7 +635,7 @@
                 }
                 html += '<tr data-check-idx="' + idx + '" style="cursor:pointer">';
                 html += '<td>' + formatDate(e.timestamp) + '</td>';
-                html += '<td style="font-size:10px;color:var(--text-secondary)">' + (e.user || 'unknown') + '</td>';
+                html += '<td style="font-size:10px;color:var(--text-secondary)">' + normalizeUser(e.user || 'unknown') + '</td>';
                 html += '<td><span class="badge ' + moduloBadgeClass + '"><span class="badge-dot"></span>' + (d.modulo || '-') + '</span></td>';
                 html += '<td class="mono">' + (d.processo || '-') + '</td>';
                 html += '<td>' + (d.totalItens || 0) + '</td>';
