@@ -63,7 +63,7 @@
         // === EXPANDED PANEL ===
         var panel = document.createElement('div');
         panel.id = 'dm-panel';
-        panel.style.cssText = 'position:fixed;bottom:100px;left:8px;width:640px;max-height:calc(100vh - 140px);background:#1a1a2e;border:1.5px solid rgba(233,69,96,0.35);border-radius:12px;z-index:999999;display:none;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:"Segoe UI",system-ui,sans-serif;';
+        panel.style.cssText = 'position:fixed;bottom:100px;left:8px;width:640px;max-height:calc(100vh - 140px);background:#1a1a2e;border:1.5px solid rgba(233,69,96,0.35);border-radius:12px;z-index:999999;display:none;overflow:hidden;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:"Segoe UI",system-ui,sans-serif;';
         panel.innerHTML = [
             '<div id="dm-header" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(233,69,96,0.08);border-bottom:1px solid rgba(233,69,96,0.15);cursor:default;user-select:none;">',
             '  <div style="display:flex;align-items:center;gap:8px;">',
