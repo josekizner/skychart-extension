@@ -43,6 +43,7 @@
             '  <div class="freq-logo">F</div>',
             '  <span class="freq-title">FREQUÊNCIA</span>',
             '  <span class="freq-badge ok" id="freq-badge">—</span>',
+            '  <span class="freq-refresh" id="freq-refresh" title="Atualizar dados" style="display:none;cursor:pointer;font-size:14px;color:#8A8980;margin-left:auto;transition:all 0.3s;">↻</span>',
             '  <span class="freq-minimize" id="freq-minimize" style="display:none;">▼</span>',
             '</div>',
             '<div id="atom-freq-content"></div>'
@@ -58,6 +59,16 @@
         document.getElementById('freq-minimize').addEventListener('click', function(e) {
             e.stopPropagation();
             collapsePanel();
+        });
+
+        document.getElementById('freq-refresh').addEventListener('click', function(e) {
+            e.stopPropagation();
+            var btn = document.getElementById('freq-refresh');
+            btn.style.animation = 'freqSpin 0.8s linear infinite';
+            _cachedClients = null;
+            _cacheTime = 0;
+            loadData();
+            setTimeout(function() { btn.style.animation = ''; }, 3000);
         });
 
         console.log(TAG, 'Painel criado');
@@ -76,6 +87,7 @@
         var panel = document.getElementById('atom-freq-panel');
         panel.classList.add('expanded');
         document.getElementById('freq-minimize').style.display = '';
+        document.getElementById('freq-refresh').style.display = '';
 
         // Se tem cache válido, renderiza direto
         if (_cachedClients && (Date.now() - _cacheTime < CACHE_TTL)) {
@@ -90,6 +102,7 @@
         var panel = document.getElementById('atom-freq-panel');
         panel.classList.remove('expanded');
         document.getElementById('freq-minimize').style.display = 'none';
+        document.getElementById('freq-refresh').style.display = 'none';
     }
 
     // ===== BUSCA DADOS DA API =====
