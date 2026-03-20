@@ -53,7 +53,8 @@
         "content.js",
         "action-recorder.js",
         "workflow-executor.js",
-        "health-check.js"
+        "health-check.js",
+        "atom-chat.js"
       ],
       "css": [
         "content.css",
