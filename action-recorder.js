@@ -32,15 +32,15 @@
         var widget = document.createElement('div');
         widget.id = 'atom-widget';
         widget.innerHTML =
-            '<div style="display:flex;align-items:center;gap:6px;padding:0 4px;">' +
-                '<img src="' + chrome.runtime.getURL('atom-logo-light-128.png') + '" style="width:18px;height:18px;border-radius:50%;">' +
-                '<span style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:#C4B99A;">ATOM</span>' +
+            '<div style="display:flex;align-items:center;gap:8px;padding:2px 6px;">' +
+                '<img src="' + chrome.runtime.getURL('atom-logo-dark-transparent-128.png') + '" style="width:28px;height:28px;">' +
+                '<span style="font-size:13px;font-weight:700;letter-spacing:0.1em;color:#C4B99A;">ATOM</span>' +
             '</div>' +
-            '<div style="display:flex;gap:6px;width:100%;">' +
-                '<div id="atom-rec-button" style="flex:1;text-align:center;padding:6px 12px;border-radius:8px;font-size:10px;font-weight:700;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;background:rgba(255,68,68,0.12);color:#ff4444;border:1px solid rgba(255,68,68,0.25);">REC</div>' +
-                '<div id="atom-play-button" style="flex:1;text-align:center;padding:6px 12px;border-radius:8px;font-size:10px;font-weight:700;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;background:rgba(245,158,11,0.12);color:#F59E0B;border:1px solid rgba(245,158,11,0.25);">PLAY</div>' +
+            '<div style="display:flex;gap:8px;width:100%;">' +
+                '<div id="atom-rec-button" style="flex:1;text-align:center;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;background:rgba(255,68,68,0.12);color:#ff4444;border:1px solid rgba(255,68,68,0.25);">REC</div>' +
+                '<div id="atom-play-button" style="flex:1;text-align:center;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;letter-spacing:0.1em;cursor:pointer;transition:all 0.2s;background:rgba(245,158,11,0.12);color:#F59E0B;border:1px solid rgba(245,158,11,0.25);">PLAY</div>' +
             '</div>';
-        widget.style.cssText = 'position:fixed;bottom:20px;right:16px;z-index:999999;background:rgba(26,26,26,0.92);backdrop-filter:blur(12px);border:1px solid rgba(196,185,154,0.15);border-radius:14px;padding:8px 10px;font-family:Barlow Condensed,Arial,sans-serif;box-shadow:0 8px 32px rgba(0,0,0,0.5);user-select:none;display:flex;flex-direction:column;gap:6px;align-items:center;transition:all 0.3s ease;';
+        widget.style.cssText = 'position:fixed;bottom:20px;right:16px;z-index:999999;background:rgba(26,26,26,0.92);backdrop-filter:blur(12px);border:1px solid rgba(196,185,154,0.15);border-radius:16px;padding:12px 14px;font-family:Barlow Condensed,Arial,sans-serif;box-shadow:0 8px 32px rgba(0,0,0,0.5);user-select:none;display:flex;flex-direction:column;gap:8px;align-items:center;transition:all 0.3s ease;';
         widget.addEventListener('mouseenter', function() { widget.style.transform = 'translateY(-2px)'; });
         widget.addEventListener('mouseleave', function() { widget.style.transform = 'translateY(0)'; });
         document.body.appendChild(widget);
