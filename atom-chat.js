@@ -257,7 +257,7 @@
             }
         } catch(e) {}
 
-        // 3. Demurrage — portfolio + cache
+        // 3. Demurrage — dados detalhados por processo/cliente
         try {
             var [demRes, demCache] = await Promise.all([
                 fetch(FIREBASE + '/demurrage/resolved.json').then(function(r) { return r.json(); }).catch(function() { return null; }),
@@ -266,28 +266,40 @@
             if (demRes) {
                 var resolvedKeys = Object.keys(demRes);
                 ctx.push('Demurrage resolvidos: ' + resolvedKeys.length + ' containers devolvidos');
+                // Detalhe dos resolvidos por cliente
+                var resByCliente = {};
+                resolvedKeys.forEach(function(k) {
+                    var item = demRes[k];
+                    if (item && item.cliente) {
+                        if (!resByCliente[item.cliente]) resByCliente[item.cliente] = 0;
+                        resByCliente[item.cliente]++;
+                    }
+                });
+                if (Object.keys(resByCliente).length > 0) {
+                    ctx.push('Resolvidos por cliente: ' + Object.keys(resByCliente).map(function(c) { return c + ': ' + resByCliente[c]; }).join(', '));
+                }
             }
             if (demCache) {
-                var cacheKeys = Object.keys(demCache);
-                var expirados = 0, alertas = 0, ok = 0;
-                var armadores = {};
-                var clientes = {};
-                cacheKeys.forEach(function(k) {
+                var items = [];
+                Object.keys(demCache).forEach(function(k) {
                     var item = demCache[k];
                     if (!item) return;
-                    if (item.status === 'expirado') expirados++;
-                    else if (item.status === 'alerta') alertas++;
-                    else ok++;
-                    if (item.armador) armadores[item.armador] = (armadores[item.armador] || 0) + 1;
-                    if (item.cliente) clientes[item.cliente] = (clientes[item.cliente] || 0) + 1;
+                    var line = 'Processo ' + k + ': ';
+                    line += 'cliente=' + (item.cliente || '?');
+                    line += ', armador=' + (item.armador || '?');
+                    line += ', status=' + (item.status || '?');
+                    if (item.status === 'expirado') {
+                        line += ', atrasado ' + (item.diasAtrasados || 0) + ' dias';
+                    } else {
+                        line += ', ' + (item.diasRestantes || 0) + ' dias restantes';
+                    }
+                    if (item.container && item.container !== '—') line += ', container=' + item.container;
+                    if (item.navio) line += ', navio=' + item.navio;
+                    items.push(line);
                 });
-                ctx.push('Demurrage ativos: ' + cacheKeys.length + ' (expirados: ' + expirados + ', alerta: ' + alertas + ', ok: ' + ok + ')');
-                if (Object.keys(armadores).length > 0) {
-                    ctx.push('Demurrage por armador: ' + Object.keys(armadores).map(function(a) { return a + ': ' + armadores[a]; }).join(', '));
-                }
-                if (Object.keys(clientes).length > 0) {
-                    ctx.push('Demurrage por cliente: ' + Object.keys(clientes).map(function(c) { return c + ': ' + clientes[c]; }).join(', '));
-                }
+                ctx.push('DEMURRAGE ATIVOS (' + items.length + ' processos):');
+                // Envia todos (até 60 linhas pro context não ficar gigante)
+                items.slice(0, 60).forEach(function(line) { ctx.push(line); });
             }
         } catch(e) {}
 
