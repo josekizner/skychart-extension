@@ -71,7 +71,6 @@
             var options = [];
             for (var i = 0; i < ids.length; i++) {
                 try {
-                    // Busca label no topo (novo) ou dentro de actions (legacy)
                     var label = null;
                     var rTop = await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + ids[i] + '/label.json');
                     var topLabel = await rTop.json();
@@ -90,9 +89,10 @@
                 } catch(e) { options.push({ id: ids[i], label: ids[i] }); }
             }
 
-            var pick = await showAtomModal({ title: 'Reproduzir Workflow', options: options.map(function(o) { return o.label; }) });
-            if (!pick) return;
-            var chosen = options[pick.selected];
+            // Mostra painel de gerenciamento
+            var result = await showWorkflowManager(options);
+            if (!result) return;
+            var chosen = result;
 
             var dateRes = await showAtomModal({ title: 'Datas', message: 'Datas customizadas? Vazio = originais.', input: true, placeholder: 'dd/mm/yyyy, dd/mm/yyyy', confirmText: 'Continuar' });
             if (!dateRes) return;
@@ -117,6 +117,117 @@
             console.error(TAG, 'Erro buscando gravações:', e);
             alert('Erro ao buscar gravações: ' + e.message);
         }
+    }
+
+    // ========================================================================
+    // WORKFLOW MANAGER — Busca, Renomeia, Exclui
+    // ========================================================================
+    function showWorkflowManager(options) {
+        return new Promise(function(resolve) {
+            var old = document.getElementById('atom-modal-overlay'); if (old) old.remove();
+            var ov = document.createElement('div'); ov.id = 'atom-modal-overlay';
+            ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999999;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;font-family:Barlow Condensed,Arial,sans-serif;';
+            var m = document.createElement('div');
+            m.style.cssText = 'background:rgba(26,26,26,0.97);border:1px solid rgba(196,185,154,0.2);border-radius:16px;padding:24px 28px;width:420px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.6);color:#E8E4DA;';
+
+            // Title
+            var title = document.createElement('div');
+            title.textContent = 'WORKFLOWS';
+            title.style.cssText = 'font-size:15px;font-weight:700;color:#C4B99A;margin-bottom:14px;letter-spacing:0.08em;';
+            m.appendChild(title);
+
+            // Search
+            var search = document.createElement('input'); search.type = 'text'; search.placeholder = 'Buscar workflow...';
+            search.style.cssText = 'width:100%;padding:9px 14px;border-radius:8px;border:1px solid rgba(196,185,154,0.2);background:rgba(255,255,255,0.05);color:#E8E4DA;font-size:13px;font-family:Barlow Condensed,Arial,sans-serif;margin-bottom:12px;outline:none;box-sizing:border-box;';
+            search.addEventListener('focus', function() { search.style.borderColor = '#F59E0B'; });
+            search.addEventListener('blur', function() { search.style.borderColor = 'rgba(196,185,154,0.2)'; });
+            m.appendChild(search);
+
+            // List
+            var list = document.createElement('div');
+            list.style.cssText = 'max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;';
+
+            function renderList(filter) {
+                list.innerHTML = '';
+                var f = (filter || '').toLowerCase();
+                for (var i = 0; i < options.length; i++) {
+                    if (f && options[i].label.toLowerCase().indexOf(f) < 0) continue;
+                    (function(idx, opt) {
+                        var row = document.createElement('div');
+                        row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.1);transition:all 0.15s;';
+                        row.addEventListener('mouseenter', function() { row.style.background = 'rgba(245,158,11,0.14)'; row.style.borderColor = 'rgba(245,158,11,0.3)'; });
+                        row.addEventListener('mouseleave', function() { row.style.background = 'rgba(245,158,11,0.06)'; row.style.borderColor = 'rgba(245,158,11,0.1)'; });
+
+                        // Label (clickable)
+                        var lbl = document.createElement('div');
+                        lbl.textContent = opt.label;
+                        lbl.style.cssText = 'flex:1;font-size:13px;font-weight:600;color:#E8E4DA;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                        lbl.addEventListener('click', function() { ov.remove(); resolve(opt); });
+                        row.appendChild(lbl);
+
+                        // Rename btn
+                        var ren = document.createElement('div'); ren.textContent = '✏️';
+                        ren.style.cssText = 'cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;transition:all 0.15s;opacity:0.5;';
+                        ren.addEventListener('mouseenter', function() { ren.style.opacity = '1'; });
+                        ren.addEventListener('mouseleave', function() { ren.style.opacity = '0.5'; });
+                        ren.addEventListener('click', async function(e) {
+                            e.stopPropagation();
+                            var res = await showAtomModal({ title: 'Renomear', input: true, defaultValue: opt.label, placeholder: 'Novo nome', confirmText: 'Salvar' });
+                            if (!res || !res.value) return;
+                            // Salva no Firebase
+                            await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + opt.id + '/label.json', {
+                                method: 'PUT', body: JSON.stringify(res.value)
+                            });
+                            opt.label = res.value;
+                            lbl.textContent = res.value;
+                            // Reabre o manager
+                        });
+                        row.appendChild(ren);
+
+                        // Delete btn
+                        var del = document.createElement('div'); del.textContent = '🗑️';
+                        del.style.cssText = 'cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;transition:all 0.15s;opacity:0.5;';
+                        del.addEventListener('mouseenter', function() { del.style.opacity = '1'; });
+                        del.addEventListener('mouseleave', function() { del.style.opacity = '0.5'; });
+                        del.addEventListener('click', async function(e) {
+                            e.stopPropagation();
+                            var conf = await showAtomModal({ title: 'Excluir', message: 'Tem certeza que quer excluir "' + opt.label + '"?', confirmText: 'Excluir' });
+                            if (!conf) { showWorkflowManager(options).then(resolve); return; }
+                            await fetch('https://mond-atom-default-rtdb.firebaseio.com/atom_recordings/' + opt.id + '.json', { method: 'DELETE' });
+                            options.splice(idx, 1);
+                            ov.remove();
+                            if (options.length === 0) { resolve(null); return; }
+                            showWorkflowManager(options).then(resolve);
+                        });
+                        row.appendChild(del);
+
+                        list.appendChild(row);
+                    })(i, options[i]);
+                }
+                if (list.children.length === 0) {
+                    var empty = document.createElement('div');
+                    empty.textContent = 'Nenhum workflow encontrado.';
+                    empty.style.cssText = 'text-align:center;color:#8A8980;font-size:13px;padding:20px;';
+                    list.appendChild(empty);
+                }
+            }
+
+            search.addEventListener('input', function() { renderList(search.value); });
+            renderList('');
+            m.appendChild(list);
+
+            // Close btn
+            var close = document.createElement('div'); close.textContent = 'Fechar';
+            close.style.cssText = 'text-align:center;margin-top:14px;padding:8px;cursor:pointer;font-size:11px;font-weight:700;color:#8A8980;letter-spacing:0.05em;text-transform:uppercase;border-radius:8px;transition:all 0.15s;';
+            close.addEventListener('mouseenter', function() { close.style.color = '#E8E4DA'; });
+            close.addEventListener('mouseleave', function() { close.style.color = '#8A8980'; });
+            close.addEventListener('click', function() { ov.remove(); resolve(null); });
+            m.appendChild(close);
+
+            ov.addEventListener('click', function(e) { if (e.target === ov) { ov.remove(); resolve(null); } });
+            ov.appendChild(m); document.body.appendChild(ov);
+            setTimeout(function() { search.focus(); }, 100);
+        });
     }
 
     function updateRecButton() {
