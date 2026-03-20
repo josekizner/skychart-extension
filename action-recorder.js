@@ -352,20 +352,34 @@
     // INPUT/CHANGE HANDLERS — Captura digitação e seleção
     // ========================================================================
     var inputDebounce = {};
+    var lastInputElement = null; // Referência ao último elemento que recebeu input
 
     function onUserInput(e) {
         if (!recording) return;
         var el = e.target;
         if (isBlacklisted(el)) return;
-        // Ignora nossos próprios elementos
         if (el.closest('#atom-rec-button, #atom-play-button, #atom-replay-indicator')) return;
 
-        // Debounce: espera o usuário parar de digitar (300ms — era 800, perdia valores rápidos)
-        var key = buildSelector(el);
+        // Key única: selector + posição entre irmãos com mesmo selector
+        var sel = buildSelector(el);
+        var nthIdx = getNthIndex(el, sel);
+        var key = sel + '::' + nthIdx;
+
         clearTimeout(inputDebounce[key]);
         inputDebounce[key] = setTimeout(function() {
             recordInput(el, 'input');
         }, 300);
+    }
+
+    // Retorna o índice do elemento entre todos que matcham o mesmo selector
+    function getNthIndex(el, selector) {
+        try {
+            var all = document.querySelectorAll(selector);
+            for (var i = 0; i < all.length; i++) {
+                if (all[i] === el) return i;
+            }
+        } catch(e) {}
+        return 0;
     }
 
     function onUserChange(e) {
@@ -377,13 +391,16 @@
 
     function recordInput(el, eventType) {
         var value = el.value || '';
-        // Trunca valores muito longos
         if (value.length > 200) value = value.substring(0, 200) + '...';
+
+        var sel = buildSelector(el);
+        var nthIdx = getNthIndex(el, sel);
 
         var info = {
             type: el.tagName === 'SELECT' ? 'select' : 'type',
             timestamp: Date.now(),
-            selector: buildSelector(el),
+            selector: sel,
+            nthIndex: nthIdx, // Posição entre elementos com mesmo selector
             value: value,
             label: getLabel(el),
             fieldName: el.getAttribute('name') || el.getAttribute('formcontrolname') || el.id || '',
@@ -393,18 +410,22 @@
             section: getCurrentSection()
         };
 
-        // Evita duplicatas consecutivas no mesmo campo
+        // Dedup: só atualiza se é EXATAMENTE o mesmo elemento (mesmo selector + mesma posição)
         var lastAction = actions[actions.length - 1];
-        if (lastAction && lastAction.selector === info.selector && lastAction.type === info.type) {
-            // Atualiza o valor ao invés de adicionar novo
+        if (lastAction && lastAction.selector === info.selector && 
+            lastAction.type === info.type && lastAction.nthIndex === info.nthIndex) {
             lastAction.value = info.value;
             lastAction.timestamp = info.timestamp;
             return;
         }
 
+        // Se é um elemento DIFERENTE com o mesmo selector (ex: 2 campos de data),
+        // garante que houve um click entre eles (caso contrário, é input consecutivo em campos irmãos)
+        lastInputElement = el;
+
         actions.push(info);
         updateRecButton();
-        console.log(TAG, '⌨️', info.type, '|', info.label || info.fieldName, '=', value.substring(0, 30));
+        console.log(TAG, '⌨️', info.type, '| nth:', nthIdx, '|', info.label || info.fieldName, '=', value.substring(0, 30));
     }
 
     // ========================================================================
@@ -554,15 +575,39 @@
         if (el.name) return el.tagName.toLowerCase() + '[name="' + el.name + '"]';
         var dataCy = el.getAttribute('data-cy');
         if (dataCy) return '[data-cy="' + dataCy + '"]';
+        // ARIA label
+        var ariaLabel = el.getAttribute('aria-label');
+        if (ariaLabel) return el.tagName.toLowerCase() + '[aria-label="' + ariaLabel + '"]';
         // Class-based
         var unique = Array.from(el.classList || []).filter(function(c) {
             return c.length > 2 && !c.startsWith('ng-') && !c.startsWith('ui-state');
         }).slice(0, 3);
         if (unique.length > 0) return el.tagName.toLowerCase() + '.' + unique.join('.');
-        // nth-child
+        // nth-child COM CONTEXTO DO PAI (evita span:nth-child(2) genérico)
         var parent = el.parentElement;
         if (parent) {
             var idx = Array.from(parent.children).indexOf(el);
+            var parentSel = '';
+            // Tenta ID do pai
+            if (parent.id) {
+                parentSel = '#' + parent.id;
+            } else {
+                // Tenta classe do pai
+                var parentCls = Array.from(parent.classList || []).filter(function(c) {
+                    return c.length > 2 && !c.startsWith('ng-') && !c.startsWith('ui-state');
+                }).slice(0, 2);
+                if (parentCls.length > 0) {
+                    parentSel = parent.tagName.toLowerCase() + '.' + parentCls.join('.');
+                } else if (parent.parentElement) {
+                    // Tenta avô com ID
+                    if (parent.parentElement.id) {
+                        parentSel = '#' + parent.parentElement.id + ' > ' + parent.tagName.toLowerCase();
+                    }
+                }
+            }
+            if (parentSel) {
+                return parentSel + ' > ' + el.tagName.toLowerCase() + ':nth-child(' + (idx + 1) + ')';
+            }
             return el.tagName.toLowerCase() + ':nth-child(' + (idx + 1) + ')';
         }
         return el.tagName.toLowerCase();
