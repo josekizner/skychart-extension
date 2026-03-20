@@ -337,8 +337,7 @@
     // ========================================================================
     function init() {
         var isDashboard = window.location.href.indexOf('dashboard.html') >= 0;
-        var isSkychart = window.location.href.indexOf('skychart.com.br') >= 0;
-        if (!isDashboard && !isSkychart) return;
+        if (!isDashboard) return;
         if (document.getElementById('atom-chat-badge')) return;
         // MASTER ONLY — checa perfil
         chrome.storage.local.get(['userProfile'], function(data) {

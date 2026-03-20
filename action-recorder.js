@@ -112,13 +112,15 @@
         w.style.cssText = 'position:fixed;bottom:20px;right:16px;z-index:999999;width:240px;background:#090C14;border-radius:14px;border:1px solid #1C222F;box-shadow:0 20px 60px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.03);overflow:hidden;font-family:DM Sans,sans-serif;user-select:none;transition:all 0.5s cubic-bezier(0.22,1,0.36,1);';
 
         // Header
-        var hdr = '<div id="atom-hdr" style="padding:12px 14px 10px;background:linear-gradient(180deg,#141820 0%,#090C14 100%);border-bottom:1px solid #1C222F;position:relative;overflow:hidden;">';
+        var hdr = '<div id="atom-hdr" style="padding:12px 14px 10px;background:linear-gradient(180deg,#141820 0%,#090C14 100%);border-bottom:1px solid #1C222F;position:relative;overflow:hidden;cursor:pointer;" title="Minimizar/Expandir">';
         hdr += '<div style="display:flex;align-items:center;gap:10px;position:relative;">';
         hdr += '<div id="atom-robot">' + atomRobotSVG('idle') + '</div>';
-        hdr += '<div>';
+        hdr += '<div style="flex:1;">';
         hdr += '<div style="display:flex;align-items:baseline;gap:4px;"><span style="font-family:Oswald,sans-serif;font-size:16px;font-weight:600;letter-spacing:0.06em;color:#DEE2EA;">AT</span><span style="font-family:Oswald,sans-serif;font-size:16px;font-weight:600;letter-spacing:0.06em;color:#F59E0B;">O</span><span style="font-family:Oswald,sans-serif;font-size:16px;font-weight:600;letter-spacing:0.06em;color:#DEE2EA;">M</span><span id="atom-mode-label" style="font-family:Oswald,sans-serif;font-size:11px;font-weight:500;color:#F59E0B;letter-spacing:0.1em;margin-left:4px;">LEARN</span></div>';
         hdr += '<div id="atom-status-text" style="font-size:8px;font-family:DM Sans,sans-serif;font-weight:600;letter-spacing:0.1em;color:#4E586C;text-transform:uppercase;margin-top:1px;">PRONTO PARA APRENDER</div>';
-        hdr += '</div></div></div>';
+        hdr += '</div>';
+        hdr += '<div id="atom-minimize" style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#4E586C;font-size:14px;font-weight:600;transition:all 0.2s;flex-shrink:0;" title="Minimizar">▾</div>';
+        hdr += '</div></div>';
 
         // Content
         var cnt = '<div id="atom-content" style="padding:10px 12px 12px;">';
@@ -191,6 +193,26 @@
             switchPanelState('idle');
         });
         document.getElementById('atom-done-back').addEventListener('click', function() { switchPanelState('idle'); });
+
+        // Minimize toggle
+        var _minimized = false;
+        document.getElementById('atom-hdr').addEventListener('click', function(e) {
+            // Não minimiza se clicou em sub-botão
+            if (e.target.closest('#atom-rec-button') || e.target.closest('#atom-play-button')) return;
+            _minimized = !_minimized;
+            var content = document.getElementById('atom-content');
+            var footer = document.getElementById('atom-footer');
+            var minBtn = document.getElementById('atom-minimize');
+            if (_minimized) {
+                if (content) content.style.display = 'none';
+                if (footer) footer.style.display = 'none';
+                if (minBtn) minBtn.textContent = '▴';
+            } else {
+                if (content) content.style.display = 'block';
+                if (footer) footer.style.display = 'flex';
+                if (minBtn) minBtn.textContent = '▾';
+            }
+        });
 
         // Hover effects
         var rb = document.getElementById('atom-rec-button');
