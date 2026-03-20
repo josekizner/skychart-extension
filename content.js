@@ -3631,8 +3631,7 @@ try {
         if (dsObs) {
             var obsText = 'Score Serasa: ' + serasaData.score + '/1000\n';
             obsText += 'Limite de Crédito: R$ ' + Number(serasaData.limiteCredito || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) + '\n';
-            obsText += 'Consulta: ' + new Date().toLocaleDateString('pt-BR') + '\n';
-            obsText += 'Extraído automaticamente por IA';
+            obsText += 'Consulta: ' + new Date().toLocaleDateString('pt-BR');
 
             dsObs.focus();
             // Usa o setter do HTMLTextAreaElement (textarea não é HTMLInputElement)
