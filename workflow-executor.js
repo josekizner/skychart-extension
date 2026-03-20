@@ -447,56 +447,33 @@
     // ACTIONS: Click & Type
     // ========================================================================
     async function doClick(el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // REGRA FUNDAMENTAL: Se é SPAN/I/EM dentro de A/BUTTON/LI, clica no PAI
+        // PrimeNG SEMPRE coloca o handler no <a>, nunca no <span> interno
+        var clickTarget = el;
+        var tag = el.tagName;
+        if (tag === 'SPAN' || tag === 'I' || tag === 'EM' || tag === 'STRONG' || tag === 'B') {
+            var parent = el.closest('a, button, li, [role="menuitem"], [role="treeitem"], td');
+            if (parent) {
+                console.log(TAG, '⬆️ Subindo de', tag, 'para', parent.tagName, 
+                    '(id:', parent.id || 'sem', '| classes:', (parent.className || '').substring(0, 40) + ')');
+                clickTarget = parent;
+            }
+        }
+
+        clickTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
         await delay(200);
-        highlight(el);
+        highlight(clickTarget);
 
-        // PrimeNG Tree: Se o elemento está dentro de um treenode, expande primeiro
-        var treeNode = el.closest('.ui-treenode, .p-treenode, [role="treeitem"]');
-        if (treeNode) {
-            // Procura o toggle icon (▶) pra expandir
-            var toggler = treeNode.querySelector(
-                '.ui-tree-toggler, .p-tree-toggler, .ui-treetable-toggler, ' +
-                '[class*="toggler"], [class*="toggle"]'
-            );
-            if (toggler && isVisible(toggler)) {
-                console.log(TAG, '🌳 PrimeNG tree: clicando toggle pra expandir...');
-                toggler.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-                try { toggler.click(); } catch(e) {}
-                await delay(500); // Espera expansão
-            }
+        // Click nativo (melhor pra Angular change detection)
+        try { clickTarget.click(); } catch(e) {}
+        await delay(100);
 
-            // Também clica no label/content do nó (pra selecionar)
-            var content = treeNode.querySelector(
-                '.ui-treenode-content, .p-treenode-content, ' +
-                '.ui-treenode-label, .p-treenode-label'
-            );
-            if (content && isVisible(content)) {
-                content.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-                try { content.click(); } catch(e) {}
-                return;
-            }
-        }
-
-        // PrimeNG PanelMenu: Se está num panelmenu header, clica pra expandir
-        var panelHeader = el.closest('.ui-panelmenu-header, .p-panelmenu-header');
-        if (panelHeader) {
-            var headerLink = panelHeader.querySelector('a, .ui-panelmenu-header-link, .p-panelmenu-header-link');
-            if (headerLink && isVisible(headerLink)) {
-                console.log(TAG, '📂 PanelMenu: clicando header pra expandir...');
-                headerLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-                try { headerLink.click(); } catch(e) {}
-                return;
-            }
-        }
-
-        // Click padrão
-        el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        // Também dispara eventos sintéticos (redundância)
+        clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         await delay(30);
-        el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+        clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
         await delay(30);
-        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-        try { el.click(); } catch(e) {}
+        clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     }
 
     async function doType(el, value) {
