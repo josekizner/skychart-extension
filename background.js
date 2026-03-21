@@ -33,43 +33,48 @@ chrome.downloads.onChanged.addListener(function(delta) {
       
       console.log('[Background] 📥 Download XLSX detectado:', basename, '| Path:', filename);
       
+      // Monta a mensagem
+      var fileMsg = {
+        action: 'download_file_ready',
+        filename: basename,
+        downloadPath: filename,
+        fileData: null,
+        fileSize: 0
+      };
+      
       // Lê o arquivo completado via fetch de file:// URL
       var fileUrl = 'file:///' + filename.replace(/\\/g, '/');
       fetch(fileUrl).then(function(r) { return r.arrayBuffer(); }).then(function(buf) {
-        // Converte ArrayBuffer pra array de bytes (transferível via message)
         var arr = Array.from(new Uint8Array(buf));
         console.log('[Background] 📥 Arquivo lido:', arr.length, 'bytes');
-        
-        // Envia pro tab ativo
-        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-          if (tabs[0]) {
-            chrome.tabs.sendMessage(tabs[0].id, {
-              action: 'download_file_ready',
-              filename: basename,
-              fileData: arr,
-              fileSize: arr.length,
-              downloadPath: filename
-            }).catch(function() {});
-            console.log('[Background] 📥 Arquivo enviado pro tab:', tabs[0].id);
-          }
-        });
+        fileMsg.fileData = arr;
+        fileMsg.fileSize = arr.length;
+        broadcastToAllTabs(fileMsg);
       }).catch(function(err) {
-        console.error('[Background] 📥 Erro lendo arquivo:', err);
-        // Fallback: envia só o path pro tab resolver
-        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-          if (tabs[0]) {
-            chrome.tabs.sendMessage(tabs[0].id, {
-              action: 'download_file_ready',
-              filename: basename,
-              downloadPath: filename,
-              fileData: null
-            }).catch(function() {});
-          }
-        });
+        console.error('[Background] 📥 Erro lendo arquivo:', err, '— enviando só path');
+        broadcastToAllTabs(fileMsg);
       });
     });
   }
 });
+
+// Envia pra TODOS os tabs relevantes (não só o ativo)
+function broadcastToAllTabs(msg) {
+  // Todos os tabs — não depende de "active" nem "currentWindow"
+  chrome.tabs.query({}, function(tabs) {
+    var sent = 0;
+    for (var i = 0; i < tabs.length; i++) {
+      var url = tabs[i].url || '';
+      // Skychart, Outlook, qualquer site que pode ter executor
+      if (url.indexOf('skychart') >= 0 || url.indexOf('outlook') >= 0 || 
+          url.indexOf('docs.google') >= 0) {
+        chrome.tabs.sendMessage(tabs[i].id, msg).catch(function() {});
+        sent++;
+      }
+    }
+    console.log('[Background] 📥 Arquivo enviado pra', sent, 'tab(s)');
+  });
+}
 
 console.log('[Background] 📥 Download watcher global ativo');
 
