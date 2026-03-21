@@ -182,6 +182,41 @@
             desc: 'Agente de controle de demurrage e free time. Monitora prazos de devolução de containers, calcula dias restantes, identifica riscos e gera relatórios de portfólio.',
             tree: ['Escaneia lista de processos ativos', 'Calcula dias de free time restantes', 'Classifica: OK / Alerta / Expirado', 'Agrupa por armador/cliente', 'Gera relatório e snapshots'],
             roadmap: ['Cálculo automático de custo de demurrage', 'Alerta por e-mail ao responsável', 'Negociação automática de extensão']
+        },
+        {
+            l: 'X', n: 'Site Scanner', d: 'Leitura de Estrutura', c: '#6366F1', g: 'rgba(99,102,241,0.07)',
+            key: null,
+            desc: 'Agente de infraestrutura que lê a estrutura completa de qualquer página web. Mapeia formulários, botões, inputs, tabelas e menus. Utilizado para integrar novos sites (CMA, HMM, Maersk, Time to Cargo) sem trabalho manual de outerHTML.',
+            tree: ['Detecta framework da página (Angular, React, etc)', 'Escaneia todos os elementos interativos', 'Mapeia formulários e campos', 'Identifica botões e ações disponíveis', 'Exporta estrutura completa para os agentes'],
+            roadmap: ['Auto-mapeamento de sites novos', 'Detecção de mudanças em layouts', 'Geração automática de seletores']
+        },
+        {
+            l: 'L', n: 'Atom Learn', d: 'Gravar & Reproduzir', c: '#F59E0B', g: 'rgba(245,158,11,0.07)',
+            key: null,
+            desc: 'Sistema de aprendizado por observação. Grava ações do usuário (cliques, digitação, navegação) e reproduz automaticamente. Permite ensinar fluxos complexos sem código.',
+            tree: ['Ativa gravação (REC)', 'Registra cada ação do usuário', 'Salva recording no Firebase', 'Reproduz ações passo-a-passo', 'Adapta seletores quando DOM muda'],
+            roadmap: ['Workflows multi-site (Skychart → Drive → Gmail)', 'Agendamento de workflows', 'Execução em lote para múltiplos processos']
+        },
+        {
+            l: 'W', n: 'Vision', d: 'Leitura Visual IA', c: '#8B5CF6', g: 'rgba(139,92,246,0.07)',
+            key: null,
+            desc: 'Agente de visão computacional que usa Gemini para interpretar telas visualmente. Quando seletores falham, o Vision analisa screenshots para encontrar elementos e executar ações.',
+            tree: ['Captura screenshot da página', 'Envia ao Gemini Vision', 'Recebe coordenadas do elemento', 'Executa ação no ponto identificado', 'Verifica resultado visualmente'],
+            roadmap: ['Leitura de PDFs visuais (faturas, BLs)', 'OCR de documentos escaneados', 'Verificação visual de preenchimento']
+        },
+        {
+            l: 'A', n: 'Smart Agent', d: 'Motor de Automação', c: '#10B981', g: 'rgba(16,185,129,0.07)',
+            key: null,
+            desc: 'Agente central de automação do Skychart. Orquestra preenchimento de campos, extração de dados, e integração entre módulos. É o cérebro que coordena os outros agentes.',
+            tree: ['Recebe tarefa do usuário ou trigger', 'Analisa contexto da tela atual', 'Seleciona estratégia de ação', 'Executa com fallback automático', 'Registra resultado e aprende'],
+            roadmap: ['Planejamento autônomo de tarefas', 'Aprendizado por reforço', 'Execução proativa sem trigger']
+        },
+        {
+            l: 'G', n: 'DOM Scanner', d: 'Leitura Profunda', c: '#64748B', g: 'rgba(100,116,139,0.07)',
+            key: null,
+            desc: 'Scanner profundo de DOM que extrai dados estruturados de grids, tabelas e formulários complexos do Skychart. Funciona em conjunto com o Site Scanner para leitura completa.',
+            tree: ['Identifica grids e tabelas no DOM', 'Extrai headers e linhas de dados', 'Normaliza valores (moeda, data)', 'Mapeia relações entre campos', 'Exporta dados estruturados'],
+            roadmap: ['Detecção de mudanças em tempo real', 'Cache inteligente de estruturas', 'Suporte a iframes e shadow DOM']
         }
     ];
 
