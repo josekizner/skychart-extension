@@ -129,6 +129,24 @@
     }
 
     // ========================================================================
+    // DOWNLOAD RECEIVER — Recebe arquivo do background (chrome.downloads API)
+    // ========================================================================
+    chrome.runtime.onMessage.addListener(function(msg) {
+        if (msg.action === 'download_file_ready') {
+            console.log(TAG, '📥 Arquivo recebido do background:', msg.filename, '|', (msg.fileSize || 0), 'bytes');
+            if (msg.fileData && msg.fileData.length > 0) {
+                // Converte array de bytes de volta pra Blob
+                var uint8 = new Uint8Array(msg.fileData);
+                var blob = new Blob([uint8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                window._atomLastDownloadBlob = blob;
+                console.log(TAG, '📥 Blob criado:', blob.size, 'bytes — pronto pro smart step');
+            } else {
+                console.log(TAG, '📥 Arquivo sem data, path:', msg.downloadPath);
+            }
+        }
+    });
+
+    // ========================================================================
     // CONTROLE
     // ========================================================================
     chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {

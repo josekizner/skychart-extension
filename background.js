@@ -17,6 +17,62 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
+// ========================================================================
+// DOWNLOAD WATCHER — Detecta downloads XLSX completados
+// ========================================================================
+chrome.downloads.onChanged.addListener(function(delta) {
+  if (delta.state && delta.state.current === 'complete') {
+    chrome.downloads.search({ id: delta.id }, function(items) {
+      if (!items || items.length === 0) return;
+      var item = items[0];
+      var filename = item.filename || '';
+      var basename = filename.split(/[/\\]/).pop();
+      
+      // Só processa planilhas
+      if (!/\.(xlsx?|csv)$/i.test(basename)) return;
+      
+      console.log('[Background] 📥 Download XLSX detectado:', basename, '| Path:', filename);
+      
+      // Lê o arquivo completado via fetch de file:// URL
+      var fileUrl = 'file:///' + filename.replace(/\\/g, '/');
+      fetch(fileUrl).then(function(r) { return r.arrayBuffer(); }).then(function(buf) {
+        // Converte ArrayBuffer pra array de bytes (transferível via message)
+        var arr = Array.from(new Uint8Array(buf));
+        console.log('[Background] 📥 Arquivo lido:', arr.length, 'bytes');
+        
+        // Envia pro tab ativo
+        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+          if (tabs[0]) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: 'download_file_ready',
+              filename: basename,
+              fileData: arr,
+              fileSize: arr.length,
+              downloadPath: filename
+            }).catch(function() {});
+            console.log('[Background] 📥 Arquivo enviado pro tab:', tabs[0].id);
+          }
+        });
+      }).catch(function(err) {
+        console.error('[Background] 📥 Erro lendo arquivo:', err);
+        // Fallback: envia só o path pro tab resolver
+        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+          if (tabs[0]) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              action: 'download_file_ready',
+              filename: basename,
+              downloadPath: filename,
+              fileData: null
+            }).catch(function() {});
+          }
+        });
+      });
+    });
+  }
+});
+
+console.log('[Background] 📥 Download watcher global ativo');
+
 // Mapeia qual agent precisa de quais content_scripts do manifest (por índice)
 // Índices: 0=skychart, 1=maersk, 2=serasa, 3=outlook, 4=hmm
 var AGENT_TO_CS = {
@@ -860,6 +916,15 @@ Os valores estão corretos? Responda APENAS com JSON:
       }
     });
     return true;
+  }
+
+  // ========================================================================
+  // DOWNLOAD WATCHER — Detecta downloads XLSX via chrome.downloads API
+  // ========================================================================
+  if (request.action === "watch_downloads") {
+    console.log('[Background] Download watcher ativado');
+    sendResponse({ success: true });
+    return;
   }
 
   // Site Scanner: trigger on-demand scan
