@@ -17,7 +17,8 @@
             fetch(FIREBASE_URL + '/demurrage/cache.json').then(function(r) { return r.json(); }),
             fetch(FIREBASE_URL + '/serasa.json').then(function(r) { return r.json(); }),
             fetch(FIREBASE_URL + '/system/heartbeats.json').then(function(r) { return r.json(); }),
-            fetch(FIREBASE_URL + '/system/latestVersion.json').then(function(r) { return r.json(); })
+            fetch(FIREBASE_URL + '/system/latestVersion.json').then(function(r) { return r.json(); }),
+            fetch('https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL').then(function(r) { return r.json(); }).catch(function() { return null; })
         ]).then(function(results) {
             return {
                 analytics: results[0] || {},
@@ -25,7 +26,8 @@
                 demurrageCache: results[2] || {},
                 serasa: results[3] || {},
                 heartbeats: results[4] || {},
-                latestVersion: results[5] || '?'
+                latestVersion: results[5] || '?',
+                exchange: results[6] || null
             };
         });
     }
@@ -431,6 +433,22 @@
         html += '    <span class="top-bar-sub">CENTRO DE COMANDO</span>';
         html += '  </div>';
         html += '  <div class="top-bar-right">';
+        // Exchange rate badges
+        var ex = data.exchange;
+        if (ex && ex.USDBRL) {
+            var usdBid = parseFloat(ex.USDBRL.bid).toFixed(4);
+            var usdPct = parseFloat(ex.USDBRL.pctChange);
+            var usdArrow = usdPct >= 0 ? '\u25B2' : '\u25BC';
+            var usdColor = usdPct >= 0 ? 'badge-green' : 'badge-red';
+            html += '    <span class="badge ' + usdColor + '" title="Dólar (' + ex.USDBRL.create_date + ')" style="cursor:default;font-size:10px;">USD ' + usdBid + ' <span style="font-size:8px;">' + usdArrow + ' ' + Math.abs(usdPct).toFixed(2) + '%</span></span>';
+        }
+        if (ex && ex.EURBRL) {
+            var eurBid = parseFloat(ex.EURBRL.bid).toFixed(4);
+            var eurPct = parseFloat(ex.EURBRL.pctChange);
+            var eurArrow = eurPct >= 0 ? '\u25B2' : '\u25BC';
+            var eurColor = eurPct >= 0 ? 'badge-green' : 'badge-red';
+            html += '    <span class="badge ' + eurColor + '" title="Euro (' + ex.EURBRL.create_date + ')" style="cursor:default;font-size:10px;">EUR ' + eurBid + ' <span style="font-size:8px;">' + eurArrow + ' ' + Math.abs(eurPct).toFixed(2) + '%</span></span>';
+        }
         html += '    <span class="badge badge-green"><span class="badge-dot"></span>' + onlineCount + ' EXTENSÕES ONLINE</span>';
         html += '    <span class="badge badge-muted">VERSÃO ' + latestVer + '</span>';
         html += '  </div>';
