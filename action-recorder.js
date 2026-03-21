@@ -18,6 +18,14 @@
     var lastHash = window.location.hash;
     var lastPageScan = null;
     var BLACKLIST_TYPES = ['password', 'token', 'secret']; // Nunca grava esses
+    var CURRENT_HOST = window.location.hostname; // Para multi-site tracking
+
+    // Wrapper que injeta hostname em cada ação
+    function addAction(info) {
+        info.hostname = CURRENT_HOST;
+        if (!info.url) info.url = window.location.href;
+        actions.push(info);
+    }
 
     console.log(TAG, 'Carregado. Use o botão REC ou Ctrl+Shift+R para gravar.');
 
@@ -716,7 +724,7 @@
         console.log(TAG, '🔴 GRAVAÇÃO INICIADA:', label, '| Session:', sessionId);
 
         // Salva metadata
-        actions.push({
+        addAction({
             type: 'session_start',
             label: label,
             url: window.location.href,
@@ -744,7 +752,7 @@
         window.removeEventListener('hashchange', onHashChange);
         stopSPAObserver();
 
-        actions.push({
+        addAction({
             type: 'session_end',
             url: window.location.href,
             timestamp: Date.now(),
@@ -849,7 +857,7 @@
             info.sectionName = text;
         }
 
-        actions.push(info);
+        addAction(info);
         updateRecButton();
         console.log(TAG, '🖱️', info.type, '|', info.text || info.selector);
 
@@ -934,7 +942,7 @@
         // garante que houve um click entre eles (caso contrário, é input consecutivo em campos irmãos)
         lastInputElement = el;
 
-        actions.push(info);
+        addAction(info);
         updateRecButton();
         console.log(TAG, '⌨️', info.type, '| nth:', nthIdx, '|', info.label || info.fieldName, '=', value.substring(0, 30));
     }
@@ -945,7 +953,7 @@
     function onHashChange() {
         if (!recording) return;
 
-        actions.push({
+        addAction({
             type: 'navigate',
             timestamp: Date.now(),
             from: lastHash,
@@ -1036,7 +1044,7 @@
             });
         }
 
-        actions.push(context);
+        addAction(context);
         console.log(TAG, '📸 Contexto:', context.section, '|', context.visibleFields.length, 'campos |', context.visibleButtons.length, 'botões');
 
         // Dispara Radar (site-scanner) pra capturar estrutura completa da página
@@ -1051,7 +1059,7 @@
                 // Se o scanner expôs a função global
                 var scanResult = window.__atomSiteScan();
                 if (scanResult) {
-                    actions.push({
+                    addAction({
                         type: 'radar_scan',
                         timestamp: Date.now(),
                         url: window.location.href,
@@ -1073,6 +1081,156 @@
         } catch(e) {
             console.log(TAG, 'Radar scan skip:', e.message);
         }
+    }
+
+    // ========================================================================
+    // DOWNLOAD INTERCEPTOR — Detecta downloads durante gravação
+    // ========================================================================
+    var _lastDownloadBlob = null;
+    var _lastDownloadUrl = null;
+    var _lastDownloadName = null;
+
+    // Intercepta clicks em links de download (blob: ou data:)
+    function setupDownloadInterceptor() {
+        document.addEventListener('click', function(e) {
+            if (!recording) return;
+            var link = e.target.closest('a[download], a[href^="blob:"], a[href^="data:"]');
+            if (!link) return;
+
+            var href = link.href || '';
+            var filename = link.download || link.getAttribute('download') || 'arquivo';
+
+            // Detecta se é XLSX/XLS/CSV
+            var isSpreadsheet = /\.(xlsx?|csv)$/i.test(filename) ||
+                                href.indexOf('spreadsheet') >= 0 ||
+                                href.indexOf('excel') >= 0 ||
+                                href.indexOf('blob:') === 0; // blob downloads from Skychart are usually XLSX
+
+            if (isSpreadsheet) {
+                console.log(TAG, '📥 Download detectado:', filename);
+                _lastDownloadUrl = href;
+                _lastDownloadName = filename;
+
+                // Captura o blob se possível
+                if (href.indexOf('blob:') === 0) {
+                    fetch(href).then(function(r) { return r.blob(); }).then(function(b) {
+                        _lastDownloadBlob = b;
+                        console.log(TAG, '📥 Blob capturado:', b.size, 'bytes');
+                    }).catch(function() {});
+                }
+
+                // Registra o download como ação
+                addAction({
+                    type: 'download_detected',
+                    timestamp: Date.now(),
+                    url: window.location.href,
+                    downloadUrl: href,
+                    filename: filename
+                });
+
+                // Mostra modal de smart step
+                setTimeout(function() { showSmartStepModal(filename); }, 800);
+            }
+        }, true);
+
+        // Intercepta blobs criados via URL.createObjectURL
+        var _origCreateObjURL = URL.createObjectURL;
+        URL.createObjectURL = function(blob) {
+            var url = _origCreateObjURL.call(URL, blob);
+            if (recording && blob && blob.size > 1000) {
+                console.log(TAG, '📥 Blob URL criado:', blob.size, 'bytes, type:', blob.type);
+                _lastDownloadBlob = blob;
+                _lastDownloadUrl = url;
+            }
+            return url;
+        };
+    }
+
+    // Inicia interceptor quando recorder carrega
+    setupDownloadInterceptor();
+
+    // ========================================================================
+    // SMART STEP MODAL — Pergunta ao usuário que filtro aplicar
+    // ========================================================================
+    function showSmartStepModal(filename) {
+        if (!recording) return;
+
+        var old = document.getElementById('atom-smart-overlay');
+        if (old) old.remove();
+
+        var ov = document.createElement('div');
+        ov.id = 'atom-smart-overlay';
+        ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999999;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;font-family:Barlow Condensed,DM Sans,Arial,sans-serif;';
+
+        var m = document.createElement('div');
+        m.style.cssText = 'background:rgba(26,26,26,0.97);border:1px solid rgba(245,158,11,0.3);border-radius:16px;padding:28px 32px;width:460px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.6);color:#E8E4DA;';
+
+        // Title
+        var title = document.createElement('div');
+        title.innerHTML = '⚡ SMART STEP';
+        title.style.cssText = 'font-size:16px;font-weight:700;color:#F59E0B;margin-bottom:8px;letter-spacing:0.1em;';
+        m.appendChild(title);
+
+        // Subtitle
+        var sub = document.createElement('div');
+        sub.textContent = 'Arquivo detectado: ' + filename;
+        sub.style.cssText = 'font-size:12px;color:rgba(232,228,218,0.6);margin-bottom:16px;';
+        m.appendChild(sub);
+
+        // Description
+        var desc = document.createElement('div');
+        desc.textContent = 'Quer processar esse arquivo automaticamente? Descreva o que fazer:';
+        desc.style.cssText = 'font-size:13px;color:#E8E4DA;margin-bottom:12px;line-height:1.5;';
+        m.appendChild(desc);
+
+        // Input
+        var input = document.createElement('textarea');
+        input.placeholder = 'Ex: remover linhas que contenham ADM\nOu: manter apenas colunas A, B, C, F\nOu: filtrar onde coluna Status = Pago';
+        input.style.cssText = 'width:100%;height:80px;padding:12px 14px;border-radius:8px;border:1px solid rgba(245,158,11,0.3);background:rgba(255,255,255,0.05);color:#E8E4DA;font-size:13px;font-family:inherit;resize:none;outline:none;box-sizing:border-box;';
+        input.addEventListener('focus', function() { input.style.borderColor = '#F59E0B'; });
+        input.addEventListener('blur', function() { input.style.borderColor = 'rgba(245,158,11,0.3)'; });
+        m.appendChild(input);
+
+        // Buttons
+        var btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:10px;margin-top:16px;';
+
+        var btnSave = document.createElement('button');
+        btnSave.textContent = 'ADICIONAR FILTRO';
+        btnSave.style.cssText = 'flex:1;padding:10px 16px;border-radius:8px;border:1px solid rgba(245,158,11,0.4);background:rgba(245,158,11,0.15);color:#F59E0B;font-weight:700;font-size:12px;letter-spacing:0.08em;cursor:pointer;font-family:inherit;transition:all 0.15s;';
+        btnSave.addEventListener('mouseenter', function() { btnSave.style.background = 'rgba(245,158,11,0.3)'; });
+        btnSave.addEventListener('mouseleave', function() { btnSave.style.background = 'rgba(245,158,11,0.15)'; });
+        btnSave.addEventListener('click', function() {
+            var rule = input.value.trim();
+            if (rule) {
+                addAction({
+                    type: 'smart_step',
+                    timestamp: Date.now(),
+                    url: window.location.href,
+                    stepType: 'xlsx_filter',
+                    filename: filename,
+                    rule: rule,
+                    downloadUrl: _lastDownloadUrl || ''
+                });
+                console.log(TAG, '⚡ Smart step registrado:', rule);
+                updateRecButton();
+            }
+            ov.remove();
+        });
+
+        var btnSkip = document.createElement('button');
+        btnSkip.textContent = 'PULAR';
+        btnSkip.style.cssText = 'padding:10px 16px;border-radius:8px;border:1px solid rgba(232,228,218,0.15);background:transparent;color:rgba(232,228,218,0.5);font-weight:600;font-size:12px;letter-spacing:0.06em;cursor:pointer;font-family:inherit;transition:all 0.15s;';
+        btnSkip.addEventListener('click', function() { ov.remove(); });
+
+        btnRow.appendChild(btnSave);
+        btnRow.appendChild(btnSkip);
+        m.appendChild(btnRow);
+
+        ov.appendChild(m);
+        ov.addEventListener('click', function(e) { if (e.target === ov) ov.remove(); });
+        document.body.appendChild(ov);
+        setTimeout(function() { input.focus(); }, 100);
     }
 
     // ========================================================================

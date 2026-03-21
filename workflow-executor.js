@@ -39,6 +39,12 @@
             startReplay(msg.sessionId, msg.params || {});
             sendResponse({ success: true });
         }
+        if (msg.action === 'resume_workflow') {
+            if (replaying) { sendResponse({ success: false, reason: 'already replaying' }); return; }
+            console.log(TAG, '🔄 Resuming workflow from step', msg.startFrom);
+            startReplay(msg.sessionId, msg.params || {}, msg.startFrom || 0);
+            sendResponse({ success: true });
+        }
         if (msg.action === 'replay_status') {
             sendResponse({ replaying: replaying, step: currentStep, total: totalSteps });
         }
@@ -51,13 +57,13 @@
     // ========================================================================
     // START
     // ========================================================================
-    async function startReplay(sessionId, params) {
+    async function startReplay(sessionId, params, startFrom) {
         replaying = true;
-        currentStep = 0;
+        currentStep = startFrom || 0;
         _visionCalls = 0;
         _consecutiveFails = 0;
         showIndicator(true, 'Carregando...');
-        console.log(TAG, '▶️ Replay:', sessionId);
+        console.log(TAG, '▶️ Replay:', sessionId, startFrom ? '(resuming from ' + startFrom + ')' : '');
 
         try {
             var resp = await fetch(FIREBASE_BASE + '/atom_recordings/' + sessionId + '.json');
@@ -72,17 +78,49 @@
             totalSteps = actions.length;
             console.log(TAG, 'Gravação:', label, '|', totalSteps, 'passos');
 
-            // Escape pra fechar modais
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-            await delay(500);
+            // Escape pra fechar modais (só se não é resume)
+            if (!startFrom) {
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                await delay(500);
+            }
 
             // Agrupa em plano de alto nível
             var plan = buildPlan(actions, params);
             console.log(TAG, '📋 Plano:', plan.length, 'tarefas');
 
-            for (var t = 0; t < plan.length; t++) {
+            // Se resuming, pula tasks até o startFrom
+            var startTask = 0;
+            if (startFrom) {
+                for (var s = 0; s < plan.length; s++) {
+                    if (plan[s].stepNum >= startFrom) { startTask = s; break; }
+                }
+                console.log(TAG, '⏩ Pulando para task', startTask, 'de', plan.length);
+            }
+
+            var currentHost = window.location.hostname;
+
+            for (var t = startTask; t < plan.length; t++) {
                 if (!replaying) break;
                 var task = plan[t];
+
+                // CROSS-SITE: se o próximo step é em outro domínio, handoff pro background
+                var stepHost = task.hostname || null;
+                if (stepHost && stepHost !== currentHost) {
+                    console.log(TAG, '🌐 Cross-site detectado:', currentHost, '→', stepHost);
+                    showIndicator(true, '🌐 Navegando para ' + stepHost + '...');
+                    chrome.runtime.sendMessage({
+                        action: 'cross_site_navigate',
+                        hostname: stepHost,
+                        url: task.url || ('https://' + stepHost),
+                        sessionId: sessionId,
+                        startFrom: task.stepNum,
+                        params: params
+                    });
+                    // Para a execução nessa aba — o background vai continuar na outra
+                    replaying = false;
+                    showIndicator(false);
+                    return;
+                }
 
                 if (task.type === 'nav_path') {
                     await executeNavPath(task.steps);
@@ -109,6 +147,14 @@
                     var actOk = await executeActionButton(task);
                     console.log(TAG, actOk ? '✅' : '❌', currentStep);
                     if (!actOk) { showIndicator(true, '❌ ' + currentStep); await delay(2000); }
+                    await delay(1000);
+                } else if (task.type === 'smart_step') {
+                    currentStep = task.stepNum;
+                    showIndicator(true, currentStep + '/' + totalSteps + ': ⚡ ' + (task.rule || 'smart step'));
+                    console.log(TAG, '⚡', currentStep + '/' + totalSteps, 'smart_step |', task.rule);
+                    var smartOk = await executeSmartStep(task);
+                    console.log(TAG, smartOk ? '✅' : '❌', 'smart_step');
+                    if (!smartOk) { showIndicator(true, '❌ smart step'); await delay(2000); }
                     await delay(1000);
                 }
             }
@@ -140,7 +186,7 @@
                     path.push({ text: actions[i].text, selector: actions[i].selector, stepNum: i + 1, action: actions[i] });
                     i++;
                 }
-                plan.push({ type: 'nav_path', steps: path });
+                plan.push({ type: 'nav_path', steps: path, hostname: path[0].action.hostname, url: path[0].action.url, stepNum: path[0].stepNum });
                 continue;
             }
 
@@ -156,7 +202,9 @@
                     nthIndex: typeAction.nthIndex,
                     label: typeAction.label,
                     fieldName: typeAction.fieldName,
-                    stepNum: i + 2 // step number do type
+                    stepNum: i + 2, // step number do type
+                    hostname: a.hostname,
+                    url: a.url
                 });
                 i += 2;
                 continue;
@@ -172,7 +220,26 @@
                     nthIndex: ta.nthIndex,
                     label: ta.label,
                     fieldName: ta.fieldName,
-                    stepNum: i + 1
+                    stepNum: i + 1,
+                    hostname: a.hostname,
+                    url: a.url
+                });
+                i++;
+                continue;
+            }
+
+            // Smart step (XLSX filter, etc)
+            if (a.type === 'smart_step') {
+                plan.push({
+                    type: 'smart_step',
+                    stepType: a.stepType,
+                    rule: a.rule,
+                    filename: a.filename,
+                    downloadUrl: a.downloadUrl,
+                    stepNum: i + 1,
+                    hostname: a.hostname,
+                    url: a.url,
+                    action: a
                 });
                 i++;
                 continue;
@@ -186,7 +253,9 @@
                 id: a.id,
                 tagName: a.tagName,
                 stepNum: i + 1,
-                action: a
+                action: a,
+                hostname: a.hostname,
+                url: a.url
             });
             i++;
         }
@@ -598,10 +667,157 @@
     }
 
     // ========================================================================
+    // EXECUTE SMART STEP — Processar XLSX com filtro
+    // ========================================================================
+    async function executeSmartStep(task) {
+        if (task.stepType !== 'xlsx_filter') {
+            console.log(TAG, '⚡ Smart step tipo desconhecido:', task.stepType);
+            return false;
+        }
+
+        console.log(TAG, '⚡ Executando XLSX filter:', task.rule);
+        showIndicator(true, '⚡ Aguardando download...');
+
+        // Espera o download mais recente (até 15s)
+        var blob = null;
+        var attempts = 0;
+        while (!blob && attempts < 30) {
+            // Verifica se tem blob capturado pelo interceptor
+            if (window._atomLastDownloadBlob) {
+                blob = window._atomLastDownloadBlob;
+                break;
+            }
+            // Verifica se último link de download criado tem blob
+            var downloadLinks = document.querySelectorAll('a[download], a[href^="blob:"]');
+            for (var d = downloadLinks.length - 1; d >= 0; d--) {
+                var href = downloadLinks[d].href;
+                if (href && href.indexOf('blob:') === 0) {
+                    try {
+                        var resp = await fetch(href);
+                        blob = await resp.blob();
+                        break;
+                    } catch(e) {}
+                }
+            }
+            if (!blob) {
+                await delay(500);
+                attempts++;
+            }
+        }
+
+        if (!blob) {
+            console.error(TAG, '⚡ Nenhum arquivo encontrado para processar');
+            return false;
+        }
+
+        console.log(TAG, '⚡ Arquivo capturado:', blob.size, 'bytes');
+        showIndicator(true, '⚡ Processando planilha...');
+
+        try {
+            // Lê o XLSX com SheetJS
+            var arrayBuf = await blob.arrayBuffer();
+            if (typeof XLSX === 'undefined') {
+                console.error(TAG, '⚡ SheetJS não carregado');
+                return false;
+            }
+            var wb = XLSX.read(arrayBuf, { type: 'array' });
+            var sheetName = wb.SheetNames[0];
+            var ws = wb.Sheets[sheetName];
+            var data = XLSX.utils.sheet_to_json(ws, { header: 1 }); // Array de arrays
+            var originalRows = data.length;
+            console.log(TAG, '⚡ Planilha:', sheetName, '|', originalRows, 'linhas');
+
+            // Parseia a regra do smart step
+            var rule = (task.rule || '').toLowerCase();
+            var filterOut = true; // remover por padrão
+            var keyword = '';
+
+            // Detecta intenção
+            if (rule.indexOf('remover') >= 0 || rule.indexOf('excluir') >= 0 || rule.indexOf('deletar') >= 0 || rule.indexOf('tirar') >= 0) {
+                filterOut = true;
+                keyword = rule.replace(/remover|excluir|deletar|tirar|linhas|que|contenham|com|conteúdo|conteudo|com\s+/gi, '').trim();
+            } else if (rule.indexOf('manter') >= 0 || rule.indexOf('apenas') >= 0) {
+                filterOut = false;
+                keyword = rule.replace(/manter|apenas|linhas|que|contenham|com/gi, '').trim();
+            } else {
+                // Assume remover
+                keyword = rule.trim();
+            }
+
+            console.log(TAG, '⚡ Filtro:', filterOut ? 'REMOVER' : 'MANTER', 'keyword:', keyword);
+
+            if (!keyword) {
+                console.error(TAG, '⚡ Nenhuma keyword extraída da regra');
+                return false;
+            }
+
+            // Filtra as linhas
+            var header = data[0]; // Preserva header
+            var filtered = [header];
+            var removed = 0;
+
+            for (var r = 1; r < data.length; r++) {
+                var row = data[r];
+                var rowText = row.join(' ').toLowerCase();
+                var matchesKeyword = rowText.indexOf(keyword.toLowerCase()) >= 0;
+
+                if (filterOut) {
+                    // Remover linhas com keyword
+                    if (!matchesKeyword) {
+                        filtered.push(row);
+                    } else {
+                        removed++;
+                    }
+                } else {
+                    // Manter apenas linhas com keyword
+                    if (matchesKeyword) {
+                        filtered.push(row);
+                    } else {
+                        removed++;
+                    }
+                }
+            }
+
+            console.log(TAG, '⚡ Resultado:', filtered.length, 'linhas (removidas:', removed, ')');
+            showIndicator(true, '⚡ ' + removed + ' linhas removidas');
+
+            // Gera novo XLSX
+            var newWs = XLSX.utils.aoa_to_sheet(filtered);
+            var newWb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(newWb, newWs, sheetName);
+            var outBuf = XLSX.write(newWb, { bookType: 'xlsx', type: 'array' });
+            var outBlob = new Blob([outBuf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+            // Auto-download do arquivo limpo
+            var cleanName = (task.filename || 'relatorio').replace(/\.(xlsx?|csv)$/i, '') + '_FILTRADO.xlsx';
+            var url = URL.createObjectURL(outBlob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = cleanName;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+
+            // Salva referência pro próximo step (ex: anexar no Outlook)
+            window._atomLastProcessedFile = outBlob;
+            window._atomLastProcessedName = cleanName;
+
+            showIndicator(true, '✅ ' + cleanName + ' baixado!');
+            await delay(2000);
+            return true;
+
+        } catch(e) {
+            console.error(TAG, '⚡ Erro processando XLSX:', e);
+            return false;
+        }
+    }
+
+    // ========================================================================
     // HELPERS
     // ========================================================================
     function isExecutable(a) {
-        if (['click', 'type', 'select', 'navigate_menu', 'navigate_section'].indexOf(a.type) < 0) return false;
+        if (['click', 'type', 'select', 'navigate_menu', 'navigate_section', 'smart_step'].indexOf(a.type) < 0) return false;
         if (a.id && a.id.indexOf('atom-') === 0) return false;
         if (a.selector && a.selector.indexOf('#atom-') === 0) return false;
         if (a.text && a.text.indexOf('PARAR') >= 0) return false;

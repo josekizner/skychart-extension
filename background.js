@@ -800,6 +800,68 @@ Os valores estão corretos? Responda APENAS com JSON:
     return true;
   }
 
+  // Cross-site workflow: navigate to another domain and resume replay there
+  if (request.action === "cross_site_navigate") {
+    var targetUrl = request.url;
+    var targetHost = request.hostname;
+    var sessionId = request.sessionId;
+    var startFrom = request.startFrom;
+    var totalActions = request.totalActions;
+    var params = request.params || {};
+
+    console.log('[Background] Cross-site navigate:', targetHost, 'startFrom:', startFrom);
+
+    // Find existing tab matching the target hostname
+    chrome.tabs.query({}, (allTabs) => {
+      var matchTab = null;
+      for (var i = 0; i < allTabs.length; i++) {
+        try {
+          var tabHost = new URL(allTabs[i].url || '').hostname;
+          if (tabHost === targetHost) { matchTab = allTabs[i]; break; }
+        } catch(e) {}
+      }
+
+      function resumeOnTab(tabId) {
+        // Wait a moment for content scripts to load, then send resume
+        setTimeout(() => {
+          chrome.tabs.update(tabId, { active: true }, () => {
+            setTimeout(() => {
+              chrome.tabs.sendMessage(tabId, {
+                action: 'resume_workflow',
+                sessionId: sessionId,
+                startFrom: startFrom,
+                params: params
+              }, (response) => {
+                console.log('[Background] Resume response:', response);
+                sendResponse(response || { success: false });
+              });
+            }, 1500); // Wait for scripts to initialize
+          });
+        }, 500);
+      }
+
+      if (matchTab) {
+        // Tab exists — activate it and resume
+        console.log('[Background] Found existing tab for', targetHost, '→ tab', matchTab.id);
+        resumeOnTab(matchTab.id);
+      } else {
+        // No tab — open new one and wait for load
+        console.log('[Background] Opening new tab for', targetUrl);
+        chrome.tabs.create({ url: targetUrl, active: true }, (newTab) => {
+          // Wait for tab to finish loading
+          function onUpdated(tabId, changeInfo) {
+            if (tabId === newTab.id && changeInfo.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(onUpdated);
+              resumeOnTab(newTab.id);
+            }
+          }
+          chrome.tabs.onUpdated.addListener(onUpdated);
+        });
+      }
+    });
+    return true;
+  }
+
   // Site Scanner: trigger on-demand scan
   if (request.action === "scan_page") {
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {

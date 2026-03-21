@@ -20,6 +20,7 @@
     "https://www.cma-cgm.com/*",
     "https://server-mond.tail46f98e.ts.net/*",
     "https://docs.google.com/*",
+    "https://sheets.google.com/*",
     "https://www.serasaempreendedor.com.br/*",
     "https://outlook.office.com/*",
     "https://outlook.office365.com/*",
@@ -41,6 +42,7 @@
         "site-scanner.js",
         "lib/pdf.min.js",
         "lib/jszip.min.js",
+        "lib/xlsx.mini.min.js",
         "debug-panel.js",
         "memory.js",
         "smart-agent.js",
@@ -100,10 +102,23 @@
         "atom-analytics.js",
         "site-scanner.js",
         "outlook-agent.js",
-        "demurrage-agent.js"
+        "demurrage-agent.js",
+        "action-recorder.js",
+        "workflow-executor.js"
       ],
       "css": [
         "outlook-agent.css"
+      ]
+    },
+    {
+      "matches": [
+        "https://docs.google.com/spreadsheets/*"
+      ],
+      "js": [
+        "atom-analytics.js",
+        "site-scanner.js",
+        "action-recorder.js",
+        "workflow-executor.js"
       ]
     },
     {
