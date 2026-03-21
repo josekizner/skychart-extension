@@ -25,25 +25,87 @@
 
     console.log(TAG, 'Carregado em:', currentDomain + currentPath, isAngularSite ? '(Angular)' : '');
 
-    // Storage key pro cache
-    var cacheKey = 'site_map_' + currentDomain.replace(/\./g, '_');
+    // Storage key pro cache — POR SEÇÃO (hash-specific)
+    function getCacheKey(path) {
+        return 'site_map_' + currentDomain.replace(/\./g, '_') + '_' + (path || currentPath).replace(/[^a-zA-Z0-9]/g, '_');
+    }
+    var cacheKey = getCacheKey(currentPath);
+
+    // Paths já escaneados nesta sessão (evita spam)
+    var _scannedPaths = {};
+    var _scanDebounce = null;
 
     // ========================================================================
     // AUTO-SCAN — 3s após load, verifica cache antes
     // ========================================================================
     setTimeout(function() {
-        chrome.storage.local.get(cacheKey, function(d) {
-            var cached = d[cacheKey];
+        checkAndScan(currentPath);
+    }, SCAN_DELAY);
+
+    function checkAndScan(path) {
+        var key = getCacheKey(path);
+        // Já escaneou nesta sessão? Pula
+        if (_scannedPaths[path]) {
+            console.log(TAG, 'Já escaneado nesta sessão:', path);
+            return;
+        }
+        chrome.storage.local.get(key, function(d) {
+            var cached = d[key];
             if (cached && cached.scannedAt && (Date.now() - cached.scannedAt) < CACHE_TTL) {
-                // Cache válido — pula se mesma path
-                if (cached.path === currentPath) {
-                    console.log(TAG, 'Cache válido, pulando scan (' + cached.fieldCount + ' elementos)');
-                    return;
+                console.log(TAG, 'Cache válido para', path, '(' + cached.fieldCount + ' elementos)');
+                _scannedPaths[path] = true;
+                return;
+            }
+            currentPath = path;
+            cacheKey = key;
+            runFullScan();
+            _scannedPaths[path] = true;
+        });
+    }
+
+    // ========================================================================
+    // CONTINUOUS WATCHER — Escaneia automaticamente ao navegar (SPA)
+    // ========================================================================
+    function onNavigationChange() {
+        var newPath = window.location.pathname + window.location.hash;
+        if (newPath === currentPath) return;
+        console.log(TAG, '🔄 Navegação detectada:', currentPath, '→', newPath);
+        currentPath = newPath;
+
+        // Debounce: espera 3s pra Angular terminar de renderizar
+        clearTimeout(_scanDebounce);
+        _scanDebounce = setTimeout(function() {
+            checkAndScan(currentPath);
+        }, SCAN_DELAY);
+    }
+
+    // 1. Hash change (SPA Angular — Skychart usa /#/app/xxx)
+    window.addEventListener('hashchange', onNavigationChange);
+
+    // 2. popstate (History API)
+    window.addEventListener('popstate', onNavigationChange);
+
+    // 3. MutationObserver (Angular re-renders sem mudar hash às vezes)
+    if (document.body) {
+        var _navObserver = new MutationObserver(function(mutations) {
+            var bigChange = false;
+            for (var i = 0; i < mutations.length; i++) {
+                if (mutations[i].addedNodes.length > 5 || mutations[i].removedNodes.length > 5) {
+                    bigChange = true;
+                    break;
                 }
             }
-            runFullScan();
+            if (bigChange) {
+                var newPath = window.location.pathname + window.location.hash;
+                if (newPath !== currentPath) {
+                    onNavigationChange();
+                }
+            }
         });
-    }, SCAN_DELAY);
+        _navObserver.observe(document.body, { childList: true, subtree: true });
+    }
+
+    console.log(TAG, '👁️ Watcher contínuo ativo — escaneando cada seção automaticamente');
 
     // Scan sob demanda
     chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
