@@ -380,7 +380,7 @@
             var el;
 
             // 1. Selector direto — mas VALIDA texto (td.undefined pega qualquer td)
-            if (selector) {
+            if (selector && selector.indexOf('undefined') < 0) { // Skip selectors com 'undefined' (Angular lixo)
                 try {
                     el = document.querySelector(selector);
                     if (el && isVisible(el)) {
@@ -400,19 +400,52 @@
                 } catch(e) {}
             }
 
-            // 2. getElementById (pra items com ID)
+            // 2. getElementById — MAS pula se está dentro de nav/sidebar (evita duplicatas)
             if (text) {
                 el = document.getElementById(text);
-                if (el && isVisible(el)) return el;
+                if (el && isVisible(el)) {
+                    // Se NÃO é um item de menu/sidebar, usa direto
+                    var isInNav = el.closest('[class*="menu"], [class*="sidebar"], [role="navigation"], .layout-sidebar, .layout-menu');
+                    if (!isInNav) {
+                        return el;
+                    }
+                    // Se É da sidebar, só usa se não achamos nada melhor no content
+                    var contentEl = findByTextInContent(text);
+                    if (contentEl) {
+                        console.log(TAG, '⚡ Preferindo elemento do conteúdo sobre sidebar');
+                        return contentEl;
+                    }
+                    // Fallback: usa o da sidebar mesmo
+                    return el;
+                }
             }
 
-            // 3. Texto em QUALQUER elemento visível (pra td/span sem ID)
+            // 3. Texto em QUALQUER elemento visível — prioriza content area
             if (text && text.length > 1) {
                 el = findByTextUniversal(text);
                 if (el) return el;
             }
 
             await delay(500);
+        }
+        return null;
+    }
+
+    // Busca texto APENAS na área de conteúdo principal (fora sidebar/nav)
+    function findByTextInContent(text) {
+        var search = text.trim().toLowerCase();
+        var tags = ['TD', 'SPAN', 'LI', 'DIV', 'LABEL'];
+        var contentArea = document.querySelector('.layout-main, [class*="content"], main, [role="main"]');
+        var scope = contentArea || document.body;
+
+        for (var t = 0; t < tags.length; t++) {
+            var els = scope.querySelectorAll(tags[t]);
+            for (var i = 0; i < els.length; i++) {
+                if (!isVisible(els[i])) continue;
+                if (els[i].closest('#atom-widget, #atom-replay-indicator, #atom-modal-overlay')) continue;
+                var et = (els[i].textContent || '').trim().toLowerCase();
+                if (et === search) return els[i];
+            }
         }
         return null;
     }
