@@ -817,10 +817,11 @@
         console.log(TAG, '⚡ Executando XLSX filter:', task.rule);
         showIndicator(true, '⚡ Aguardando download...');
 
-        // Espera o download mais recente (até 15s)
+        // Espera o download mais recente (até 120s — arquivos pesados)
         var blob = null;
         var attempts = 0;
-        while (!blob && attempts < 30) {
+        var MAX_WAIT = 120; // 120 tentativas x 1s = 2 minutos
+        while (!blob && attempts < MAX_WAIT) {
             // Verifica se tem blob capturado pelo interceptor
             if (window._atomLastDownloadBlob) {
                 blob = window._atomLastDownloadBlob;
@@ -839,7 +840,10 @@
                 }
             }
             if (!blob) {
-                await delay(500);
+                if (attempts % 5 === 0) {
+                    showIndicator(true, '⚡ Aguardando download... ' + attempts + 's');
+                }
+                await delay(1000);
                 attempts++;
             }
         }

@@ -1115,6 +1115,7 @@
                 if (href.indexOf('blob:') === 0) {
                     fetch(href).then(function(r) { return r.blob(); }).then(function(b) {
                         _lastDownloadBlob = b;
+                        window._atomLastDownloadBlob = b; // Expor pro executor
                         console.log(TAG, '📥 Blob capturado:', b.size, 'bytes');
                     }).catch(function() {});
                 }
@@ -1141,6 +1142,7 @@
                 console.log(TAG, '📥 Blob URL criado:', blob.size, 'bytes, type:', blob.type);
                 _lastDownloadBlob = blob;
                 _lastDownloadUrl = url;
+                window._atomLastDownloadBlob = blob; // Expor pro executor
             }
             return url;
         };
