@@ -84,6 +84,28 @@
                 if (result.reasoning) {
                     console.log(TAG, '🧠 Raciocínio:', result.reasoning);
                 }
+
+                // USA elementFromPoint — pega o DOM REAL e clica nativamente
+                // (VisionAgent.act usa debugger que Angular IGNORA)
+                var domEl = document.elementFromPoint(result.x, result.y);
+                if (domEl) {
+                    console.log(TAG, '🧠 DOM element:', domEl.tagName, domEl.textContent.substring(0, 30));
+                    // Sobe pra ancestral clicável se necessário
+                    var clickTarget = domEl.closest('a, button, td, span[class*="clickable"], [role="treeitem"], [role="menuitem"], li') || domEl;
+                    highlight(clickTarget);
+                    // Dispara click nativo + MouseEvent (Angular precisa)
+                    clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                    clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                    clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                    clickTarget.click();
+                    console.log(TAG, '🧠 Click NATIVO disparado em:', clickTarget.tagName, clickTarget.textContent.substring(0, 30));
+                    result._clickedElement = clickTarget;
+                } else {
+                    // Fallback: VisionAgent.act (debugger)
+                    console.log(TAG, '🧠 elementFromPoint falhou, usando VisionAgent.act');
+                    await VisionAgent.act({ type: 'click', x: result.x, y: result.y });
+                }
+
                 return result;
             }
             console.log(TAG, '🧠 Gemini não encontrou elemento');
@@ -437,7 +459,6 @@
                     'Buscando na tree de navegação/menu da página. O elemento pode estar dentro de um submenu que precisa ser expandido.'
                 );
                 if (resolved) {
-                    await VisionAgent.act({ type: 'click', x: resolved.x, y: resolved.y });
                     await waitForMutation(2000);
                     logExecution('🧠', 'Gemini resolveu: ' + desc + ' → ' + (resolved.reasoning || ''));
                     console.log(TAG, '✅ Gemini resolveu:', desc);
@@ -511,17 +532,19 @@
         return null;
     }
 
-    // Busca texto APENAS na área de conteúdo principal (fora sidebar/nav)
+    // Busca texto FORA do sidebar/menu (na área de conteúdo)
     function findByTextInContent(text) {
         var search = text.trim().toLowerCase();
-        var tags = ['TD', 'SPAN', 'LI', 'DIV', 'LABEL'];
-        var contentArea = document.querySelector('.layout-main, [class*="content"], main, [role="main"]');
-        var scope = contentArea || document.body;
+        var tags = ['TD', 'SPAN', 'LI', 'DIV', 'LABEL', 'A'];
+        var SIDEBAR_SELECTORS = '.layout-sidebar, .layout-menu, [role="navigation"], nav, .ui-panelmenu';
 
         for (var t = 0; t < tags.length; t++) {
-            var els = scope.querySelectorAll(tags[t]);
+            var els = document.querySelectorAll(tags[t]);
             for (var i = 0; i < els.length; i++) {
                 if (!isVisible(els[i])) continue;
+                // EXCLUI sidebar/nav/menu
+                if (els[i].closest(SIDEBAR_SELECTORS)) continue;
+                // EXCLUI nossos widgets
                 if (els[i].closest('#atom-widget, #atom-replay-indicator, #atom-modal-overlay')) continue;
                 var et = (els[i].textContent || '').trim().toLowerCase();
                 if (et === search) return els[i];
@@ -774,7 +797,6 @@
             'Seletor tentado: ' + (task.selector || 'nenhum') + '. TagName esperado: ' + (task.tagName || 'desconhecido')
         );
         if (resolved) {
-            await VisionAgent.act({ type: 'click', x: resolved.x, y: resolved.y });
             logExecution('🧠', 'Gemini resolveu action: ' + (resolved.text || task.text));
             return true;
         }
