@@ -24,11 +24,87 @@
     var currentStep = 0;
     var totalSteps = 0;
     var _visionCalls = 0;
-    var MAX_VISION_CALLS = 2; // Limite de chamadas Vision por workflow (custo API)
+    var MAX_VISION_CALLS = 5; // Aumentado — Gemini é parte do fluxo, não fallback
     var _consecutiveFails = 0;
-    var MAX_CONSECUTIVE_FAILS = 2; // Aborta se 2 steps falharem seguidos
+    var MAX_CONSECUTIVE_FAILS = 3; // Mais tolerante com Gemini ajudando
+    var _executionLog = []; // Histórico de execução pra contexto Gemini
+    var _workflowLabel = ''; // Nome do workflow pra contexto
+    var _allPlanSteps = []; // Todos os steps do plano pra contexto
 
-    console.log(TAG, 'v7 Carregado (verified navigation)');
+    console.log(TAG, 'v8 Carregado (Gemini decision engine)');
+
+    // ========================================================================
+    // GEMINI RESOLVE — Resolve qualquer falha/ambiguidade com contexto
+    // ========================================================================
+    async function geminiResolve(task, reason, extraContext) {
+        if (typeof VisionAgent === 'undefined') {
+            console.error(TAG, '🧠 VisionAgent não disponível');
+            return null;
+        }
+        if (_visionCalls >= MAX_VISION_CALLS) {
+            console.warn(TAG, '🧠 Limite de chamadas Gemini atingido');
+            return null;
+        }
+        _visionCalls++;
+
+        // Monta contexto rico
+        var lastSteps = _executionLog.slice(-5).map(function(l) {
+            return l.status + ': ' + l.description;
+        }).join('\n');
+
+        var nextSteps = '';
+        var currentIdx = _allPlanSteps.indexOf(task);
+        if (currentIdx >= 0) {
+            nextSteps = _allPlanSteps.slice(currentIdx + 1, currentIdx + 3).map(function(s) {
+                return s.type + ': ' + (s.text || s.value || s.rule || '');
+            }).join(' → ');
+        }
+
+        var prompt = 'CONTEXTO DO WORKFLOW:\n' +
+            'Workflow: "' + _workflowLabel + '"\n' +
+            'URL atual: ' + window.location.href + '\n' +
+            'Step atual: ' + currentStep + '/' + totalSteps + '\n\n' +
+            'HISTÓRICO (últimos steps):\n' + (lastSteps || 'nenhum') + '\n\n' +
+            'OBJETIVO AGORA: ' + (task.text || task.value || task.rule || task.selector || 'ação') + '\n' +
+            'TIPO: ' + task.type + '\n' +
+            'PROBLEMA: ' + reason + '\n' +
+            (extraContext ? 'INFO EXTRA: ' + extraContext + '\n' : '') +
+            (nextSteps ? 'PRÓXIMOS STEPS: ' + nextSteps + '\n' : '') +
+            '\nANALISE O SCREENSHOT e encontre o elemento correto.\n' +
+            'Responda APENAS com JSON: {"found": true/false, "x": coordX_centro, "y": coordY_centro, ' +
+            '"type": "button"|"input"|"link"|"text", "text": "texto do elemento", ' +
+            '"reasoning": "por que este elemento é o correto"}';
+
+        console.log(TAG, '🧠 Gemini resolve (' + _visionCalls + '/' + MAX_VISION_CALLS + '):', reason);
+
+        try {
+            var result = await VisionAgent.see(prompt);
+            if (result && result.found && result.x && result.y) {
+                console.log(TAG, '🧠 Gemini encontrou:', result.text, 'em', result.x + ',' + result.y);
+                if (result.reasoning) {
+                    console.log(TAG, '🧠 Raciocínio:', result.reasoning);
+                }
+                return result;
+            }
+            console.log(TAG, '🧠 Gemini não encontrou elemento');
+            return null;
+        } catch(e) {
+            console.error(TAG, '🧠 Gemini erro:', e.message);
+            return null;
+        }
+    }
+
+    // Registra no log de execução
+    function logExecution(status, description) {
+        _executionLog.push({
+            step: currentStep,
+            status: status, // ✅ ❌ ⚠️ 🧠
+            description: description,
+            timestamp: Date.now()
+        });
+        // Mantém só os últimos 20
+        if (_executionLog.length > 20) _executionLog.shift();
+    }
 
     // ========================================================================
     // CONTROLE
@@ -86,6 +162,8 @@
 
             // Agrupa em plano de alto nível
             var plan = buildPlan(actions, params);
+            _allPlanSteps = plan; // Salva pra contexto Gemini
+            _workflowLabel = label; // Salva pra contexto
             console.log(TAG, '📋 Plano:', plan.length, 'tarefas');
 
             // Se resuming, pula tasks até o startFrom
@@ -350,20 +428,22 @@
             }
 
             if (!clicked) {
-                console.error(TAG, '❌', currentStep, 'FALHOU após', maxRetries, 'tentativas');
-                // Tenta Gemini Vision como último recurso
-                if (typeof VisionAgent !== 'undefined' && _visionCalls < MAX_VISION_CALLS) {
-                    _visionCalls++;
-                    console.log(TAG, '🤖 Gemini Vision fallback (' + _visionCalls + '/' + MAX_VISION_CALLS + ')...');
-                    try {
-                        var vr = await VisionAgent.findElement('Encontre o item de menu "' + desc + '" na tela');
-                        if (vr && vr.found && vr.x && vr.y) {
-                            await VisionAgent.act({ type: 'click', x: vr.x, y: vr.y });
-                            await waitForMutation(2000);
-                            console.log(TAG, '✅ Gemini clickou:', desc);
-                        }
-                    } catch(e) { console.error(TAG, 'Gemini erro:', e.message); }
+                logExecution('❌', 'nav falhou: ' + desc);
+                console.error(TAG, '❌', currentStep, 'FALHOU após', maxRetries, 'tentativas — chamando Gemini');
+                // Gemini decision engine com contexto completo
+                var resolved = await geminiResolve(
+                    step, 
+                    'Não encontrei o item "' + desc + '" após ' + maxRetries + ' tentativas. Seletores CSS e busca por texto falharam.',
+                    'Buscando na tree de navegação/menu da página. O elemento pode estar dentro de um submenu que precisa ser expandido.'
+                );
+                if (resolved) {
+                    await VisionAgent.act({ type: 'click', x: resolved.x, y: resolved.y });
+                    await waitForMutation(2000);
+                    logExecution('🧠', 'Gemini resolveu: ' + desc + ' → ' + (resolved.reasoning || ''));
+                    console.log(TAG, '✅ Gemini resolveu:', desc);
                 }
+            } else {
+                logExecution('✅', 'nav ok: ' + desc);
             }
 
             // Delay entre nav steps
@@ -682,20 +762,24 @@
         if (el) {
             highlight(el);
             el.click();
+            logExecution('✅', 'action ok: ' + (task.text || task.selector));
             return true;
         }
 
-        // Gemini Vision
-        if (typeof VisionAgent !== 'undefined' && task.text) {
-            try {
-                var vr = await VisionAgent.findElement('Encontre o botão "' + task.text + '"');
-                if (vr && vr.found && vr.x && vr.y) {
-                    await VisionAgent.act({ type: 'click', x: vr.x, y: vr.y });
-                    return true;
-                }
-            } catch(e) {}
+        // Gemini decision engine
+        logExecution('⚠️', 'action não encontrada: ' + (task.text || task.selector));
+        var resolved = await geminiResolve(
+            task,
+            'Não encontrei o botão/ação "' + (task.text || '') + '" por seletor nem por texto visível.',
+            'Seletor tentado: ' + (task.selector || 'nenhum') + '. TagName esperado: ' + (task.tagName || 'desconhecido')
+        );
+        if (resolved) {
+            await VisionAgent.act({ type: 'click', x: resolved.x, y: resolved.y });
+            logExecution('🧠', 'Gemini resolveu action: ' + (resolved.text || task.text));
+            return true;
         }
 
+        logExecution('❌', 'action falhou definitivo: ' + (task.text || task.selector));
         return false;
     }
 
